@@ -9,8 +9,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        accent: "#80020E",
+        "accent-hover": "#6b010c",
+        "accent-light": "#fdf0f0",
+        surface: "#f8f8f8",
+        border: "#eaeaea",
+        "text-primary": "#111111",
+        "text-secondary": "#555555",
+        "text-tertiary": "#999999",
+      },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
       },
     },
   },

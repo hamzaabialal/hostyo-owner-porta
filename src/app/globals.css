@@ -1,27 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light only;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #f8f8f8;
+  color: #111;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #bbb; }
+
+/* ── Status Pills ── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.pill-paid       { color: #2F6B57; background: #EAF3EF; border-color: #D6E7DE; }
+.pill-pending    { color: #8A6A2E; background: #F6F1E6; border-color: #E8DDC7; }
+.pill-upcoming   { color: #5E6673; background: #EEF1F5; border-color: #DDE3EA; }
+.pill-onhold     { color: #8A5A2E; background: #F7EEE6; border-color: #E9D9C7; }
+.pill-cancelled  { color: #7A5252; background: #F6EDED; border-color: #E8D8D8; }
+.pill-completed  { color: #4D625A; background: #EDF3F0; border-color: #DBE6E0; }
+.pill-inhouse    { color: #2F6B57; background: #EAF3EF; border-color: #D6E7DE; }
+.pill-adjusted   { color: #5E6673; background: #EEF1F5; border-color: #DDE3EA; }
+.pill-submitted  { color: #5E6673; background: #EEF1F5; border-color: #DDE3EA; }
+.pill-approved   { color: #2F6B57; background: #EAF3EF; border-color: #D6E7DE; }
+.pill-rejected   { color: #7A5252; background: #F6EDED; border-color: #E8D8D8; }
+.pill-scheduled  { color: #5E6673; background: #EEF1F5; border-color: #DDE3EA; }
+
+/* ── Custom Dropdowns ── */
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  z-index: 100;
+  min-width: 100%;
+}
+
+.dropdown-panel::-webkit-scrollbar { width: 5px; }
+.dropdown-panel::-webkit-scrollbar-track { background: transparent; margin: 4px 0; }
+.dropdown-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+.dropdown-panel::-webkit-scrollbar-thumb:hover { background: #bbb; }
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 450;
+  color: #333;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.dropdown-item:hover {
+  background: #f7f7f7;
+}
+
+.dropdown-item.selected {
+  background: #fdf0f0;
+  color: #80020E;
+  font-weight: 550;
+}
+
+.dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 450;
+  color: #333;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  min-width: 0;
+}
+
+.dropdown-trigger:hover {
+  border-color: #ccc;
+}
+
+.dropdown-trigger:focus {
+  outline: none;
+  border-color: #80020E;
+  box-shadow: 0 0 0 2px rgba(128, 2, 14, 0.06);
+}
+
+/* ── Slide-over Drawer ── */
+.drawer-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.2);
+  z-index: 998; opacity: 0; pointer-events: none;
+  transition: opacity 0.25s;
+}
+.drawer-overlay.open { opacity: 1; pointer-events: auto; }
+
+.drawer-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw;
+  background: #fff; z-index: 999;
+  box-shadow: -2px 0 20px rgba(0,0,0,0.06);
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  overflow-y: auto;
+}
+.drawer-panel.open { transform: translateX(0); }
+
+/* ── Toast ── */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: #111; color: #fff; padding: 14px 20px;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  z-index: 9999; transform: translateY(120%); opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.3s;
+  max-width: 320px;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.toast-msg { font-size: 13px; color: #a1a1aa; }
+
+/* ── OTA Channel Logos ── */
+.channel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 450;
+  color: #444;
+}
+
+.channel-badge img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
