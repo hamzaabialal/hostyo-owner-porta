@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/AppShell";
+import FilterDropdown from "@/components/FilterDropdown";
 
 /* ================================================================
    Types
@@ -394,27 +395,19 @@ export default function ExpensesPage() {
 
       {/* ── Filter Bar ── */}
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <select
+        <FilterDropdown
           value={filterProperty}
-          onChange={(e) => setFilterProperty(e.target.value)}
-          className="h-9 pl-3 pr-8 border border-[#ddd] rounded-lg text-[13px] text-[#333] bg-white cursor-pointer appearance-none min-w-[160px] bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2710%27%20height%3D%276%27%3E%3Cpath%20d%3D%27M0%200l5%206%205-6z%27%20fill%3D%27%23999%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_10px_center]"
-        >
-          <option value="">All Properties</option>
-          {properties.map((p) => (
-            <option key={p}>{p}</option>
-          ))}
-        </select>
+          onChange={setFilterProperty}
+          placeholder="All Properties"
+          options={properties.map((p) => ({ value: p, label: p }))}
+        />
 
-        <select
+        <FilterDropdown
           value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="h-9 pl-3 pr-8 border border-[#ddd] rounded-lg text-[13px] text-[#333] bg-white cursor-pointer appearance-none min-w-[160px] bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2710%27%20height%3D%276%27%3E%3Cpath%20d%3D%27M0%200l5%206%205-6z%27%20fill%3D%27%23999%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_10px_center]"
-        >
-          <option value="">All Statuses</option>
-          {statuses.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+          onChange={setFilterStatus}
+          placeholder="All Statuses"
+          options={statuses.map((s) => ({ value: s, label: s }))}
+        />
 
         <div className="relative">
           <svg
