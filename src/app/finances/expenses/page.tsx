@@ -50,8 +50,6 @@ const pillClass = (s: string) => {
 
 const groupTabs = ["All Expenses", "By Property", "By Category", "By Vendor", "By Status"] as const;
 
-const properties = ["The Kensington Residence", "Villa Serena", "Mayfair Studio"];
-const statuses = ["Submitted", "Approved", "Pending", "Rejected"];
 
 /* ================================================================
    SVG Icons (inline)

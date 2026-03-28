@@ -507,7 +507,7 @@ function PropertiesPageInner() {
     if (searchParams.get("add") === "1") setWizardOpen(true);
   }, [searchParams]);
 
-  const { fetchData, invalidate: invalidateCache } = useData();
+  const { fetchData } = useData();
 
   const fetchProperties = useCallback(() => {
     setLoading(true);
