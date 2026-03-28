@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
+import AddPropertyWizardComponent from "@/components/AddPropertyWizard";
 import FilterDropdown from "@/components/FilterDropdown";
 import ChannelBadge from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
@@ -39,6 +40,14 @@ interface Property {
   listingId: number;
   googleDrive: string;
   skipAutomation: boolean;
+  propertyType: string;
+  bedrooms: number;
+  bathrooms: number;
+  maxGuests: number;
+  bedTypes: string;
+  internalNotes: string;
+  features: string;
+  condition: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -148,6 +157,11 @@ function PropertyDrawer({ property: p, onClose }: { property: Property; onClose:
           {/* Property Details */}
           <div className="mb-6">
             <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wide mb-3">Property Details</div>
+            <InfoRow label="Type" value={p.propertyType} />
+            <InfoRow label="Bedrooms" value={p.bedrooms || ""} />
+            <InfoRow label="Bathrooms" value={p.bathrooms || ""} />
+            <InfoRow label="Max Guests" value={p.maxGuests || ""} />
+            <InfoRow label="Bed Types" value={p.bedTypes} />
             <InfoRow label="Property ID" value={p.property} />
             <InfoRow label="Listing ID" value={p.listingId} />
             <InfoRow label="Price" value={p.price ? `€${p.price}` : ""} />
@@ -156,6 +170,16 @@ function PropertyDrawer({ property: p, onClose }: { property: Property; onClose:
             <InfoRow label="License" value={p.license} />
             <InfoRow label="Skip Automation" value={p.skipAutomation} />
           </div>
+
+          {/* Notes */}
+          {(p.condition || p.features || p.internalNotes) && (
+            <div className="mb-6">
+              <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wide mb-3">Notes</div>
+              <InfoRow label="Condition" value={p.condition} />
+              <InfoRow label="Features" value={p.features} />
+              <InfoRow label="Internal Notes" value={p.internalNotes} />
+            </div>
+          )}
 
           {/* Channels */}
           {p.connectedChannels.length > 0 && (
@@ -185,215 +209,10 @@ function PropertyDrawer({ property: p, onClose }: { property: Property; onClose:
 }
 
 /* ------------------------------------------------------------------ */
-/*  Add Property Wizard                                                */
+/*  Add Property Wizard (uses imported component)                      */
 /* ------------------------------------------------------------------ */
-function AddPropertyWizard({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [step, setStep] = useState(0);
+const AddPropertyWizard = AddPropertyWizardComponent;
 
-  const [form, setForm] = useState({
-    name: "", status: "In Review",
-    address: "", postcode: "", city: "", country: "", location: "",
-    client: "", firstName: "", lastName: "", email: "", phone: "", iban: "",
-    counterpartyId: "", license: "", price: 0, cleaningFee: 0,
-    accessCode: "", connectedChannels: [] as string[], checkInGuide: "",
-    photos: "", property: "", ical: "", listingId: 0, googleDrive: "",
-    skipAutomation: false,
-  });
-
-  const set = (key: string, val: string | number | boolean | string[]) =>
-    setForm((f) => ({ ...f, [key]: val }));
-
-  const toggleChannel = (ch: string) => {
-    setForm((f) => ({
-      ...f,
-      connectedChannels: f.connectedChannels.includes(ch)
-        ? f.connectedChannels.filter((c) => c !== ch)
-        : [...f.connectedChannels, ch],
-    }));
-  };
-
-  const STEPS = ["Basic Info", "Location", "Owner Details", "Operations"];
-
-  const inputCls = "w-full h-[42px] px-3.5 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors";
-  const labelCls = "text-[13px] font-medium text-[#555] mb-1.5 block";
-
-  const handleSubmit = async () => {
-    if (!form.name.trim()) { setError("Property name is required."); return; }
-    setSaving(true);
-    setError("");
-    try {
-      const res = await fetch("/api/properties", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save");
-      onSaved();
-      onClose();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to save property");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
-  const channels = ["Airbnb", "Booking.com", "Direct Booking Website", "Expedia"];
-
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/30 z-[200]" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 w-full max-w-[560px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-[201] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 h-[60px] border-b border-[#eaeaea] flex-shrink-0">
-          <div>
-            <div className="text-[15px] font-semibold text-[#111]">Add Property</div>
-            <div className="text-[11px] text-[#aaa]">Step {step + 1} of {STEPS.length} — {STEPS[step]}</div>
-          </div>
-          <button onClick={onClose} className="p-2 text-[#999] hover:text-[#555] transition-colors">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
-        {/* Progress */}
-        <div className="flex gap-1.5 px-6 pt-4 pb-1">
-          {STEPS.map((_, i) => (
-            <div key={i} className={`h-[3px] flex-1 rounded-full transition-colors ${i <= step ? "bg-accent" : "bg-[#eaeaea]"}`} />
-          ))}
-        </div>
-        <div className="flex gap-1.5 px-6 pb-4">
-          {STEPS.map((s, i) => (
-            <div key={s} className={`flex-1 text-[10px] font-medium ${i <= step ? "text-accent" : "text-[#ccc]"}`}>{s}</div>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {error && (
-            <div className="mb-4 px-4 py-2.5 rounded-lg bg-[#fdf0f0] border border-[#e8d8d8] text-[13px] text-[#7A5252]">{error}</div>
-          )}
-
-          {step === 0 && (
-            <div className="space-y-4">
-              <div className="text-[15px] font-semibold text-[#111] mb-1">Basic information</div>
-              <div><label className={labelCls}>Property Name *</label><input type="text" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Cosy Central Apartment" className={inputCls} /></div>
-              <div><label className={labelCls}>Property ID</label><input type="text" value={form.property} onChange={(e) => set("property", e.target.value)} placeholder="Internal property reference" className={inputCls} /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className={labelCls}>Price (€/night)</label><input type="number" value={form.price || ""} onChange={(e) => set("price", Number(e.target.value))} placeholder="0" className={inputCls} /></div>
-                <div><label className={labelCls}>Cleaning Fee (€)</label><input type="number" value={form.cleaningFee || ""} onChange={(e) => set("cleaningFee", Number(e.target.value))} placeholder="0" className={inputCls} /></div>
-              </div>
-              <div>
-                <label className={labelCls}>Connected Channels</label>
-                <div className="flex flex-wrap gap-2">
-                  {channels.map((ch) => (
-                    <button
-                      key={ch}
-                      onClick={() => toggleChannel(ch)}
-                      className={`px-3 py-1.5 rounded-lg border text-[12px] font-medium transition-all ${
-                        form.connectedChannels.includes(ch)
-                          ? "border-accent bg-[#fdf5f5] text-accent"
-                          : "border-[#ddd] text-[#888] hover:border-[#aaa]"
-                      }`}
-                    >
-                      {ch}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div><label className={labelCls}>Photos URL</label><input type="text" value={form.photos} onChange={(e) => set("photos", e.target.value)} placeholder="Link to photos folder" className={inputCls} /></div>
-            </div>
-          )}
-
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="text-[15px] font-semibold text-[#111] mb-1">Location & Address</div>
-              <div><label className={labelCls}>Street Address</label><input type="text" value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="e.g. 42 Main Street, Flat 3" className={inputCls} /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className={labelCls}>City</label><input type="text" value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="e.g. Nicosia" className={inputCls} /></div>
-                <div><label className={labelCls}>Postcode</label><input type="text" value={form.postcode} onChange={(e) => set("postcode", e.target.value)} placeholder="e.g. 1061" className={inputCls} /></div>
-              </div>
-              <div><label className={labelCls}>Country</label><input type="text" value={form.country} onChange={(e) => set("country", e.target.value)} placeholder="e.g. Cyprus" className={inputCls} /></div>
-              <div><label className={labelCls}>Location / Area</label><input type="text" value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="e.g. City Centre" className={inputCls} /></div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-4">
-              <div className="text-[15px] font-semibold text-[#111] mb-1">Owner / Client Details</div>
-              <div><label className={labelCls}>Client Name</label><input type="text" value={form.client} onChange={(e) => set("client", e.target.value)} placeholder="e.g. John Doe" className={inputCls} /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className={labelCls}>First Name</label><input type="text" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} className={inputCls} /></div>
-                <div><label className={labelCls}>Last Name</label><input type="text" value={form.lastName} onChange={(e) => set("lastName", e.target.value)} className={inputCls} /></div>
-              </div>
-              <div><label className={labelCls}>Email</label><input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="owner@example.com" className={inputCls} /></div>
-              <div><label className={labelCls}>Phone</label><input type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+357 99 123456" className={inputCls} /></div>
-              <div><label className={labelCls}>IBAN</label><input type="text" value={form.iban} onChange={(e) => set("iban", e.target.value)} placeholder="CY12 3456 7890 ..." className={inputCls} /></div>
-              <div><label className={labelCls}>Counterparty ID</label><input type="text" value={form.counterpartyId} onChange={(e) => set("counterpartyId", e.target.value)} className={inputCls} /></div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-4">
-              <div className="text-[15px] font-semibold text-[#111] mb-1">Operations & Links</div>
-              <div><label className={labelCls}>Access Code</label><input type="text" value={form.accessCode} onChange={(e) => set("accessCode", e.target.value)} placeholder="e.g. 6740" className={inputCls} /></div>
-              <div><label className={labelCls}>License</label><input type="text" value={form.license} onChange={(e) => set("license", e.target.value)} placeholder="License status" className={inputCls} /></div>
-              <div><label className={labelCls}>Check-In Guide URL</label><input type="url" value={form.checkInGuide} onChange={(e) => set("checkInGuide", e.target.value)} placeholder="https://..." className={inputCls} /></div>
-              <div><label className={labelCls}>iCal Link</label><input type="text" value={form.ical} onChange={(e) => set("ical", e.target.value)} placeholder="https://..." className={inputCls} /></div>
-              <div><label className={labelCls}>Google Drive</label><input type="text" value={form.googleDrive} onChange={(e) => set("googleDrive", e.target.value)} placeholder="Google Drive folder URL" className={inputCls} /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className={labelCls}>Listing ID</label><input type="number" value={form.listingId || ""} onChange={(e) => set("listingId", Number(e.target.value))} className={inputCls} /></div>
-                <div className="flex items-center gap-3 pt-6">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={form.skipAutomation}
-                    onClick={() => set("skipAutomation", !form.skipAutomation)}
-                    className={`relative inline-flex h-[22px] w-[40px] shrink-0 cursor-pointer rounded-full transition-colors ${form.skipAutomation ? "bg-[#80020E]" : "bg-[#ddd]"}`}
-                  >
-                    <span className={`pointer-events-none inline-block h-[16px] w-[16px] translate-y-[3px] rounded-full bg-white shadow transition-transform ${form.skipAutomation ? "translate-x-[21px]" : "translate-x-[3px]"}`} />
-                  </button>
-                  <span className="text-[13px] text-[#555]">Skip Automation</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[#eaeaea] flex-shrink-0">
-          <div>
-            {step > 0 ? (
-              <button onClick={() => setStep(step - 1)} className="px-4 py-2 text-[13px] font-medium text-[#555] hover:text-[#111]">Back</button>
-            ) : (
-              <button onClick={onClose} className="px-4 py-2 text-[13px] font-medium text-[#888] hover:text-[#555]">Cancel</button>
-            )}
-          </div>
-          <div>
-            {step < 3 ? (
-              <button onClick={() => setStep(step + 1)} className="px-5 py-2.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover transition-colors">Continue</button>
-            ) : (
-              <button onClick={handleSubmit} disabled={saving} className="px-5 py-2.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover transition-colors disabled:opacity-60">
-                {saving ? "Saving to Notion..." : "Submit Property"}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /*  Grid Card                                                          */
 /* ------------------------------------------------------------------ */
 function PropertyCard({ property: p, onClick }: { property: Property; onClick: () => void }) {
@@ -409,14 +228,26 @@ function PropertyCard({ property: p, onClick }: { property: Property; onClick: (
         <div className="absolute top-3 left-3"><span className={statusPillClass(p.status)}>{p.status}</span></div>
       </div>
       <div className="p-4">
-        <div className="text-[15px] font-semibold text-[#111] mb-1 truncate">{p.name || "Untitled"}</div>
-        <div className="text-[13px] text-[#888] mb-3 truncate">{displayLocation}</div>
+        <div className="text-[15px] font-semibold text-[#111] mb-0.5 truncate">{p.name || "Untitled"}</div>
+        <div className="text-[12px] text-[#888] mb-2 truncate">{displayLocation}</div>
+        {/* Type + Capacity row */}
+        <div className="flex items-center gap-2 text-[11px] text-[#999] mb-2.5">
+          {p.propertyType && <span className="bg-[#f5f5f5] px-2 py-0.5 rounded font-medium text-[#666]">{p.propertyType}</span>}
+          {p.bedrooms > 0 && <span>{p.bedrooms} bed{p.bedrooms !== 1 ? "s" : ""}</span>}
+          {p.bathrooms > 0 && <><span className="text-[#ddd]">&middot;</span><span>{p.bathrooms} bath{p.bathrooms !== 1 ? "s" : ""}</span></>}
+          {p.maxGuests > 0 && <><span className="text-[#ddd]">&middot;</span><span>{p.maxGuests} guest{p.maxGuests !== 1 ? "s" : ""}</span></>}
+        </div>
+        {/* Channels + price */}
         <div className="flex items-center gap-2 flex-wrap">
           {p.connectedChannels.slice(0, 3).map((ch) => (
             <ChannelBadge key={ch} channel={ch} compact />
           ))}
           {p.price > 0 && <span className="ml-auto text-[12px] font-semibold text-[#111]">€{p.price}/night</span>}
         </div>
+        {/* Draft resume action */}
+        {p.status === "Draft" && (
+          <div className="mt-2.5 text-[11px] font-medium text-accent">Continue setup →</div>
+        )}
       </div>
     </button>
   );
@@ -438,7 +269,15 @@ function PropertyRow({ property: p, onClick }: { property: Property; onClick: ()
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[14px] font-semibold text-[#111] truncate">{p.name || "Untitled"}</div>
-        <div className="text-[12px] text-[#888] mt-0.5">{displayLocation}</div>
+        <div className="text-[12px] text-[#888] mt-0.5 flex items-center gap-1.5">
+          <span>{displayLocation}</span>
+          {p.propertyType && <><span className="text-[#ddd]">&middot;</span><span>{p.propertyType}</span></>}
+        </div>
+      </div>
+      <div className="hidden lg:flex items-center gap-3 text-[12px] text-[#777] flex-shrink-0">
+        {p.bedrooms > 0 && <span>{p.bedrooms} bed{p.bedrooms !== 1 ? "s" : ""}</span>}
+        {p.bathrooms > 0 && <span>{p.bathrooms} bath{p.bathrooms !== 1 ? "s" : ""}</span>}
+        {p.maxGuests > 0 && <span>{p.maxGuests} guest{p.maxGuests !== 1 ? "s" : ""}</span>}
       </div>
       <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
         {p.connectedChannels.slice(0, 2).map((ch) => (<ChannelBadge key={ch} channel={ch} compact />))}
@@ -479,6 +318,7 @@ function PropertiesPageInner() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterCity, setFilterCity] = useState("");
+  const [filterType, setFilterType] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [topBarFilter, setTopBarFilter] = useState("All Properties");
@@ -530,16 +370,21 @@ function PropertiesPageInner() {
     Array.from(new Set(properties.map((p) => p.city))).filter(Boolean).sort().map((c) => ({ value: c, label: c })),
   [properties]);
 
+  const typeOptions = useMemo(() =>
+    Array.from(new Set(properties.map((p) => p.propertyType))).filter(Boolean).sort().map((t) => ({ value: t, label: t })),
+  [properties]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return properties.filter((p) => {
       if (topBarFilter && topBarFilter !== "All Properties" && p.name !== topBarFilter) return false;
       if (filterStatus && p.status !== filterStatus) return false;
       if (filterCity && p.city !== filterCity) return false;
+      if (filterType && p.propertyType !== filterType) return false;
       if (q && !p.name.toLowerCase().includes(q) && !p.address.toLowerCase().includes(q) && !p.city.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [properties, topBarFilter, filterStatus, filterCity, search]);
+  }, [properties, topBarFilter, filterStatus, filterCity, filterType, search]);
 
   if (loading) {
     return (
@@ -563,6 +408,7 @@ function PropertiesPageInner() {
             className="w-full h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
         </div>
         <FilterDropdown value={filterStatus} onChange={setFilterStatus} placeholder="All Statuses" options={statusOptions} />
+        <FilterDropdown value={filterType} onChange={setFilterType} placeholder="All Types" options={typeOptions} />
         <FilterDropdown value={filterCity} onChange={setFilterCity} placeholder="All Cities" options={cityOptions} />
         <div className="flex-1 hidden md:block" />
 
@@ -593,7 +439,7 @@ function PropertiesPageInner() {
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           </div>
           <div className="text-[16px] font-semibold text-[#111] mb-2">No properties yet</div>
-          <div className="text-[13px] text-[#888] max-w-[340px] mb-6 leading-relaxed">Add your first property to start onboarding it into Hostyo.</div>
+          <div className="text-[13px] text-[#888] max-w-[380px] mb-6 leading-relaxed">Add your first property to start onboarding it into Hostyo. You can save your progress as a draft and return at any time.</div>
           <button onClick={() => setWizardOpen(true)} className="flex items-center gap-1.5 px-4 py-2.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover transition-colors">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add property
@@ -601,8 +447,11 @@ function PropertiesPageInner() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-[#f5f5f5] flex items-center justify-center mb-4">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
           <div className="text-[16px] font-semibold text-[#111] mb-2">No properties found</div>
-          <div className="text-[13px] text-[#888]">No properties match your current filters.</div>
+          <div className="text-[13px] text-[#888] max-w-[340px] leading-relaxed">No properties match your current filters. Try adjusting or clearing them.</div>
         </div>
       ) : view === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
