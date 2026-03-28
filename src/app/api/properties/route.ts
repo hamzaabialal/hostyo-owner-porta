@@ -52,6 +52,14 @@ async function fetchProperties() {
       listingId: getProp(p, "Listing ID") || 0,
       googleDrive: getProp(p, "Google Drive") || "",
       skipAutomation: getProp(p, "Skip Automation") || false,
+      propertyType: getProp(p, "Property Type") || "",
+      bedrooms: getProp(p, "Bedrooms") || 0,
+      bathrooms: getProp(p, "Bathrooms") || 0,
+      maxGuests: getProp(p, "Max Guests") || 0,
+      bedTypes: getProp(p, "Bed Types") || "",
+      internalNotes: getProp(p, "Internal Notes") || "",
+      features: getProp(p, "Features") || "",
+      condition: getProp(p, "Condition") || "",
     };
   });
 }
@@ -98,6 +106,10 @@ export async function POST(request: Request) {
       Property: body.property,
       ical: body.ical,
       "Google Drive": body.googleDrive,
+      "Bed Types": body.bedTypes,
+      "Internal Notes": body.internalNotes,
+      "Features": body.features,
+      "Condition": body.condition,
     };
 
     for (const [key, val] of Object.entries(richTextFields)) {
@@ -110,6 +122,7 @@ export async function POST(request: Request) {
     if (body.status) properties.Status = { select: { name: body.status } };
     if (body.city) properties.City = { select: { name: body.city } };
     if (body.country) properties.Country = { select: { name: body.country } };
+    if (body.propertyType) properties["Property Type"] = { select: { name: body.propertyType } };
 
     // Multi-select
     if (body.connectedChannels?.length) {
@@ -122,6 +135,9 @@ export async function POST(request: Request) {
     if (body.price) properties.Price = { number: body.price };
     if (body.cleaningFee) properties["Cleaning Fee"] = { number: body.cleaningFee };
     if (body.listingId) properties["Listing ID"] = { number: body.listingId };
+    if (body.bedrooms) properties.Bedrooms = { number: body.bedrooms };
+    if (body.bathrooms) properties.Bathrooms = { number: body.bathrooms };
+    if (body.maxGuests) properties["Max Guests"] = { number: body.maxGuests };
 
     // Email
     if (body.email) properties.Email = { email: body.email };
