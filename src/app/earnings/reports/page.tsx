@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import FilterDropdown from "@/components/FilterDropdown";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -103,35 +104,34 @@ export default function EarningsReportsPage() {
 
         <div className="grid grid-cols-2 gap-4 mb-5">
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="report-type" className="text-[13px] font-medium text-[#555]">
+            <label className="text-[13px] font-medium text-[#555]">
               Report Type
             </label>
-            <select
-              id="report-type"
+            <FilterDropdown
               value={reportType}
-              onChange={(e) => setReportType(e.target.value)}
-              className="h-10 px-3.5 border border-[#ddd] rounded-lg text-[13px] text-[#333] bg-white appearance-none bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2210%22%20height%3D%226%22%3E%3Cpath%20d%3D%22M0%200l5%206%205-6z%22%20fill%3D%22%23999%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center] pr-8 outline-none focus:border-[#80020E] transition-colors"
-            >
-              <option>Monthly Statement</option>
-              <option>CSV Export</option>
-              <option>Property Report</option>
-            </select>
+              onChange={setReportType}
+              placeholder="Monthly Statement"
+              options={[
+                { value: "Monthly Statement", label: "Monthly Statement" },
+                { value: "CSV Export", label: "CSV Export" },
+                { value: "Property Report", label: "Property Report" },
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="report-property" className="text-[13px] font-medium text-[#555]">
+            <label className="text-[13px] font-medium text-[#555]">
               Property
             </label>
-            <select
-              id="report-property"
+            <FilterDropdown
               value={reportProperty}
-              onChange={(e) => setReportProperty(e.target.value)}
-              className="h-10 px-3.5 border border-[#ddd] rounded-lg text-[13px] text-[#333] bg-white appearance-none bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2210%22%20height%3D%226%22%3E%3Cpath%20d%3D%22M0%200l5%206%205-6z%22%20fill%3D%22%23999%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center] pr-8 outline-none focus:border-[#80020E] transition-colors"
-            >
-              <option>All Properties</option>
-              <option>Kensington</option>
-              <option>Villa Serena</option>
-              <option>Mayfair</option>
-            </select>
+              onChange={setReportProperty}
+              placeholder="All Properties"
+              options={[
+                { value: "Kensington", label: "Kensington" },
+                { value: "Villa Serena", label: "Villa Serena" },
+                { value: "Mayfair", label: "Mayfair" },
+              ]}
+            />
           </div>
         </div>
 

@@ -25,7 +25,7 @@ function EyeClosed() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Toast component                                                    */
+/*  Toast                                                              */
 /* ------------------------------------------------------------------ */
 function Toast({ message, visible }: { message: string; visible: boolean }) {
   return (
@@ -40,7 +40,7 @@ function Toast({ message, visible }: { message: string; visible: boolean }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Toggle switch                                                      */
+/*  Toggle                                                             */
 /* ------------------------------------------------------------------ */
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (
@@ -49,13 +49,13 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
       role="switch"
       aria-checked={checked}
       onClick={onChange}
-      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${
+      className={`relative inline-flex h-[22px] w-[40px] shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${
         checked ? "bg-[#80020E]" : "bg-[#ddd]"
       }`}
     >
       <span
-        className={`pointer-events-none inline-block h-[18px] w-[18px] translate-y-[3px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-200 ${
-          checked ? "translate-x-[23px]" : "translate-x-[3px]"
+        className={`pointer-events-none inline-block h-[16px] w-[16px] translate-y-[3px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-200 ${
+          checked ? "translate-x-[21px]" : "translate-x-[3px]"
         }`}
       />
     </button>
@@ -63,22 +63,132 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
 }
 
 /* ------------------------------------------------------------------ */
-/*  Sub-nav tabs                                                       */
+/*  Password Change Panel                                              */
 /* ------------------------------------------------------------------ */
-type TabKey = "finance" | "account";
+function PasswordPanel({ onClose, showToast }: { onClose: () => void; showToast: (msg: string) => void }) {
+  const [currentPass, setCurrentPass] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-const tabs: { key: TabKey; label: string }[] = [
-  { key: "finance", label: "Finance" },
-  { key: "account", label: "Account" },
-];
+  const inputCls =
+    "w-full rounded-lg border border-[#eaeaea] bg-white px-3.5 py-2.5 text-sm text-[#111] outline-none transition-colors placeholder:text-[#999] focus:border-[#80020E] focus:ring-[3px] focus:ring-[#80020E]/[0.08] pr-11";
+  const eyeBtnCls =
+    "absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center p-0.5 text-[#999] hover:text-[#555] bg-transparent border-none cursor-pointer";
+
+  const handleSubmit = () => {
+    if (!currentPass) { showToast("Please enter your current password."); return; }
+    if (newPass.length < 6) { showToast("New password must be at least 6 characters."); return; }
+    if (newPass !== confirmPass) { showToast("Passwords do not match."); return; }
+    setSaving(true);
+    setTimeout(() => {
+      setSaving(false);
+      showToast("Password updated successfully.");
+      onClose();
+    }, 600);
+  };
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/20 z-[200]" onClick={onClose} />
+      <div className="fixed inset-y-0 right-0 w-full max-w-[440px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-[201] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 h-[60px] border-b border-[#eaeaea] flex-shrink-0">
+          <div className="text-[15px] font-semibold text-[#111]">Change Password</div>
+          <button onClick={onClose} className="p-2 text-[#999] hover:text-[#555] transition-colors">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="text-[13px] text-[#888] mb-6">
+            Enter your current password and choose a new one.
+          </div>
+
+          <div className="space-y-5">
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-[#555]">Current password</label>
+              <div className="relative">
+                <input
+                  type={showCurrent ? "text" : "password"}
+                  value={currentPass}
+                  onChange={(e) => setCurrentPass(e.target.value)}
+                  placeholder="Enter current password"
+                  className={inputCls}
+                />
+                <button type="button" className={eyeBtnCls} onClick={() => setShowCurrent(!showCurrent)}>
+                  {showCurrent ? <EyeClosed /> : <EyeOpen />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-[#555]">New password</label>
+              <div className="relative">
+                <input
+                  type={showNew ? "text" : "password"}
+                  value={newPass}
+                  onChange={(e) => setNewPass(e.target.value)}
+                  placeholder="Enter new password"
+                  className={inputCls}
+                />
+                <button type="button" className={eyeBtnCls} onClick={() => setShowNew(!showNew)}>
+                  {showNew ? <EyeClosed /> : <EyeOpen />}
+                </button>
+              </div>
+              <div className="mt-1.5 text-[11px] text-[#aaa]">Minimum 6 characters</div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-[#555]">Confirm new password</label>
+              <div className="relative">
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  value={confirmPass}
+                  onChange={(e) => setConfirmPass(e.target.value)}
+                  placeholder="Re-enter new password"
+                  className={inputCls}
+                />
+                <button type="button" className={eyeBtnCls} onClick={() => setShowConfirm(!showConfirm)}>
+                  {showConfirm ? <EyeClosed /> : <EyeOpen />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-[#eaeaea] flex-shrink-0">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="w-full rounded-lg bg-[#80020E] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6b010c] disabled:opacity-60"
+          >
+            {saving ? "Updating..." : "Update password"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
 
 /* ------------------------------------------------------------------ */
-/*  Main page                                                          */
+/*  Main Page                                                          */
 /* ------------------------------------------------------------------ */
 export default function SettingsPage() {
-  /* ---- tab ---- */
-  const [activeTab, setActiveTab] = useState<TabKey>("finance");
-
   /* ---- toast ---- */
   const [toastMsg, setToastMsg] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
@@ -92,27 +202,15 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    return () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    };
+    return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, []);
 
-  /* ---- Finance: Payout Method ---- */
-  const [ibanRevealed, setIbanRevealed] = useState(false);
-  const ibanMasked = "GB29 **** **** **** 1234";
-  const ibanFull = "GB29 NWBK 6016 1331 9268 19";
-  const [bicSwift, setBicSwift] = useState("NWBKGB2L");
-  const [beneficiaryName, setBeneficiaryName] = useState("Alexandra Pemberton");
-
-  /* ---- Finance: Legal / Invoice ---- */
-  const [legalName, setLegalName] = useState("Alexandra Pemberton");
-  const [businessName, setBusinessName] = useState("Pemberton Properties Ltd");
-  const [vatNumber, setVatNumber] = useState("");
-
-  /* ---- Account: Profile ---- */
+  /* ---- Profile ---- */
+  const [fullName, setFullName] = useState("Alexandra Pemberton");
+  const [email] = useState("alexandra@pemberton.co.uk");
   const [phone, setPhone] = useState("+44 7700 900123");
 
-  /* ---- Account: Notifications ---- */
+  /* ---- Notifications ---- */
   const [notifs, setNotifs] = useState([
     { label: "New reservation notifications", on: true },
     { label: "Payout processed notifications", on: true },
@@ -122,339 +220,171 @@ export default function SettingsPage() {
   ]);
 
   const toggleNotif = (idx: number) => {
-    setNotifs((prev) =>
-      prev.map((n, i) => (i === idx ? { ...n, on: !n.on } : n))
-    );
+    setNotifs((prev) => prev.map((n, i) => (i === idx ? { ...n, on: !n.on } : n)));
   };
 
-  /* ---- Account: Security ---- */
-  const [currentPass, setCurrentPass] = useState("");
-  const [newPass, setNewPass] = useState("");
-  const [confirmPass, setConfirmPass] = useState("");
-  const [showCurrentPass, setShowCurrentPass] = useState(false);
-  const [showNewPass, setShowNewPass] = useState(false);
-  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  /* ---- Security ---- */
+  const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
 
-  const handleUpdatePassword = () => {
-    if (!currentPass) {
-      showToast("Please enter your current password.");
-      return;
-    }
-    if (newPass.length < 6) {
-      showToast("New password must be at least 6 characters.");
-      return;
-    }
-    if (newPass !== confirmPass) {
-      showToast("Passwords do not match.");
-      return;
-    }
-    setCurrentPass("");
-    setNewPass("");
-    setConfirmPass("");
-    showToast("Password updated successfully.");
-  };
-
+  /* ---- Sessions ---- */
   const sessions = [
-    { device: "Chrome on macOS", lastActive: "Today" },
-    { device: "Safari on iPhone", lastActive: "Yesterday" },
+    { device: "Chrome on macOS", platform: "Desktop", lastActive: "Today", current: true },
+    { device: "Safari on iPhone", platform: "iOS", lastActive: "Yesterday", current: false },
   ];
 
-  /* ---- shared styles ---- */
+  /* ---- Shared styles ---- */
   const cardCls = "rounded-xl border border-[#eaeaea] bg-white p-7";
   const labelCls = "mb-1.5 block text-[13px] font-medium text-[#555]";
   const inputCls =
     "w-full rounded-lg border border-[#eaeaea] bg-white px-3.5 py-2.5 text-sm text-[#111] outline-none transition-colors placeholder:text-[#999] focus:border-[#80020E] focus:ring-[3px] focus:ring-[#80020E]/[0.08]";
   const inputDisabledCls =
     "w-full rounded-lg border border-[#eaeaea] bg-[#f8f8f8] px-3.5 py-2.5 text-sm text-[#999] outline-none cursor-not-allowed";
-  const btnSaveCls =
-    "mt-6 rounded-lg bg-[#80020E] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6b010c]";
-  const eyeBtnCls =
-    "absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center p-0.5 text-[#999] hover:text-[#555] bg-transparent border-none cursor-pointer";
 
   return (
     <AppShell title="Settings">
-      <div className="flex gap-6 items-start">
-        {/* ── Settings Sub-Nav ── */}
-        <nav className="w-[200px] min-w-[200px] flex flex-col gap-0.5 rounded-xl border border-[#eaeaea] bg-white p-1.5">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`w-full rounded-[7px] border-l-[3px] px-4 py-[11px] text-left text-sm font-medium transition-all ${
-                activeTab === tab.key
-                  ? "border-l-[#80020E] bg-[#fdf0f1] font-semibold text-[#80020E]"
-                  : "border-l-transparent text-[#555] hover:bg-[#fdf0f1] hover:text-[#80020E]"
+      <div className="text-[13px] text-[#888] mb-6 -mt-1">
+        Manage your account, notifications, and security preferences.
+      </div>
+
+      <div className="max-w-[640px] flex flex-col gap-6">
+        {/* ── 1. Profile ── */}
+        <div className={cardCls}>
+          <h2 className="mb-6 text-[15px] font-bold text-[#111]">Profile</h2>
+
+          <div className="mb-5">
+            <label className={labelCls}>Full name</label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+
+          <div className="mb-5">
+            <label className={labelCls}>Email</label>
+            <input type="email" value={email} disabled className={inputDisabledCls} />
+          </div>
+
+          <div>
+            <label className={labelCls}>Phone</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="mt-6 rounded-lg bg-[#80020E] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6b010c]"
+            onClick={() => showToast("Profile saved.")}
+          >
+            Save changes
+          </button>
+        </div>
+
+        {/* ── 2. Email Notifications ── */}
+        <div className={cardCls}>
+          <h2 className="mb-5 text-[15px] font-bold text-[#111]">Email Notifications</h2>
+
+          {notifs.map((n, idx) => (
+            <div
+              key={n.label}
+              className={`flex items-center justify-between py-3.5 ${
+                idx < notifs.length - 1 ? "border-b border-[#f0f0f0]" : ""
               }`}
             >
-              {tab.label}
-            </button>
+              <span className="text-[14px] font-medium text-[#111]">{n.label}</span>
+              <Toggle checked={n.on} onChange={() => toggleNotif(idx)} />
+            </div>
           ))}
-        </nav>
+        </div>
 
-        {/* ── Panels ── */}
-        <div className="flex-1 min-w-0">
-          {/* ════════════ FINANCE TAB ════════════ */}
-          {activeTab === "finance" && (
-            <div className="flex flex-col gap-6">
-              {/* Payout Method */}
-              <div className={cardCls}>
-                <h2 className="mb-6 text-base font-bold text-[#111]">Payout Method</h2>
+        {/* ── 3. Security ── */}
+        <div className={cardCls}>
+          <h2 className="mb-5 text-[15px] font-bold text-[#111]">Security</h2>
 
-                <div className="mb-5">
-                  <label className={labelCls}>IBAN</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      readOnly
-                      value={ibanRevealed ? ibanFull : ibanMasked}
-                      className={`${inputCls} pr-11 cursor-default bg-white`}
-                    />
-                    <button
-                      type="button"
-                      className={eyeBtnCls}
-                      onClick={() => setIbanRevealed((v) => !v)}
-                      title="Show/hide IBAN"
-                    >
-                      {ibanRevealed ? <EyeClosed /> : <EyeOpen />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mb-5">
-                  <label className={labelCls}>BIC / SWIFT</label>
-                  <input
-                    type="text"
-                    value={bicSwift}
-                    onChange={(e) => setBicSwift(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>Beneficiary Name</label>
-                  <input
-                    type="text"
-                    value={beneficiaryName}
-                    onChange={(e) => setBeneficiaryName(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  className={btnSaveCls}
-                  onClick={() => showToast("Payout method saved.")}
-                >
-                  Save
-                </button>
-              </div>
-
-              {/* Legal / Invoice Details */}
-              <div className={cardCls}>
-                <h2 className="mb-6 text-base font-bold text-[#111]">Legal / Invoice Details</h2>
-
-                <div className="mb-5">
-                  <label className={labelCls}>Legal Display Name</label>
-                  <input
-                    type="text"
-                    value={legalName}
-                    onChange={(e) => setLegalName(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div className="mb-5">
-                  <label className={labelCls}>Business Name</label>
-                  <input
-                    type="text"
-                    value={businessName}
-                    onChange={(e) => setBusinessName(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>VAT Number</label>
-                  <input
-                    type="text"
-                    value={vatNumber}
-                    onChange={(e) => setVatNumber(e.target.value)}
-                    placeholder="Enter if applicable"
-                    className={inputCls}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  className={btnSaveCls}
-                  onClick={() => showToast("Invoice details saved.")}
-                >
-                  Save
-                </button>
-              </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[14px] font-medium text-[#111]">Password</div>
+              <div className="text-[13px] text-[#888] mt-0.5">Change your password to keep your account secure.</div>
             </div>
-          )}
+            <button
+              type="button"
+              onClick={() => setPasswordPanelOpen(true)}
+              className="rounded-lg border border-[#80020E] bg-white px-4 py-2 text-[13px] font-semibold text-[#80020E] transition-colors hover:bg-[#fdf0f1] flex-shrink-0"
+            >
+              Change password
+            </button>
+          </div>
+        </div>
 
-          {/* ════════════ ACCOUNT TAB ════════════ */}
-          {activeTab === "account" && (
-            <div className="flex flex-col gap-6">
-              {/* Profile */}
-              <div className={cardCls}>
-                <h2 className="mb-6 text-base font-bold text-[#111]">Profile</h2>
+        {/* ── 4. Active Sessions ── */}
+        <div className={cardCls}>
+          <h2 className="mb-5 text-[15px] font-bold text-[#111]">Active Sessions</h2>
 
-                <div className="mb-5">
-                  <label className={labelCls}>Email</label>
-                  <input
-                    type="email"
-                    value="alexandra@pemberton.co.uk"
-                    disabled
-                    className={inputDisabledCls}
-                  />
+          {sessions.map((s, idx) => (
+            <div
+              key={s.device}
+              className={`flex items-center justify-between py-3.5 ${
+                idx < sessions.length - 1 ? "border-b border-[#f0f0f0]" : ""
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {/* Device icon */}
+                <div className="w-9 h-9 rounded-lg bg-[#f5f5f5] flex items-center justify-center flex-shrink-0">
+                  {s.platform === "Desktop" ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="1.8">
+                      <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="1.8">
+                      <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+                    </svg>
+                  )}
                 </div>
-
                 <div>
-                  <label className={labelCls}>Phone</label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className={inputCls}
-                  />
+                  <div className="text-[14px] font-medium text-[#111] flex items-center gap-2">
+                    {s.device}
+                    {s.current && (
+                      <span className="pill pill-live text-[10px]">Current</span>
+                    )}
+                  </div>
+                  <div className="text-[12px] text-[#999] mt-0.5">Last active: {s.lastActive}</div>
                 </div>
-
+              </div>
+              {!s.current && (
                 <button
                   type="button"
-                  className={btnSaveCls}
-                  onClick={() => showToast("Profile saved.")}
+                  onClick={() => showToast(`Signed out of ${s.device}.`)}
+                  className="text-[12px] font-medium text-[#999] hover:text-[#80020E] transition-colors"
                 >
-                  Save
+                  Sign out
                 </button>
-              </div>
-
-              {/* Email Notifications */}
-              <div className={cardCls}>
-                <h2 className="mb-6 text-base font-bold text-[#111]">Email Notifications</h2>
-
-                {notifs.map((n, idx) => (
-                  <div
-                    key={n.label}
-                    className={`flex items-center justify-between py-3.5 ${
-                      idx < notifs.length - 1 ? "border-b border-[#f0f0f0]" : ""
-                    }`}
-                  >
-                    <span className="text-sm font-medium text-[#111]">{n.label}</span>
-                    <Toggle checked={n.on} onChange={() => toggleNotif(idx)} />
-                  </div>
-                ))}
-              </div>
-
-              {/* Security */}
-              <div className={cardCls}>
-                <h2 className="mb-6 text-base font-bold text-[#111]">Security</h2>
-
-                <h3 className="mb-5 text-[15px] font-semibold text-[#111]">Change Password</h3>
-
-                <div className="mb-5">
-                  <label className={labelCls}>Current password</label>
-                  <div className="relative">
-                    <input
-                      type={showCurrentPass ? "text" : "password"}
-                      value={currentPass}
-                      onChange={(e) => setCurrentPass(e.target.value)}
-                      placeholder="Enter current password"
-                      className={`${inputCls} pr-11`}
-                    />
-                    <button
-                      type="button"
-                      className={eyeBtnCls}
-                      onClick={() => setShowCurrentPass((v) => !v)}
-                    >
-                      {showCurrentPass ? <EyeClosed /> : <EyeOpen />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mb-5">
-                  <label className={labelCls}>New password</label>
-                  <div className="relative">
-                    <input
-                      type={showNewPass ? "text" : "password"}
-                      value={newPass}
-                      onChange={(e) => setNewPass(e.target.value)}
-                      placeholder="Enter new password"
-                      className={`${inputCls} pr-11`}
-                    />
-                    <button
-                      type="button"
-                      className={eyeBtnCls}
-                      onClick={() => setShowNewPass((v) => !v)}
-                    >
-                      {showNewPass ? <EyeClosed /> : <EyeOpen />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className={labelCls}>Confirm new password</label>
-                  <div className="relative">
-                    <input
-                      type={showConfirmPass ? "text" : "password"}
-                      value={confirmPass}
-                      onChange={(e) => setConfirmPass(e.target.value)}
-                      placeholder="Re-enter new password"
-                      className={`${inputCls} pr-11`}
-                    />
-                    <button
-                      type="button"
-                      className={eyeBtnCls}
-                      onClick={() => setShowConfirmPass((v) => !v)}
-                    >
-                      {showConfirmPass ? <EyeClosed /> : <EyeOpen />}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  className={btnSaveCls}
-                  onClick={handleUpdatePassword}
-                >
-                  Update password
-                </button>
-
-                <hr className="my-6 border-t border-[#eaeaea]" />
-
-                <h3 className="mb-5 text-[15px] font-semibold text-[#111]">Active Sessions</h3>
-
-                {sessions.map((s, idx) => (
-                  <div
-                    key={s.device}
-                    className={`flex items-center justify-between py-3.5 ${
-                      idx < sessions.length - 1 ? "border-b border-[#f0f0f0]" : ""
-                    }`}
-                  >
-                    <div>
-                      <div className="text-sm font-medium text-[#111]">{s.device}</div>
-                      <div className="mt-0.5 text-[13px] text-[#999]">Last active: {s.lastActive}</div>
-                    </div>
-                  </div>
-                ))}
-
-                <button
-                  type="button"
-                  className="mt-5 rounded-lg border border-[#80020E] bg-white px-5 py-2.5 text-sm font-semibold text-[#80020E] transition-colors hover:bg-[#fdf0f1]"
-                  onClick={() => showToast("All other sessions signed out.")}
-                >
-                  Sign out all other sessions
-                </button>
-              </div>
+              )}
             </div>
-          )}
+          ))}
+
+          <button
+            type="button"
+            className="mt-5 text-[13px] font-medium text-[#999] hover:text-[#80020E] transition-colors"
+            onClick={() => showToast("All other sessions signed out.")}
+          >
+            Sign out all other sessions
+          </button>
         </div>
       </div>
 
-      {/* Toast */}
+      {/* Password change panel */}
+      {passwordPanelOpen && (
+        <PasswordPanel
+          onClose={() => setPasswordPanelOpen(false)}
+          showToast={showToast}
+        />
+      )}
+
       <Toast message={toastMsg} visible={toastVisible} />
     </AppShell>
   );

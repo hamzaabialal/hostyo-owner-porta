@@ -86,8 +86,22 @@ export async function queryDatabase(databaseId: string, filter?: any, sorts?: an
     if (sorts) params.sorts = sorts;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const response = await (notion as any).databases.query(params);
-    return response.results;
+    let allResults: any[] = [];
+    let hasMore = true;
+    let startCursor: string | undefined;
+
+    while (hasMore) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const response = await (notion as any).databases.query({
+        ...params,
+        ...(startCursor ? { start_cursor: startCursor } : {}),
+      });
+      allResults = allResults.concat(response.results);
+      hasMore = response.has_more;
+      startCursor = response.next_cursor;
+    }
+
+    return allResults;
   } catch (error) {
     console.error(`Error querying database ${databaseId}:`, error);
     return [];

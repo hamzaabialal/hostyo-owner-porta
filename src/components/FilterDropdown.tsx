@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
 interface Option {
   value: string;
@@ -13,23 +13,36 @@ export default function FilterDropdown({
   onChange,
   placeholder = "All",
   placeholderIcon,
+  searchable = false,
 }: {
   options: Option[];
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   placeholderIcon?: React.ReactNode;
+  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
+  const [searchQuery, setSearchQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const allItems: Option[] = [{ value: "", label: placeholder, icon: placeholderIcon }, ...options];
 
+  const filteredItems = useMemo(() => {
+    if (!searchable || !searchQuery.trim()) return allItems;
+    const q = searchQuery.toLowerCase();
+    return allItems.filter((o) => o.label.toLowerCase().includes(q));
+  }, [allItems, searchable, searchQuery]);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearchQuery("");
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -37,8 +50,13 @@ export default function FilterDropdown({
 
   useEffect(() => {
     if (open) {
-      const idx = allItems.findIndex((o) => o.value === value);
+      const idx = filteredItems.findIndex((o) => o.value === value);
       setHighlightIndex(idx >= 0 ? idx : 0);
+      if (searchable) {
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+    } else {
+      setSearchQuery("");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -63,27 +81,28 @@ export default function FilterDropdown({
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
-          setHighlightIndex((prev) => Math.min(prev + 1, allItems.length - 1));
+          setHighlightIndex((prev) => Math.min(prev + 1, filteredItems.length - 1));
           break;
         case "ArrowUp":
           e.preventDefault();
           setHighlightIndex((prev) => Math.max(prev - 1, 0));
           break;
         case "Enter":
-        case " ":
           e.preventDefault();
-          if (highlightIndex >= 0 && highlightIndex < allItems.length) {
-            onChange(allItems[highlightIndex].value);
+          if (highlightIndex >= 0 && highlightIndex < filteredItems.length) {
+            onChange(filteredItems[highlightIndex].value);
             setOpen(false);
+            setSearchQuery("");
           }
           break;
         case "Escape":
           e.preventDefault();
           setOpen(false);
+          setSearchQuery("");
           break;
       }
     },
-    [open, highlightIndex, allItems, onChange]
+    [open, highlightIndex, filteredItems, onChange]
   );
 
   const selectedOption = options.find((o) => o.value === value);
@@ -110,26 +129,43 @@ export default function FilterDropdown({
         </svg>
       </button>
       {open && (
-        <div
-          ref={listRef}
-          className="dropdown-panel left-0 min-w-[220px] max-h-[280px] overflow-y-auto"
-          role="listbox"
-        >
-          {allItems.map((o, i) => (
-            <button
-              key={o.value || "__placeholder__"}
-              onClick={() => { onChange(o.value); setOpen(false); }}
-              onMouseEnter={() => setHighlightIndex(i)}
-              role="option"
-              aria-selected={value === o.value}
-              className={`dropdown-item ${
-                value === o.value ? "selected" : ""
-              } ${highlightIndex === i && value !== o.value ? "bg-[#f5f5f5]" : ""}`}
-            >
-              {o.icon && <span className="flex-shrink-0 flex items-center">{o.icon}</span>}
-              {o.label}
-            </button>
-          ))}
+        <div className="dropdown-panel left-0 min-w-[260px] max-h-[360px] flex flex-col">
+          {searchable && (
+            <div className="px-2 pt-2 pb-1 flex-shrink-0">
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setHighlightIndex(0); }}
+                className="w-full h-[34px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white"
+              />
+            </div>
+          )}
+          <div
+            ref={listRef}
+            className="overflow-y-auto max-h-[280px]"
+            role="listbox"
+          >
+            {filteredItems.map((o, i) => (
+              <button
+                key={o.value || "__placeholder__"}
+                onClick={() => { onChange(o.value); setOpen(false); setSearchQuery(""); }}
+                onMouseEnter={() => setHighlightIndex(i)}
+                role="option"
+                aria-selected={value === o.value}
+                className={`dropdown-item ${
+                  value === o.value ? "selected" : ""
+                } ${highlightIndex === i && value !== o.value ? "bg-[#f5f5f5]" : ""}`}
+              >
+                {o.icon && <span className="flex-shrink-0 flex items-center">{o.icon}</span>}
+                {o.label}
+              </button>
+            ))}
+            {filteredItems.length === 0 && (
+              <div className="px-4 py-3 text-[12px] text-[#999]">No results found</div>
+            )}
+          </div>
         </div>
       )}
     </div>

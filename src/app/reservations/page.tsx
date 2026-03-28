@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import ChannelBadge, { getChannelIcon, normalizeChannel } from "@/components/ChannelBadge";
 import FilterDropdown from "@/components/FilterDropdown";
+import DateRangePicker from "@/components/DateRangePicker";
 import AppShell from "@/components/AppShell";
+import { useData } from "@/lib/DataContext";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -19,6 +21,7 @@ interface Expense {
 
 interface Reservation {
   id: number;
+  notionId: string;
   ref: string;
   property: string;
   guest: string;
@@ -43,7 +46,7 @@ interface Reservation {
 /* ------------------------------------------------------------------ */
 const reservations: Reservation[] = [
   {
-    id: 1, ref: "BK-2026-0001", property: "The Kensington Residence", guest: "Emma Thompson", channel: "Airbnb",
+    id: 1, notionId: "", ref: "BK-2026-0001", property: "The Kensington Residence", guest: "Emma Thompson", channel: "Airbnb",
     checkIn: "2026-03-01", checkOut: "2026-03-05", nights: 4, guests: 3, status: "Completed",
     gross: 1840, platformFee: -276, hostyoFee: -92, cleaningFee: -120, expensesTotal: -85,
     payoutStatus: "Paid", payoutCycle: "Mar 1-15, 2026",
@@ -53,7 +56,7 @@ const reservations: Reservation[] = [
     ],
   },
   {
-    id: 2, ref: "BK-2026-0002", property: "Villa Serena", guest: "James Whitaker", channel: "Booking.com",
+    id: 2, notionId: "", ref: "BK-2026-0002", property: "Villa Serena", guest: "James Whitaker", channel: "Booking.com",
     checkIn: "2026-03-02", checkOut: "2026-03-09", nights: 7, guests: 5, status: "Completed",
     gross: 4550, platformFee: -682.5, hostyoFee: -227.5, cleaningFee: -200, expensesTotal: -150,
     payoutStatus: "Paid", payoutCycle: "Mar 1-15, 2026",
@@ -64,14 +67,14 @@ const reservations: Reservation[] = [
     ],
   },
   {
-    id: 3, ref: "BK-2026-0003", property: "Mayfair Studio", guest: "Sophie Chen", channel: "Airbnb",
+    id: 3, notionId: "", ref: "BK-2026-0003", property: "Mayfair Studio", guest: "Sophie Chen", channel: "Airbnb",
     checkIn: "2026-03-03", checkOut: "2026-03-06", nights: 3, guests: 2, status: "Completed",
     gross: 870, platformFee: -130.5, hostyoFee: -43.5, cleaningFee: -75, expensesTotal: 0,
     payoutStatus: "Paid", payoutCycle: "Mar 1-15, 2026",
     expenses: [],
   },
   {
-    id: 4, ref: "BK-2026-0004", property: "The Kensington Residence", guest: "Oliver Martinez", channel: "VRBO",
+    id: 4, notionId: "", ref: "BK-2026-0004", property: "The Kensington Residence", guest: "Oliver Martinez", channel: "VRBO",
     checkIn: "2026-03-07", checkOut: "2026-03-12", nights: 5, guests: 4, status: "Completed",
     gross: 2300, platformFee: -345, hostyoFee: -115, cleaningFee: -120, expensesTotal: -65,
     payoutStatus: "Paid", payoutCycle: "Mar 1-15, 2026",
@@ -81,7 +84,7 @@ const reservations: Reservation[] = [
     ],
   },
   {
-    id: 5, ref: "BK-2026-0005", property: "Villa Serena", guest: "Amelia Brooks", channel: "Direct",
+    id: 5, notionId: "", ref: "BK-2026-0005", property: "Villa Serena", guest: "Amelia Brooks", channel: "Direct",
     checkIn: "2026-03-10", checkOut: "2026-03-14", nights: 4, guests: 6, status: "Completed",
     gross: 2600, platformFee: 0, hostyoFee: -130, cleaningFee: -200, expensesTotal: -280,
     payoutStatus: "Scheduled", payoutCycle: "Mar 16-31, 2026",
@@ -92,14 +95,14 @@ const reservations: Reservation[] = [
     ],
   },
   {
-    id: 6, ref: "BK-2026-0006", property: "Mayfair Studio", guest: "Liam O'Connor", channel: "Booking.com",
+    id: 6, notionId: "", ref: "BK-2026-0006", property: "Mayfair Studio", guest: "Liam O'Connor", channel: "Booking.com",
     checkIn: "2026-03-08", checkOut: "2026-03-10", nights: 2, guests: 1, status: "Cancelled",
     gross: 580, platformFee: 0, hostyoFee: 0, cleaningFee: 0, expensesTotal: 0,
     payoutStatus: "Pending", payoutCycle: "N/A",
     expenses: [],
   },
   {
-    id: 7, ref: "BK-2026-0007", property: "The Kensington Residence", guest: "Isabella Rossi", channel: "Airbnb",
+    id: 7, notionId: "", ref: "BK-2026-0007", property: "The Kensington Residence", guest: "Isabella Rossi", channel: "Airbnb",
     checkIn: "2026-03-14", checkOut: "2026-03-18", nights: 4, guests: 2, status: "Completed",
     gross: 1840, platformFee: -276, hostyoFee: -92, cleaningFee: -120, expensesTotal: 0,
     payoutStatus: "Scheduled", payoutCycle: "Mar 16-31, 2026",
@@ -108,7 +111,7 @@ const reservations: Reservation[] = [
     ],
   },
   {
-    id: 8, ref: "BK-2026-0008", property: "Villa Serena", guest: "Marcus Johnson", channel: "VRBO",
+    id: 8, notionId: "", ref: "BK-2026-0008", property: "Villa Serena", guest: "Marcus Johnson", channel: "VRBO",
     checkIn: "2026-03-16", checkOut: "2026-03-23", nights: 7, guests: 4, status: "Completed",
     gross: 4550, platformFee: -682.5, hostyoFee: -227.5, cleaningFee: -200, expensesTotal: -75,
     payoutStatus: "Scheduled", payoutCycle: "Mar 16-31, 2026",
@@ -118,7 +121,7 @@ const reservations: Reservation[] = [
     ],
   },
   {
-    id: 9, ref: "BK-2026-0009", property: "Mayfair Studio", guest: "Charlotte Evans", channel: "Airbnb",
+    id: 9, notionId: "", ref: "BK-2026-0009", property: "Mayfair Studio", guest: "Charlotte Evans", channel: "Airbnb",
     checkIn: "2026-03-12", checkOut: "2026-03-15", nights: 3, guests: 2, status: "Completed",
     gross: 870, platformFee: -130.5, hostyoFee: -43.5, cleaningFee: -75, expensesTotal: -40,
     payoutStatus: "Scheduled", payoutCycle: "Mar 16-31, 2026",
@@ -128,8 +131,8 @@ const reservations: Reservation[] = [
     ],
   },
   {
-    id: 10, ref: "BK-2026-0010", property: "The Kensington Residence", guest: "William Turner", channel: "Direct",
-    checkIn: "2026-03-20", checkOut: "2026-03-27", nights: 7, guests: 3, status: "In House",
+    id: 10, notionId: "", ref: "BK-2026-0010", property: "The Kensington Residence", guest: "William Turner", channel: "Direct",
+    checkIn: "2026-03-20", checkOut: "2026-03-27", nights: 7, guests: 3, status: "Check-In",
     gross: 3220, platformFee: 0, hostyoFee: -161, cleaningFee: -120, expensesTotal: 0,
     payoutStatus: "Pending", payoutCycle: "Mar 16-31, 2026",
     expenses: [
@@ -137,8 +140,8 @@ const reservations: Reservation[] = [
     ],
   },
   {
-    id: 11, ref: "BK-2026-0011", property: "Villa Serena", guest: "Natasha Petrova", channel: "Booking.com",
-    checkIn: "2026-03-24", checkOut: "2026-03-31", nights: 7, guests: 5, status: "In House",
+    id: 11, notionId: "", ref: "BK-2026-0011", property: "Villa Serena", guest: "Natasha Petrova", channel: "Booking.com",
+    checkIn: "2026-03-24", checkOut: "2026-03-31", nights: 7, guests: 5, status: "Check-In",
     gross: 4550, platformFee: -682.5, hostyoFee: -227.5, cleaningFee: -200, expensesTotal: 0,
     payoutStatus: "Pending", payoutCycle: "Mar 16-31, 2026",
     expenses: [
@@ -146,28 +149,28 @@ const reservations: Reservation[] = [
     ],
   },
   {
-    id: 12, ref: "BK-2026-0012", property: "Mayfair Studio", guest: "Daniel Kim", channel: "VRBO",
-    checkIn: "2026-03-22", checkOut: "2026-03-25", nights: 3, guests: 1, status: "In House",
+    id: 12, notionId: "", ref: "BK-2026-0012", property: "Mayfair Studio", guest: "Daniel Kim", channel: "VRBO",
+    checkIn: "2026-03-22", checkOut: "2026-03-25", nights: 3, guests: 1, status: "Check-In",
     gross: 870, platformFee: -130.5, hostyoFee: -43.5, cleaningFee: -75, expensesTotal: 0,
     payoutStatus: "Pending", payoutCycle: "Mar 16-31, 2026",
     expenses: [],
   },
   {
-    id: 13, ref: "BK-2026-0013", property: "The Kensington Residence", guest: "Hannah Mueller", channel: "Airbnb",
-    checkIn: "2026-03-28", checkOut: "2026-04-02", nights: 5, guests: 2, status: "Upcoming",
+    id: 13, notionId: "", ref: "BK-2026-0013", property: "The Kensington Residence", guest: "Hannah Mueller", channel: "Airbnb",
+    checkIn: "2026-03-28", checkOut: "2026-04-02", nights: 5, guests: 2, status: "Pending",
     gross: 2300, platformFee: -345, hostyoFee: -115, cleaningFee: -120, expensesTotal: 0,
     payoutStatus: "Pending", payoutCycle: "Apr 1-15, 2026",
     expenses: [],
   },
   {
-    id: 14, ref: "BK-2026-0014", property: "Villa Serena", guest: "Robert Andersen", channel: "Airbnb",
-    checkIn: "2026-04-01", checkOut: "2026-04-08", nights: 7, guests: 6, status: "Upcoming",
+    id: 14, notionId: "", ref: "BK-2026-0014", property: "Villa Serena", guest: "Robert Andersen", channel: "Airbnb",
+    checkIn: "2026-04-01", checkOut: "2026-04-08", nights: 7, guests: 6, status: "Pending",
     gross: 4550, platformFee: -682.5, hostyoFee: -227.5, cleaningFee: -200, expensesTotal: 0,
     payoutStatus: "Pending", payoutCycle: "Apr 1-15, 2026",
     expenses: [],
   },
   {
-    id: 15, ref: "BK-2026-0015", property: "Mayfair Studio", guest: "Priya Sharma", channel: "Direct",
+    id: 15, notionId: "", ref: "BK-2026-0015", property: "Mayfair Studio", guest: "Priya Sharma", channel: "Direct",
     checkIn: "2026-03-18", checkOut: "2026-03-20", nights: 2, guests: 2, status: "Cancelled",
     gross: 580, platformFee: 0, hostyoFee: 0, cleaningFee: 0, expensesTotal: 0,
     payoutStatus: "Pending", payoutCycle: "N/A",
@@ -191,10 +194,11 @@ function fmtDate(d: string): string {
 
 function statusPillClass(s: string): string {
   const map: Record<string, string> = {
-    Upcoming: "pill pill-upcoming",
-    "In House": "pill pill-inhouse",
-    Completed: "pill pill-completed",
+    Pending: "pill pill-pending",
+    "Check-In": "pill pill-checkin",
+    "Check-Out": "pill pill-checkout",
     Cancelled: "pill pill-cancelled",
+    Completed: "pill pill-completed",
   };
   return map[s] ?? "pill";
 }
@@ -269,6 +273,8 @@ function ReservationsContent() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterChannel, setFilterChannel] = useState("");
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   /* --- pagination --- */
   const [currentPage, setCurrentPage] = useState(1);
@@ -278,15 +284,17 @@ function ReservationsContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
 
-  /* --- fetch from Notion API --- */
+  /* --- fetch from Notion API (with client cache) --- */
+  const { fetchData } = useData();
   useEffect(() => {
-    fetch("/api/reservations")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.source === "notion" && res.data?.length > 0) {
+    fetchData("reservations", "/api/reservations")
+      .then((res: unknown) => {
+        const d = res as { source?: string; data?: unknown[] };
+        if (d.source === "notion" && d.data?.length) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mapped: Reservation[] = res.data.map((r: any, i: number) => ({
+          const mapped: Reservation[] = d.data.map((r: any, i: number) => ({
             id: i + 1,
+            notionId: r.notionId || "",
             ref: r.ref || `RES-${i + 1}`,
             property: (r.property || "").trim(),
             guest: r.guest || "",
@@ -310,12 +318,25 @@ function ReservationsContent() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* --- dynamic filter options from data --- */
+  /* --- fetch all property names for filter --- */
+  const [allPropertyNames, setAllPropertyNames] = useState<string[]>([]);
+  useEffect(() => {
+    fetchData("properties", "/api/properties")
+      .then((d: unknown) => {
+        const res = d as { data?: { name: string }[] };
+        const names = (res.data || []).map((p) => p.name).filter((n) => n).sort((a, b) => a.localeCompare(b));
+        setAllPropertyNames(names);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const propertyOptions = useMemo(() =>
-    Array.from(new Set(data.map((r) => r.property))).filter(Boolean).sort().map((p) => ({ value: p, label: p })),
-  [data]);
+    allPropertyNames.map((p) => ({ value: p, label: p })),
+  [allPropertyNames]);
 
   const statusOptions = useMemo(() =>
     Array.from(new Set(data.map((r) => r.status))).filter(Boolean).sort().map((s) => ({ value: s, label: s })),
@@ -337,9 +358,11 @@ function ReservationsContent() {
       if (filterStatus && r.status !== filterStatus) return false;
       if (filterChannel && r.channel !== filterChannel) return false;
       if (q && !r.guest.toLowerCase().includes(q) && !r.ref.toLowerCase().includes(q)) return false;
+      if (dateFrom && r.checkIn < dateFrom) return false;
+      if (dateTo && r.checkIn > dateTo) return false;
       return true;
     });
-  }, [data, filterProperty, filterStatus, filterChannel, search]);
+  }, [data, filterProperty, filterStatus, filterChannel, search, dateFrom, dateTo]);
 
   /* --- paginated data --- */
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -349,7 +372,7 @@ function ReservationsContent() {
   }, [filtered, currentPage]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [filterProperty, filterStatus, filterChannel, search]);
+  useEffect(() => { setCurrentPage(1); }, [filterProperty, filterStatus, filterChannel, search, dateFrom, dateTo]);
 
   // Auto-open drawer if ?guest= param is present
   useEffect(() => {
@@ -413,6 +436,7 @@ function ReservationsContent() {
           value={filterProperty}
           onChange={setFilterProperty}
           options={propertyOptions}
+          searchable
         />
         <FilterDropdown
           placeholder="All Statuses"
@@ -425,6 +449,14 @@ function ReservationsContent() {
           value={filterChannel}
           onChange={setFilterChannel}
           options={channelOptions}
+        />
+
+        {/* Date range filter */}
+        <DateRangePicker
+          from={dateFrom}
+          to={dateTo}
+          onFromChange={setDateFrom}
+          onToChange={setDateTo}
         />
 
         <div className="relative">
@@ -648,7 +680,7 @@ function ReservationsContent() {
             </div>
 
             {/* Linked Expenses */}
-            <div>
+            <div className="mb-7">
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3.5">
                 Linked Expenses
               </h3>
@@ -680,10 +712,98 @@ function ReservationsContent() {
                 </div>
               )}
             </div>
+
+            {/* Expense Submission Link */}
+            {selectedReservation.notionId && (
+              <div>
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3.5">
+                  Vendor Expense Link
+                </h3>
+                <ExpenseLinkButton notionId={selectedReservation.notionId} />
+              </div>
+            )}
           </div>
         )}
       </div>
     </AppShell>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Expense Link Button                                                */
+/* ------------------------------------------------------------------ */
+function ExpenseLinkButton({ notionId }: { notionId: string }) {
+  const [link, setLink] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/submit/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reservationId: notionId }),
+      });
+      const data = await res.json();
+      if (data.ok) setLink(data.url);
+    } catch (e) {
+      console.error("Failed to generate link:", e);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyLink = async () => {
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (!link) {
+    return (
+      <button
+        onClick={generate}
+        disabled={generating}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#80020E] text-white rounded-xl text-[13px] font-semibold hover:bg-[#6b010c] transition-colors disabled:opacity-50"
+      >
+        {generating ? (
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+          </svg>
+        )}
+        {generating ? "Generating..." : "Generate Expense Link"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center gap-2 p-3 bg-[#f8f8f8] border border-[#e2e2e2] rounded-xl">
+        <input
+          type="text"
+          value={link}
+          readOnly
+          className="flex-1 text-[12px] text-[#555] bg-transparent outline-none font-mono truncate"
+        />
+        <button
+          onClick={copyLink}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+            copied
+              ? "bg-[#EAF3EF] text-[#2F6B57] border border-[#D6E7DE]"
+              : "bg-[#80020E] text-white hover:bg-[#6b010c]"
+          }`}
+        >
+          {copied ? "Copied!" : "Copy"}
+        </button>
+      </div>
+      <p className="text-[11px] text-[#999] leading-relaxed">
+        Share this link with your vendor via WhatsApp, SMS, or email. They can submit work details, photos, and receipts without logging in.
+      </p>
+    </div>
   );
 }
 

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
+import { cached } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -27,65 +28,68 @@ function prop(page: any, name: string): any {
   }
 }
 
+async function fetchReservations() {
+  const allPages: any[] = [];
+  let cursor: string | undefined = undefined;
+
+  do {
+    const res: any = await notion.databases.query({
+      database_id: DB_ID,
+      filter: { property: "Deleted", checkbox: { equals: false } },
+      sorts: [{ property: "Check In", direction: "descending" }],
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    allPages.push(...res.results);
+    cursor = res.has_more ? res.next_cursor : undefined;
+  } while (cursor);
+
+  return allPages.map((page: any, i: number) => {
+    const checkin = prop(page, "Check In") || "";
+    const checkout = prop(page, "Check Out") || "";
+    let nights = 0;
+    if (checkin && checkout) {
+      const ci = new Date(checkin);
+      const co = new Date(checkout);
+      nights = Math.ceil((co.getTime() - ci.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    return {
+      id: i + 1,
+      notionId: page.id,
+      ref: prop(page, "Reservation Code") || "",
+      property: prop(page, "Property") || "",
+      guest: prop(page, "Guest") || "",
+      channel: prop(page, "Channel") || "Direct",
+      checkin: checkin.split("T")[0],
+      checkout: checkout.split("T")[0],
+      nights,
+      status: prop(page, "Status") || "Pending",
+      grossAmount: prop(page, "Revenue") || 0,
+      platformFee: prop(page, "Platform Commission") || 0,
+      netBooking: prop(page, "Net Booking") || 0,
+      managementFee: prop(page, "Management Fee") || 0,
+      cleaning: prop(page, "Cleaning") || 0,
+      expenses: prop(page, "Expenses") || 0,
+      ownerPayout: prop(page, "Owner Payout") || 0,
+      payoutStatus: prop(page, "Payout Status") || "Pending",
+      adults: prop(page, "Adults") || 0,
+      children: prop(page, "Children") || 0,
+      infants: prop(page, "Infants") || 0,
+      email: prop(page, "Email") || "",
+      phone: prop(page, "Phone") || "",
+      bookedOn: prop(page, "Booked On") || "",
+    };
+  });
+}
+
 export async function GET() {
   if (!DB_ID) {
     return NextResponse.json({ source: "placeholder", data: [] });
   }
 
   try {
-    // Paginate through ALL results
-    const allPages: any[] = [];
-    let cursor: string | undefined = undefined;
-
-    do {
-      const res: any = await notion.databases.query({
-        database_id: DB_ID,
-        filter: { property: "Deleted", checkbox: { equals: false } },
-        sorts: [{ property: "Check In", direction: "descending" }],
-        start_cursor: cursor,
-        page_size: 100,
-      });
-      allPages.push(...res.results);
-      cursor = res.has_more ? res.next_cursor : undefined;
-    } while (cursor);
-
-    const reservations = allPages.map((page: any, i: number) => {
-      const checkin = prop(page, "Check In") || "";
-      const checkout = prop(page, "Check Out") || "";
-      let nights = 0;
-      if (checkin && checkout) {
-        const ci = new Date(checkin);
-        const co = new Date(checkout);
-        nights = Math.ceil((co.getTime() - ci.getTime()) / (1000 * 60 * 60 * 24));
-      }
-
-      return {
-        id: i + 1,
-        ref: prop(page, "Reservation Code") || "",
-        property: prop(page, "Property") || "",
-        guest: prop(page, "Guest") || "",
-        channel: prop(page, "Channel") || "Direct",
-        checkin: checkin.split("T")[0],
-        checkout: checkout.split("T")[0],
-        nights,
-        status: prop(page, "Status") || "Pending",
-        grossAmount: prop(page, "Revenue") || 0,
-        platformFee: prop(page, "Platform Commission") || 0,
-        netBooking: prop(page, "Net Booking") || 0,
-        managementFee: prop(page, "Management Fee") || 0,
-        cleaning: prop(page, "Cleaning") || 0,
-        expenses: prop(page, "Expenses") || 0,
-        ownerPayout: prop(page, "Owner Payout") || 0,
-        payoutStatus: prop(page, "Payout Status") || "Pending",
-        adults: prop(page, "Adults") || 0,
-        children: prop(page, "Children") || 0,
-        infants: prop(page, "Infants") || 0,
-        email: prop(page, "Email") || "",
-        phone: prop(page, "Phone") || "",
-        bookedOn: prop(page, "Booked On") || "",
-      };
-    });
-
+    const reservations = await cached("reservations", fetchReservations);
     return NextResponse.json({ source: "notion", data: reservations });
   } catch (error: any) {
     console.error("Error fetching reservations:", error?.message);

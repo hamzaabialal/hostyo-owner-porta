@@ -45,11 +45,20 @@ body {
 .pill-cancelled  { color: #7A5252; background: #F6EDED; border-color: #E8D8D8; }
 .pill-completed  { color: #4D625A; background: #EDF3F0; border-color: #DBE6E0; }
 .pill-inhouse    { color: #2F6B57; background: #EAF3EF; border-color: #D6E7DE; }
+.pill-checkin    { color: #5E6673; background: #EEF1F5; border-color: #DDE3EA; }
+.pill-checkout   { color: #8A5A2E; background: #F7EEE6; border-color: #E9D9C7; }
 .pill-adjusted   { color: #5E6673; background: #EEF1F5; border-color: #DDE3EA; }
 .pill-submitted  { color: #5E6673; background: #EEF1F5; border-color: #DDE3EA; }
 .pill-approved   { color: #2F6B57; background: #EAF3EF; border-color: #D6E7DE; }
 .pill-rejected   { color: #7A5252; background: #F6EDED; border-color: #E8D8D8; }
 .pill-scheduled  { color: #5E6673; background: #EEF1F5; border-color: #DDE3EA; }
+
+/* Property status pills */
+.pill-draft      { color: #666666; background: #F3F3F3; border-color: #E3E3E3; }
+.pill-inreview   { color: #655E7A; background: #F1EFF7; border-color: #E1DCEF; }
+.pill-onboarding { color: #7A6848; background: #F7F3EA; border-color: #E9DEC8; }
+.pill-live       { color: #2F6B57; background: #EAF3EF; border-color: #D6E7DE; }
+.pill-suspended  { color: #7A5252; background: #F6EDED; border-color: #E8D8D8; }
 
 /* ── Custom Dropdowns ── */
 .dropdown-panel {
@@ -153,6 +162,37 @@ body {
 .toast.show { transform: translateY(0); opacity: 1; }
 .toast-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
 .toast-msg { font-size: 13px; color: #a1a1aa; }
+
+/* ── Mobile Safe Area ── */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Mobile Responsive ── */
+@media (max-width: 767px) {
+  /* Drawer full-width on mobile */
+  .drawer-panel {
+    width: 100vw;
+  }
+
+  /* Tables scroll horizontally */
+  table {
+    font-size: 12px;
+  }
+
+  /* Toast centered on mobile */
+  .toast {
+    left: 16px;
+    right: 16px;
+    bottom: 80px;
+    max-width: none;
+  }
+
+  /* Summary card grids stack to 2 cols */
+  .grid-cols-2.lg\\:grid-cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 
 /* ── OTA Channel Logos ── */
 .channel-badge {
