@@ -41,7 +41,7 @@ export default function DateRangePicker({ from, to, onFromChange, onToChange }: 
 
   // Calendar view state — left month
   const [viewYear, setViewYear] = useState(() => {
-    if (from) { const [y, m] = from.split("-").map(Number); return y; }
+    if (from) { const [y] = from.split("-").map(Number); return y; }
     return today.getFullYear();
   });
   const [viewMonth, setViewMonth] = useState(() => {

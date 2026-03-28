@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const url = `${protocol}://${host}/submit/${token}`;
 
     return NextResponse.json({ ok: true, token, url });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to generate URL" }, { status: 500 });
   }
 }
