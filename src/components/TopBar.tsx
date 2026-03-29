@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useData } from "@/lib/DataContext";
 
-export default function TopBar({ title, showAddProperty = true }: { title: string; showAddProperty?: boolean }) {
+export default function TopBar({ title, showAddProperty = true, minimal = false }: { title: string; showAddProperty?: boolean; minimal?: boolean }) {
   const { fetchData } = useData();
   const [propOpen, setPropOpen] = useState(false);
   const [selectedProp, setSelectedProp] = useState("All Properties");
@@ -114,6 +114,7 @@ export default function TopBar({ title, showAddProperty = true }: { title: strin
       <h1 className="text-[16px] font-semibold text-text-primary">{title}</h1>
 
       <div className="flex items-center gap-3">
+        {!minimal && <>
         {/* Property filter */}
         <div ref={ref} className="relative">
           <button onClick={() => setPropOpen(!propOpen)} className="dropdown-trigger min-w-[170px]">
@@ -168,6 +169,7 @@ export default function TopBar({ title, showAddProperty = true }: { title: strin
           </button>
         )}
 
+        </>}
         {/* Bell */}
         <button className="relative p-2 text-text-secondary hover:text-text-primary transition-colors">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
