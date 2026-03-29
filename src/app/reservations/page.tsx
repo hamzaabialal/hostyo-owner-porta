@@ -495,58 +495,63 @@ function ReservationsContent() {
       {/* ── Desktop Table ── */}
       {mobileView === "list" && (
       <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
-        <table className="w-full border-collapse text-[13px]">
+        <table className="w-full border-collapse text-[13px] table-fixed">
+          <colgroup>
+            <col style={{ width: "110px" }} />
+            {showPropertyCol && <col style={{ width: "200px" }} />}
+            <col />
+            <col style={{ width: "160px" }} />
+            <col style={{ width: "110px" }} />
+          </colgroup>
           <thead>
             <tr className="bg-[#fafafa]">
-              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea] w-[120px]">Status</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Status</th>
               {showPropertyCol && <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Property</th>}
               <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Guest</th>
-              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea] w-[180px]">Dates</th>
-              <th className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea] w-[120px]">Payout</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Dates</th>
+              <th className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Payout</th>
             </tr>
           </thead>
-          <tbody>
-            {paginated.length === 0 ? (
-              <tr><td colSpan={showPropertyCol ? 5 : 4} className="text-center py-10 text-[#999] text-sm">No reservations match your filters.</td></tr>
-            ) : paginated.map((r) => {
-              const isOpen = expandedId === r.id;
-              const cols = showPropertyCol ? 5 : 4;
-              return (
-                <tbody key={r.id}>
-                  <tr onClick={() => toggleRow(r.id)}
-                    className={`cursor-pointer transition-colors border-b ${isOpen ? "bg-[#fafafa] border-[#e2e2e2]" : "hover:bg-[#f9f9f9] border-[#f0f0f0]"}`}>
-                    <td className="px-4 py-3.5 w-[120px]">
-                      <span className={statusPillClass(r.status)}>{r.status}</span>
-                    </td>
-                    {showPropertyCol && (
-                      <td className="px-4 py-3.5 max-w-[200px]">
-                        <span className="text-[13px] text-[#555] truncate block">{r.property}</span>
-                      </td>
-                    )}
+          {paginated.length === 0 ? (
+            <tbody><tr><td colSpan={showPropertyCol ? 5 : 4} className="text-center py-10 text-[#999] text-sm">No reservations match your filters.</td></tr></tbody>
+          ) : paginated.map((r) => {
+            const isOpen = expandedId === r.id;
+            const cols = showPropertyCol ? 5 : 4;
+            return (
+              <tbody key={r.id}>
+                <tr onClick={() => toggleRow(r.id)}
+                  className={`cursor-pointer transition-colors border-b ${isOpen ? "bg-[#fafafa] border-[#e2e2e2]" : "hover:bg-[#f9f9f9] border-[#f0f0f0]"}`}>
+                  <td className="px-4 py-3.5">
+                    <span className={statusPillClass(r.status)}>{r.status}</span>
+                  </td>
+                  {showPropertyCol && (
                     <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
-                        <span className="text-[13px] font-medium text-[#111]">{r.guest}</span>
-                      </div>
+                      <span className="text-[13px] text-[#555] truncate block">{r.property}</span>
                     </td>
-                    <td className="px-4 py-3.5 w-[180px]">
-                      <span className="text-[13px] text-[#666]">{fmtDateShort(r.checkIn)} – {fmtDateShort(r.checkOut)}</span>
-                    </td>
-                    <td className="px-4 py-3.5 text-right w-[120px]">
-                      <span className="text-[13px] font-semibold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || 0)}</span>
+                  )}
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
+                      <span className="text-[13px] font-medium text-[#111]">{r.guest}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className="text-[13px] text-[#666] whitespace-nowrap">{fmtDateShort(r.checkIn)} – {fmtDateShort(r.checkOut)}</span>
+                  </td>
+                  <td className="px-4 py-3.5 text-right">
+                    <span className="text-[13px] font-semibold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || 0)}</span>
+                  </td>
+                </tr>
+                {isOpen && (
+                  <tr>
+                    <td colSpan={cols} className="p-0 bg-[#fafafa] border-b border-[#e2e2e2]">
+                      <AccordionDetail r={r} />
                     </td>
                   </tr>
-                  {isOpen && (
-                    <tr>
-                      <td colSpan={cols} className="p-0 bg-[#fafafa] border-b border-[#e2e2e2]">
-                        <AccordionDetail r={r} />
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              );
-            })}
-          </tbody>
+                )}
+              </tbody>
+            );
+          })}
         </table>
 
         {/* Pagination */}
