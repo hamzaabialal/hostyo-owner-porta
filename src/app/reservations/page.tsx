@@ -5,20 +5,13 @@ import { useSearchParams } from "next/navigation";
 import ChannelBadge, { getChannelIcon, normalizeChannel } from "@/components/ChannelBadge";
 import FilterDropdown from "@/components/FilterDropdown";
 import DateRangePicker from "@/components/DateRangePicker";
+import ReservationCalendar from "@/components/ReservationCalendar";
 import AppShell from "@/components/AppShell";
 import { useData } from "@/lib/DataContext";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
-interface Expense {
-  category: string;
-  amount: number;
-  vendor: string;
-  status: string;
-  notes: string;
-}
-
 interface Reservation {
   id: number;
   notionId: string;
@@ -36,160 +29,28 @@ interface Reservation {
   hostyoFee: number;
   cleaningFee: number;
   expensesTotal: number;
+  ownerPayout: number;
   payoutStatus: string;
-  payoutCycle: string;
-  expenses: Expense[];
 }
-
-/* ------------------------------------------------------------------ */
-/*  Hardcoded Data                                                     */
-/* ------------------------------------------------------------------ */
-const reservations: Reservation[] = [
-  {
-    id: 1, notionId: "", ref: "BK-2026-0001", property: "The Kensington Residence", guest: "Emma Thompson", channel: "Airbnb",
-    checkIn: "2026-03-01", checkOut: "2026-03-05", nights: 4, guests: 3, status: "Completed",
-    gross: 1840, platformFee: -276, hostyoFee: -92, cleaningFee: -120, expensesTotal: -85,
-    payoutStatus: "Paid", payoutCycle: "Mar 1-15, 2026",
-    expenses: [
-      { category: "Cleaning", amount: 120, vendor: "SparkClean Co.", status: "Paid", notes: "Deep clean after checkout" },
-      { category: "Maintenance", amount: 85, vendor: "HandyFix Ltd.", status: "Paid", notes: "Replaced kitchen faucet seal" },
-    ],
-  },
-  {
-    id: 2, notionId: "", ref: "BK-2026-0002", property: "Villa Serena", guest: "James Whitaker", channel: "Booking.com",
-    checkIn: "2026-03-02", checkOut: "2026-03-09", nights: 7, guests: 5, status: "Completed",
-    gross: 4550, platformFee: -682.5, hostyoFee: -227.5, cleaningFee: -200, expensesTotal: -150,
-    payoutStatus: "Paid", payoutCycle: "Mar 1-15, 2026",
-    expenses: [
-      { category: "Cleaning", amount: 200, vendor: "SparkClean Co.", status: "Paid", notes: "Standard turnover clean" },
-      { category: "Supplies", amount: 95, vendor: "Amazon", status: "Paid", notes: "Restocked towels and linens" },
-      { category: "Laundry", amount: 55, vendor: "FreshPress", status: "Paid", notes: "Bedding and towels service" },
-    ],
-  },
-  {
-    id: 3, notionId: "", ref: "BK-2026-0003", property: "Mayfair Studio", guest: "Sophie Chen", channel: "Airbnb",
-    checkIn: "2026-03-03", checkOut: "2026-03-06", nights: 3, guests: 2, status: "Completed",
-    gross: 870, platformFee: -130.5, hostyoFee: -43.5, cleaningFee: -75, expensesTotal: 0,
-    payoutStatus: "Paid", payoutCycle: "Mar 1-15, 2026",
-    expenses: [],
-  },
-  {
-    id: 4, notionId: "", ref: "BK-2026-0004", property: "The Kensington Residence", guest: "Oliver Martinez", channel: "VRBO",
-    checkIn: "2026-03-07", checkOut: "2026-03-12", nights: 5, guests: 4, status: "Completed",
-    gross: 2300, platformFee: -345, hostyoFee: -115, cleaningFee: -120, expensesTotal: -65,
-    payoutStatus: "Paid", payoutCycle: "Mar 1-15, 2026",
-    expenses: [
-      { category: "Cleaning", amount: 120, vendor: "SparkClean Co.", status: "Paid", notes: "Standard turnover clean" },
-      { category: "Supplies", amount: 65, vendor: "Tesco", status: "Paid", notes: "Welcome basket items" },
-    ],
-  },
-  {
-    id: 5, notionId: "", ref: "BK-2026-0005", property: "Villa Serena", guest: "Amelia Brooks", channel: "Direct",
-    checkIn: "2026-03-10", checkOut: "2026-03-14", nights: 4, guests: 6, status: "Completed",
-    gross: 2600, platformFee: 0, hostyoFee: -130, cleaningFee: -200, expensesTotal: -280,
-    payoutStatus: "Scheduled", payoutCycle: "Mar 16-31, 2026",
-    expenses: [
-      { category: "Cleaning", amount: 200, vendor: "SparkClean Co.", status: "Paid", notes: "Post-checkout deep clean" },
-      { category: "Maintenance", amount: 180, vendor: "PoolTech Ltd.", status: "Paid", notes: "Pool filter replacement" },
-      { category: "Supplies", amount: 100, vendor: "Amazon", status: "Paid", notes: "Coffee machine pods and toiletries" },
-    ],
-  },
-  {
-    id: 6, notionId: "", ref: "BK-2026-0006", property: "Mayfair Studio", guest: "Liam O'Connor", channel: "Booking.com",
-    checkIn: "2026-03-08", checkOut: "2026-03-10", nights: 2, guests: 1, status: "Cancelled",
-    gross: 580, platformFee: 0, hostyoFee: 0, cleaningFee: 0, expensesTotal: 0,
-    payoutStatus: "Pending", payoutCycle: "N/A",
-    expenses: [],
-  },
-  {
-    id: 7, notionId: "", ref: "BK-2026-0007", property: "The Kensington Residence", guest: "Isabella Rossi", channel: "Airbnb",
-    checkIn: "2026-03-14", checkOut: "2026-03-18", nights: 4, guests: 2, status: "Completed",
-    gross: 1840, platformFee: -276, hostyoFee: -92, cleaningFee: -120, expensesTotal: 0,
-    payoutStatus: "Scheduled", payoutCycle: "Mar 16-31, 2026",
-    expenses: [
-      { category: "Cleaning", amount: 120, vendor: "SparkClean Co.", status: "Paid", notes: "Standard turnover" },
-    ],
-  },
-  {
-    id: 8, notionId: "", ref: "BK-2026-0008", property: "Villa Serena", guest: "Marcus Johnson", channel: "VRBO",
-    checkIn: "2026-03-16", checkOut: "2026-03-23", nights: 7, guests: 4, status: "Completed",
-    gross: 4550, platformFee: -682.5, hostyoFee: -227.5, cleaningFee: -200, expensesTotal: -75,
-    payoutStatus: "Scheduled", payoutCycle: "Mar 16-31, 2026",
-    expenses: [
-      { category: "Cleaning", amount: 200, vendor: "SparkClean Co.", status: "Paid", notes: "Turnover clean" },
-      { category: "Gardening", amount: 75, vendor: "GreenThumb Services", status: "Paid", notes: "Weekly garden maintenance" },
-    ],
-  },
-  {
-    id: 9, notionId: "", ref: "BK-2026-0009", property: "Mayfair Studio", guest: "Charlotte Evans", channel: "Airbnb",
-    checkIn: "2026-03-12", checkOut: "2026-03-15", nights: 3, guests: 2, status: "Completed",
-    gross: 870, platformFee: -130.5, hostyoFee: -43.5, cleaningFee: -75, expensesTotal: -40,
-    payoutStatus: "Scheduled", payoutCycle: "Mar 16-31, 2026",
-    expenses: [
-      { category: "Cleaning", amount: 75, vendor: "SparkClean Co.", status: "Paid", notes: "Standard clean" },
-      { category: "Supplies", amount: 40, vendor: "Sainsbury's", status: "Paid", notes: "Coffee, tea, and snacks" },
-    ],
-  },
-  {
-    id: 10, notionId: "", ref: "BK-2026-0010", property: "The Kensington Residence", guest: "William Turner", channel: "Direct",
-    checkIn: "2026-03-20", checkOut: "2026-03-27", nights: 7, guests: 3, status: "Check-In",
-    gross: 3220, platformFee: 0, hostyoFee: -161, cleaningFee: -120, expensesTotal: 0,
-    payoutStatus: "Pending", payoutCycle: "Mar 16-31, 2026",
-    expenses: [
-      { category: "Cleaning", amount: 120, vendor: "SparkClean Co.", status: "Scheduled", notes: "Checkout clean booked" },
-    ],
-  },
-  {
-    id: 11, notionId: "", ref: "BK-2026-0011", property: "Villa Serena", guest: "Natasha Petrova", channel: "Booking.com",
-    checkIn: "2026-03-24", checkOut: "2026-03-31", nights: 7, guests: 5, status: "Check-In",
-    gross: 4550, platformFee: -682.5, hostyoFee: -227.5, cleaningFee: -200, expensesTotal: 0,
-    payoutStatus: "Pending", payoutCycle: "Mar 16-31, 2026",
-    expenses: [
-      { category: "Cleaning", amount: 200, vendor: "SparkClean Co.", status: "Scheduled", notes: "Checkout clean booked" },
-    ],
-  },
-  {
-    id: 12, notionId: "", ref: "BK-2026-0012", property: "Mayfair Studio", guest: "Daniel Kim", channel: "VRBO",
-    checkIn: "2026-03-22", checkOut: "2026-03-25", nights: 3, guests: 1, status: "Check-In",
-    gross: 870, platformFee: -130.5, hostyoFee: -43.5, cleaningFee: -75, expensesTotal: 0,
-    payoutStatus: "Pending", payoutCycle: "Mar 16-31, 2026",
-    expenses: [],
-  },
-  {
-    id: 13, notionId: "", ref: "BK-2026-0013", property: "The Kensington Residence", guest: "Hannah Mueller", channel: "Airbnb",
-    checkIn: "2026-03-28", checkOut: "2026-04-02", nights: 5, guests: 2, status: "Pending",
-    gross: 2300, platformFee: -345, hostyoFee: -115, cleaningFee: -120, expensesTotal: 0,
-    payoutStatus: "Pending", payoutCycle: "Apr 1-15, 2026",
-    expenses: [],
-  },
-  {
-    id: 14, notionId: "", ref: "BK-2026-0014", property: "Villa Serena", guest: "Robert Andersen", channel: "Airbnb",
-    checkIn: "2026-04-01", checkOut: "2026-04-08", nights: 7, guests: 6, status: "Pending",
-    gross: 4550, platformFee: -682.5, hostyoFee: -227.5, cleaningFee: -200, expensesTotal: 0,
-    payoutStatus: "Pending", payoutCycle: "Apr 1-15, 2026",
-    expenses: [],
-  },
-  {
-    id: 15, notionId: "", ref: "BK-2026-0015", property: "Mayfair Studio", guest: "Priya Sharma", channel: "Direct",
-    checkIn: "2026-03-18", checkOut: "2026-03-20", nights: 2, guests: 2, status: "Cancelled",
-    gross: 580, platformFee: 0, hostyoFee: 0, cleaningFee: 0, expensesTotal: 0,
-    payoutStatus: "Pending", payoutCycle: "N/A",
-    expenses: [],
-  },
-];
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
-function fmtCurrency(n: number): string {
-  const abs = Math.abs(n);
-  const str = abs.toLocaleString("en-GB", { style: "currency", currency: "GBP" });
-  return n < 0 ? "-" + str : str;
-}
-
 function fmtDate(d: string): string {
+  if (!d) return "";
   const dt = new Date(d + "T00:00:00");
   return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function fmtDateShort(d: string): string {
+  if (!d) return "";
+  const dt = new Date(d + "T00:00:00");
+  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function fmtCurrency(n: number): string {
+  const prefix = n < 0 ? "-" : "";
+  return prefix + "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function statusPillClass(s: string): string {
@@ -199,533 +60,121 @@ function statusPillClass(s: string): string {
     "Check-Out": "pill pill-checkout",
     Cancelled: "pill pill-cancelled",
     Completed: "pill pill-completed",
+    "In-House": "pill pill-inhouse",
   };
-  return map[s] ?? "pill";
-}
-
-function payoutPillClass(s: string): string {
-  const map: Record<string, string> = {
-    Paid: "pill pill-paid",
-    Scheduled: "pill pill-submitted",
-    Pending: "pill pill-pending",
-  };
-  return map[s] ?? "pill";
+  return map[s] || "pill";
 }
 
 /* ------------------------------------------------------------------ */
-/*  Expense Icon                                                       */
+/*  Accordion Detail Tabs                                              */
 /* ------------------------------------------------------------------ */
-function ExpenseIcon({ category }: { category: string }) {
-  const shared = "w-4 h-4 text-gray-500";
-  switch (category) {
-    case "Cleaning":
-      return (
-        <svg className={shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" />
-        </svg>
-      );
-    case "Maintenance":
-      return (
-        <svg className={shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-        </svg>
-      );
-    case "Supplies":
-      return (
-        <svg className={shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" />
-        </svg>
-      );
-    case "Laundry":
-      return (
-        <svg className={shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="1" y="1" width="22" height="22" rx="3" /><circle cx="12" cy="13" r="5" /><circle cx="12" cy="13" r="2" />
-        </svg>
-      );
-    case "Gardening":
-      return (
-        <svg className={shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22V8" /><path d="M5 12H2a10 10 0 0 0 10 10" /><path d="M19 12h3a10 10 0 0 1-10 10" /><path d="M12 8a6 6 0 0 0-6-6c0 3.31 2.69 6 6 6z" /><path d="M12 8a6 6 0 0 1 6-6c0 3.31-2.69 6-6 6z" />
-        </svg>
-      );
-    default:
-      return (
-        <svg className={shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-      );
-  }
-}
+function AccordionDetail({ r }: { r: Reservation }) {
+  const [tab, setTab] = useState<"overview" | "earnings" | "expenses">("overview");
 
-/* ------------------------------------------------------------------ */
-/*  Page Component                                                     */
-/* ------------------------------------------------------------------ */
-function ReservationsContent() {
-  const searchParams = useSearchParams();
-  const guestParam = searchParams.get("guest") || "";
+  const netEarnings = r.gross + r.platformFee + r.hostyoFee + r.cleaningFee + r.expensesTotal;
 
-  /* --- data state --- */
-  const [data, setData] = useState<Reservation[]>(reservations);
-  const [loading, setLoading] = useState(true);
-
-  /* --- filter state --- */
-  const [filterProperty, setFilterProperty] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterChannel, setFilterChannel] = useState("");
-  const [search, setSearch] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-
-  /* --- pagination --- */
-  const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 25;
-
-  /* --- drawer state --- */
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
-
-  /* --- fetch from Notion API (with client cache) --- */
-  const { fetchData } = useData();
-  useEffect(() => {
-    fetchData("reservations", "/api/reservations")
-      .then((res: unknown) => {
-        const d = res as { source?: string; data?: unknown[] };
-        if (d.source === "notion" && d.data?.length) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mapped: Reservation[] = d.data.map((r: any, i: number) => ({
-            id: i + 1,
-            notionId: r.notionId || "",
-            ref: r.ref || `RES-${i + 1}`,
-            property: (r.property || "").trim(),
-            guest: r.guest || "",
-            channel: r.channel || "Direct",
-            checkIn: r.checkin || "",
-            checkOut: r.checkout || "",
-            nights: r.nights || 0,
-            guests: (r.adults || 0) + (r.children || 0) || 1,
-            status: r.status || "Pending",
-            gross: r.grossAmount || 0,
-            platformFee: -(r.platformFee || 0),
-            hostyoFee: -(r.managementFee || 0),
-            cleaningFee: -(r.cleaning || 0),
-            expensesTotal: -(r.expenses || 0),
-            payoutStatus: r.payoutStatus || "Pending",
-            payoutCycle: "",
-            expenses: [],
-          }));
-          setData(mapped);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /* --- fetch all property names for filter --- */
-  const [allPropertyNames, setAllPropertyNames] = useState<string[]>([]);
-  useEffect(() => {
-    fetchData("properties", "/api/properties")
-      .then((d: unknown) => {
-        const res = d as { data?: { name: string }[] };
-        const names = (res.data || []).map((p) => p.name).filter((n) => n).sort((a, b) => a.localeCompare(b));
-        setAllPropertyNames(names);
-      })
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const propertyOptions = useMemo(() =>
-    allPropertyNames.map((p) => ({ value: p, label: p })),
-  [allPropertyNames]);
-
-  const statusOptions = useMemo(() =>
-    Array.from(new Set(data.map((r) => r.status))).filter(Boolean).sort().map((s) => ({ value: s, label: s })),
-  [data]);
-
-  const channelOptions = useMemo(() =>
-    Array.from(new Set(data.map((r) => r.channel))).filter(Boolean).sort().map((c) => ({
-      value: c,
-      label: normalizeChannel(c) === "Direct" ? "Hostyo" : normalizeChannel(c),
-      icon: getChannelIcon(c),
-    })),
-  [data]);
-
-  /* --- filtered data --- */
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    return data.filter((r) => {
-      if (filterProperty && r.property !== filterProperty) return false;
-      if (filterStatus && r.status !== filterStatus) return false;
-      if (filterChannel && r.channel !== filterChannel) return false;
-      if (q && !r.guest.toLowerCase().includes(q) && !r.ref.toLowerCase().includes(q)) return false;
-      if (dateFrom && r.checkIn < dateFrom) return false;
-      if (dateTo && r.checkIn > dateTo) return false;
-      return true;
-    });
-  }, [data, filterProperty, filterStatus, filterChannel, search, dateFrom, dateTo]);
-
-  /* --- paginated data --- */
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, currentPage]);
-
-  // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [filterProperty, filterStatus, filterChannel, search, dateFrom, dateTo]);
-
-  // Auto-open drawer if ?guest= param is present
-  useEffect(() => {
-    if (guestParam && data.length > 0 && !loading) {
-      const match = data.find((r) => r.guest.toLowerCase() === guestParam.toLowerCase());
-      if (match) {
-        openDrawer(match);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guestParam, data, loading]);
-
-  /* --- open / close drawer --- */
-  const openDrawer = useCallback((r: Reservation) => {
-    setSelectedReservation(r);
-    setDrawerOpen(true);
-    document.body.style.overflow = "hidden";
-  }, []);
-
-  const closeDrawer = useCallback(() => {
-    setDrawerOpen(false);
-    setSelectedReservation(null);
-    document.body.style.overflow = "";
-  }, []);
-
-  /* --- Escape key --- */
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") closeDrawer();
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [closeDrawer]);
-
-  /* --- compute net earnings for drawer --- */
-  const netEarnings = selectedReservation
-    ? selectedReservation.gross +
-      selectedReservation.platformFee +
-      selectedReservation.hostyoFee +
-      selectedReservation.cleaningFee +
-      selectedReservation.expensesTotal
-    : 0;
-
-  /* -------------------------------------------------------------- */
-  /*  Select styling                                                 */
-  /* -------------------------------------------------------------- */
-  if (loading) {
-    return (
-      <AppShell title="Reservations">
-        <div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading reservations...</div>
-      </AppShell>
-    );
-  }
+  const tabs = [
+    { key: "overview" as const, label: "Overview" },
+    { key: "earnings" as const, label: "Earnings" },
+    { key: "expenses" as const, label: "Expenses" },
+  ];
 
   return (
-    <AppShell title="Reservations">
-      {/* ── Filter Bar ── */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <FilterDropdown
-          placeholder="All Properties"
-          value={filterProperty}
-          onChange={setFilterProperty}
-          options={propertyOptions}
-          searchable
-        />
-        <FilterDropdown
-          placeholder="All Statuses"
-          value={filterStatus}
-          onChange={setFilterStatus}
-          options={statusOptions}
-        />
-        <FilterDropdown
-          placeholder="All Channels"
-          value={filterChannel}
-          onChange={setFilterChannel}
-          options={channelOptions}
-        />
-
-        {/* Date range filter */}
-        <DateRangePicker
-          from={dateFrom}
-          to={dateTo}
-          onFromChange={setDateFrom}
-          onToChange={setDateTo}
-        />
-
-        <div className="relative">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-[15px] h-[15px] text-gray-400 pointer-events-none"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            type="text"
-            className="bg-white border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-[13px] font-medium text-gray-700 min-w-[260px] placeholder:text-gray-400 hover:border-gray-400 focus:outline-none focus:border-[#80020E]"
-            placeholder="Search guest name or booking ref..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* ── Table ── */}
-      <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr className="bg-[#fafafa]">
-                {["Property", "Guest", "Channel", "Check-in", "Check-out", "Nights", "Status", "Gross Amount", "Expenses", "Payout Status"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wide text-gray-400 border-b border-[#eaeaea] whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  )
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="text-center py-10 text-gray-400 text-sm">
-                    No reservations match your filters.
-                  </td>
-                </tr>
-              ) : (
-                paginated.map((r) => (
-                  <tr
-                    key={r.id}
-                    onClick={() => openDrawer(r)}
-                    className="cursor-pointer transition-colors hover:bg-[#f9f9f9] border-b border-[#f0f0f0] last:border-b-0"
-                  >
-                    <td className="px-4 py-3.5 font-medium text-gray-900 max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">
-                      {r.property}
-                    </td>
-                    <td className="px-4 py-3.5 font-medium text-gray-900 whitespace-nowrap">{r.guest}</td>
-                    <td className="px-4 py-3.5 whitespace-nowrap"><ChannelBadge channel={r.channel} /></td>
-                    <td className="px-4 py-3.5 text-gray-700 whitespace-nowrap">{fmtDate(r.checkIn)}</td>
-                    <td className="px-4 py-3.5 text-gray-700 whitespace-nowrap">{fmtDate(r.checkOut)}</td>
-                    <td className="px-4 py-3.5 text-gray-700 whitespace-nowrap">{r.nights}</td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      <span className={statusPillClass(r.status)}>{r.status}</span>
-                    </td>
-                    <td className="px-4 py-3.5 font-semibold tabular-nums whitespace-nowrap">{fmtCurrency(r.gross)}</td>
-                    <td className="px-4 py-3.5 tabular-nums text-red-800 whitespace-nowrap">
-                      {r.expensesTotal !== 0 ? fmtCurrency(r.expensesTotal) : "\u2014"}
-                    </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      <span className={payoutPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── Pagination ── */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 px-1">
-            <p className="text-[13px] text-text-tertiary">
-              Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} reservations
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 text-[13px] font-medium rounded-lg border border-[#e2e2e2] bg-white text-text-secondary hover:bg-[#f5f5f5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Previous
-              </button>
-              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                let page: number;
-                if (totalPages <= 7) {
-                  page = i + 1;
-                } else if (currentPage <= 4) {
-                  page = i + 1;
-                } else if (currentPage >= totalPages - 3) {
-                  page = totalPages - 6 + i;
-                } else {
-                  page = currentPage - 3 + i;
-                }
-                return (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 text-[13px] font-medium rounded-lg transition-colors ${
-                      currentPage === page
-                        ? "bg-accent text-white"
-                        : "text-text-secondary hover:bg-[#f5f5f5]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 text-[13px] font-medium rounded-lg border border-[#e2e2e2] bg-white text-text-secondary hover:bg-[#f5f5f5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Drawer Overlay ── */}
-      <div
-        className={`drawer-overlay ${drawerOpen ? "open" : ""}`}
-        onClick={closeDrawer}
-      />
-
-      {/* ── Slide-over Drawer ── */}
-      <div className={`drawer-panel ${drawerOpen ? "open" : ""}`}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#eaeaea] shrink-0">
-          <h2 className="text-base font-semibold text-gray-900">Reservation Details</h2>
+    <div className="px-6 md:px-10 py-5">
+      {/* Tabs */}
+      <div className="flex gap-0 border-b border-[#eaeaea] mb-5">
+        {tabs.map((t) => (
           <button
-            onClick={closeDrawer}
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-gray-100 text-gray-500"
+            key={t.key}
+            onClick={(e) => { e.stopPropagation(); setTab(t.key); }}
+            className={`px-4 py-2 text-[13px] font-medium border-b-2 transition-colors ${
+              tab === t.key ? "text-[#80020E] border-[#80020E]" : "text-[#999] border-transparent hover:text-[#555]"
+            }`}
           >
-            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            {t.label}
           </button>
-        </div>
-
-        {/* Body */}
-        {selectedReservation && (
-          <div className="flex-1 overflow-y-auto p-6">
-            {/* Reservation Info */}
-            <div className="mb-7">
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3.5">
-                Reservation Info
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <InfoItem label="Guest" value={selectedReservation.guest} />
-                <InfoItem label="Booking Ref" value={selectedReservation.ref} />
-                <InfoItem label="Property" value={selectedReservation.property} fullWidth />
-                <div className="flex items-center justify-between py-2.5 border-b border-[#f2f2f2]">
-                    <span className="text-[13px] text-text-tertiary">Channel</span>
-                    <ChannelBadge channel={selectedReservation.channel} />
-                  </div>
-                <InfoItem label="Guests" value={String(selectedReservation.guests)} />
-                <InfoItem label="Check-in" value={fmtDate(selectedReservation.checkIn)} />
-                <InfoItem label="Check-out" value={fmtDate(selectedReservation.checkOut)} />
-                <InfoItem label="Nights" value={String(selectedReservation.nights)} />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Status</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    <span className={statusPillClass(selectedReservation.status)}>{selectedReservation.status}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Financial Breakdown */}
-            <div className="mb-7">
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3.5">
-                Financial Breakdown
-              </h3>
-              <div className="bg-[#fafafa] border border-[#eaeaea] rounded-[10px] p-4.5">
-                <FinancialRow label="Gross Price" value={fmtCurrency(selectedReservation.gross)} />
-                {selectedReservation.platformFee !== 0 && (
-                  <FinancialRow label="Platform Fee" value={fmtCurrency(selectedReservation.platformFee)} negative />
-                )}
-                {selectedReservation.hostyoFee !== 0 && (
-                  <FinancialRow label="Hostyo Fee" value={fmtCurrency(selectedReservation.hostyoFee)} negative />
-                )}
-                {selectedReservation.cleaningFee !== 0 && (
-                  <FinancialRow label="Cleaning Fee" value={fmtCurrency(selectedReservation.cleaningFee)} negative />
-                )}
-                {selectedReservation.expensesTotal !== 0 && (
-                  <FinancialRow label="Linked Expenses" value={fmtCurrency(selectedReservation.expensesTotal)} negative />
-                )}
-                <div className="flex justify-between items-center py-2 border-t-2 border-[#eaeaea] mt-1 pt-3">
-                  <span className="text-[13px] font-bold text-gray-900">Net Earnings Contribution</span>
-                  <span className="text-[15px] font-bold text-[#80020E] tabular-nums">{fmtCurrency(netEarnings)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Payout Cycle */}
-            <div className="mb-7">
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3.5">
-                Payout Cycle
-              </h3>
-              <div className="flex items-center gap-4">
-                <span className={payoutPillClass(selectedReservation.payoutStatus)}>{selectedReservation.payoutStatus}</span>
-                <span className="text-[13px] text-gray-500">Cycle:</span>
-                <span className="text-[13px] font-semibold text-gray-900">{selectedReservation.payoutCycle}</span>
-              </div>
-            </div>
-
-            {/* Linked Expenses */}
-            <div className="mb-7">
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3.5">
-                Linked Expenses
-              </h3>
-              {selectedReservation.expenses.length === 0 ? (
-                <p className="text-[13px] text-gray-400 italic">No linked expenses for this reservation.</p>
-              ) : (
-                <div className="divide-y divide-[#f0f0f0]">
-                  {selectedReservation.expenses.map((exp, i) => (
-                    <div key={i} className="flex items-start gap-3 py-3 first:pt-0">
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                        <ExpenseIcon category={exp.category} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[13px] font-semibold text-gray-900">{exp.category}</span>
-                          <span className="text-[13px] font-semibold text-red-800 tabular-nums">
-                            {fmtCurrency(-exp.amount)}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-400 mt-0.5">
-                          {exp.vendor} &middot; {exp.status}
-                        </div>
-                        {exp.notes && (
-                          <div className="text-xs text-gray-500 mt-1 italic">{exp.notes}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Expense Submission Link */}
-            {selectedReservation.notionId && (
-              <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3.5">
-                  Vendor Expense Link
-                </h3>
-                <ExpenseLinkButton notionId={selectedReservation.notionId} />
-              </div>
-            )}
-          </div>
-        )}
+        ))}
       </div>
-    </AppShell>
+
+      {/* Overview Tab */}
+      {tab === "overview" && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-4">
+          <DetailItem label="Guest" value={r.guest} />
+          <DetailItem label="Booking Ref" value={r.ref} />
+          <DetailItem label="Property" value={r.property} />
+          <div>
+            <span className="text-[11px] font-medium text-[#999] uppercase tracking-wide block mb-1">Channel</span>
+            <ChannelBadge channel={r.channel} />
+          </div>
+          <DetailItem label="Total Guests" value={String(r.guests || 1)} />
+          <DetailItem label="Total Nights" value={String(r.nights)} />
+          <DetailItem label="Check-in" value={fmtDate(r.checkIn)} />
+          <DetailItem label="Check-out" value={fmtDate(r.checkOut)} />
+          <div>
+            <span className="text-[11px] font-medium text-[#999] uppercase tracking-wide block mb-1">Status</span>
+            <span className={statusPillClass(r.status)}>{r.status}</span>
+          </div>
+          <div>
+            <span className="text-[11px] font-medium text-[#999] uppercase tracking-wide block mb-1">Payout Status</span>
+            <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Earnings Tab */}
+      {tab === "earnings" && (
+        <div className="max-w-[400px]">
+          <div className="bg-[#fafafa] border border-[#eaeaea] rounded-xl p-4">
+            <FinRow label="Gross Booking" value={fmtCurrency(r.gross)} />
+            {r.platformFee !== 0 && <FinRow label="Platform Fee" value={fmtCurrency(r.platformFee)} neg />}
+            {r.hostyoFee !== 0 && <FinRow label="Management Fee" value={fmtCurrency(r.hostyoFee)} neg />}
+            {r.cleaningFee !== 0 && <FinRow label="Cleaning" value={fmtCurrency(r.cleaningFee)} neg />}
+            {r.expensesTotal !== 0 && <FinRow label="Expenses" value={fmtCurrency(r.expensesTotal)} neg />}
+            <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-[#e2e2e2]">
+              <span className="text-[13px] font-bold text-[#111]">Owner Payout</span>
+              <span className="text-[15px] font-bold text-[#80020E] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expenses Tab */}
+      {tab === "expenses" && (
+        <div>
+          <p className="text-[13px] text-[#999] mb-3">Expenses linked to this reservation.</p>
+          {r.expensesTotal === 0 ? (
+            <p className="text-[13px] text-[#bbb] italic">No linked expenses for this reservation.</p>
+          ) : (
+            <div className="bg-[#fafafa] border border-[#eaeaea] rounded-xl p-4 max-w-[400px]">
+              <FinRow label="Total Linked Expenses" value={fmtCurrency(r.expensesTotal)} neg />
+            </div>
+          )}
+          {r.notionId && (
+            <div className="mt-4">
+              <ExpenseLinkButton notionId={r.notionId} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="text-[11px] font-medium text-[#999] uppercase tracking-wide block mb-1">{label}</span>
+      <span className="text-[13px] font-medium text-[#111]">{value || "—"}</span>
+    </div>
+  );
+}
+
+function FinRow({ label, value, neg }: { label: string; value: string; neg?: boolean }) {
+  return (
+    <div className="flex justify-between items-center py-2 border-b border-[#f0f0f0] last:border-b-0">
+      <span className="text-[13px] text-[#666]">{label}</span>
+      <span className={`text-[13px] font-medium tabular-nums ${neg ? "text-[#7A5252]" : "text-[#111]"}`}>{value}</span>
+    </div>
   );
 }
 
@@ -762,18 +211,10 @@ function ExpenseLinkButton({ notionId }: { notionId: string }) {
 
   if (!link) {
     return (
-      <button
-        onClick={generate}
-        disabled={generating}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#80020E] text-white rounded-xl text-[13px] font-semibold hover:bg-[#6b010c] transition-colors disabled:opacity-50"
-      >
-        {generating ? (
-          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
-          </svg>
+      <button onClick={generate} disabled={generating}
+        className="flex items-center gap-2 px-4 py-2.5 bg-[#80020E] text-white rounded-xl text-[12px] font-semibold hover:bg-[#6b010c] transition-colors disabled:opacity-50">
+        {generating ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
         )}
         {generating ? "Generating..." : "Generate Expense Link"}
       </button>
@@ -781,61 +222,344 @@ function ExpenseLinkButton({ notionId }: { notionId: string }) {
   }
 
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-center gap-2 p-3 bg-[#f8f8f8] border border-[#e2e2e2] rounded-xl">
-        <input
-          type="text"
-          value={link}
-          readOnly
-          className="flex-1 text-[12px] text-[#555] bg-transparent outline-none font-mono truncate"
-        />
-        <button
-          onClick={copyLink}
-          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
-            copied
-              ? "bg-[#EAF3EF] text-[#2F6B57] border border-[#D6E7DE]"
-              : "bg-[#80020E] text-white hover:bg-[#6b010c]"
-          }`}
-        >
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 p-2.5 bg-[#f8f8f8] border border-[#e2e2e2] rounded-xl">
+        <input type="text" value={link} readOnly className="flex-1 text-[11px] text-[#555] bg-transparent outline-none font-mono truncate" />
+        <button onClick={copyLink} className={`flex-shrink-0 px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors ${copied ? "bg-[#EAF3EF] text-[#2F6B57]" : "bg-[#80020E] text-white hover:bg-[#6b010c]"}`}>
           {copied ? "Copied!" : "Copy"}
         </button>
       </div>
-      <p className="text-[11px] text-[#999] leading-relaxed">
-        Share this link with your vendor via WhatsApp, SMS, or email. They can submit work details, photos, and receipts without logging in.
-      </p>
+      <p className="text-[10px] text-[#999]">Share with vendor via WhatsApp, SMS, or email.</p>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Sub-components                                                     */
+/*  Main Content                                                       */
 /* ------------------------------------------------------------------ */
-function InfoItem({ label, value, fullWidth }: { label: string; value: string; fullWidth?: boolean }) {
+function ReservationsContent() {
+  const searchParams = useSearchParams();
+  const guestParam = searchParams.get("guest") || "";
+
+  const [data, setData] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [mobileView, setMobileView] = useState<"list" | "calendar">("list");
+
+  // Filters
+  const [filterProperty, setFilterProperty] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterChannel, setFilterChannel] = useState("");
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 25;
+
+  // Fetch
+  const { fetchData } = useData();
+  useEffect(() => {
+    fetchData("reservations", "/api/reservations")
+      .then((res: unknown) => {
+        const d = res as { source?: string; data?: unknown[] };
+        if (d.source === "notion" && d.data?.length) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mapped: Reservation[] = d.data.map((r: any, i: number) => ({
+            id: i + 1,
+            notionId: r.notionId || "",
+            ref: r.ref || "",
+            property: (r.property || "").trim(),
+            guest: r.guest || "",
+            channel: r.channel || "Direct",
+            checkIn: r.checkin || "",
+            checkOut: r.checkout || "",
+            nights: r.nights || 0,
+            guests: (r.adults || 0) + (r.children || 0) || 1,
+            status: r.status || "Pending",
+            gross: r.grossAmount || 0,
+            platformFee: -(r.platformFee || 0),
+            hostyoFee: -(r.managementFee || 0),
+            cleaningFee: -(r.cleaning || 0),
+            expensesTotal: -(r.expenses || 0),
+            ownerPayout: r.ownerPayout || 0,
+            payoutStatus: r.payoutStatus || "Pending",
+          }));
+          setData(mapped);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // All property names for filter
+  const [allPropertyNames, setAllPropertyNames] = useState<string[]>([]);
+  useEffect(() => {
+    fetchData("properties", "/api/properties")
+      .then((d: unknown) => {
+        const res = d as { data?: { name: string }[] };
+        const names = (res.data || []).map((p) => p.name).filter((n) => n).sort((a, b) => a.localeCompare(b));
+        setAllPropertyNames(names);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const propertyOptions = useMemo(() =>
+    allPropertyNames.map((p) => ({ value: p, label: p })),
+  [allPropertyNames]);
+
+  const statusOptions = useMemo(() =>
+    Array.from(new Set(data.map((r) => r.status))).filter(Boolean).sort().map((s) => ({ value: s, label: s })),
+  [data]);
+
+  const channelOptions = useMemo(() =>
+    Array.from(new Set(data.map((r) => r.channel))).filter(Boolean).sort().map((c) => ({
+      value: c,
+      label: normalizeChannel(c) === "Direct" ? "Hostyo" : normalizeChannel(c),
+      icon: getChannelIcon(c),
+    })),
+  [data]);
+
+  // Show property column only if >1 unique property AND "All Properties"
+  const uniqueProperties = useMemo(() => new Set(data.map((r) => r.property)), [data]);
+  const showPropertyCol = uniqueProperties.size > 1 && !filterProperty;
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return data.filter((r) => {
+      if (filterProperty && r.property !== filterProperty) return false;
+      if (filterStatus && r.status !== filterStatus) return false;
+      if (filterChannel && r.channel !== filterChannel) return false;
+      if (q && !r.guest.toLowerCase().includes(q) && !r.ref.toLowerCase().includes(q)) return false;
+      if (dateFrom && r.checkIn < dateFrom) return false;
+      if (dateTo && r.checkIn > dateTo) return false;
+      return true;
+    });
+  }, [data, filterProperty, filterStatus, filterChannel, search, dateFrom, dateTo]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, currentPage]);
+
+  // Auto-expand if ?guest= param
+  useEffect(() => {
+    if (guestParam && data.length > 0 && !loading) {
+      const match = data.find((r) => r.guest.toLowerCase() === guestParam.toLowerCase());
+      if (match) setExpandedId(match.id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guestParam, data, loading]);
+
+  const toggleRow = useCallback((id: number) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }, []);
+
+  if (loading) {
+    return (
+      <AppShell title="Reservations" minimalTopBar>
+        <div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading reservations...</div>
+      </AppShell>
+    );
+  }
+
   return (
-    <div className={`flex flex-col gap-0.5 ${fullWidth ? "col-span-2" : ""}`}>
-      <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">{label}</span>
-      <span className="text-sm font-medium text-gray-900">{value}</span>
-    </div>
-  );
-}
+    <AppShell title="Reservations" minimalTopBar>
+      {/* ── Mobile Search ── */}
+      <div className="mb-3 md:hidden">
+        <div className="relative">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search reservations"
+            className="w-full h-[40px] pl-9 pr-3 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
+        </div>
+      </div>
 
-function FinancialRow({ label, value, negative }: { label: string; value: string; negative?: boolean }) {
-  return (
-    <div className="flex justify-between items-center py-2 border-t border-[#f0f0f0] first:border-t-0">
-      <span className="text-[13px] font-medium text-gray-500">{label}</span>
-      <span className={`text-[13px] font-medium tabular-nums ${negative ? "text-red-800" : "text-gray-700"}`}>
-        {value}
-      </span>
-    </div>
+      {/* ── Mobile Filters (compact) ── */}
+      <div className="flex items-center gap-2 mb-4 overflow-x-auto md:hidden pb-1">
+        <FilterDropdown placeholder="Properties" value={filterProperty} onChange={setFilterProperty} options={propertyOptions} searchable />
+        <FilterDropdown placeholder="Status" value={filterStatus} onChange={setFilterStatus} options={statusOptions} />
+        <FilterDropdown placeholder="Channels" value={filterChannel} onChange={setFilterChannel} options={channelOptions} />
+        <FilterDropdown placeholder="Dates" value={dateFrom ? "Filtered" : ""} onChange={() => {}} options={[]} />
+      </div>
+
+      {/* ── Mobile View Toggle (List / Calendar) ── */}
+      <div className="flex gap-1 mb-4 md:hidden">
+        <button onClick={() => setMobileView("list")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "list" ? "bg-[#80020E] text-white" : "bg-white text-[#555] border border-[#e2e2e2]"}`}>List</button>
+        <button onClick={() => setMobileView("calendar")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "calendar" ? "bg-[#80020E] text-white" : "bg-white text-[#555] border border-[#e2e2e2]"}`}>Calendar</button>
+      </div>
+
+      {/* ── Desktop Filters ── */}
+      <div className="hidden md:flex items-center gap-3 mb-5 flex-wrap">
+        <FilterDropdown placeholder="All Properties" value={filterProperty} onChange={setFilterProperty} options={propertyOptions} searchable />
+        <FilterDropdown placeholder="All Statuses" value={filterStatus} onChange={setFilterStatus} options={statusOptions} />
+        <FilterDropdown placeholder="All Channels" value={filterChannel} onChange={setFilterChannel} options={channelOptions} />
+        <DateRangePicker from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+        <div className="relative flex-1 min-w-[180px] max-w-[280px]">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search guest name or booking ref..."
+            className="w-full h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
+        </div>
+      </div>
+
+      {/* ── Mobile Calendar View ── */}
+      {mobileView === "calendar" && (
+        <div className="md:hidden">
+          <ReservationCalendar
+            reservations={filtered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
+            onReservationTap={(res) => {
+              const match = filtered.find((r) => r.id === res.id);
+              if (match) setExpandedId(match.id);
+            }}
+          />
+        </div>
+      )}
+
+      {/* ── Mobile Card List ── */}
+      {mobileView === "list" && (
+        <div className="md:hidden space-y-3">
+          {paginated.length === 0 ? (
+            <div className="text-center py-10 text-[#999] text-sm">No reservations match your filters.</div>
+          ) : paginated.map((r) => {
+            const isOpen = expandedId === r.id;
+            return (
+              <div key={r.id} className={`bg-white border rounded-xl overflow-hidden transition-all ${isOpen ? "border-[#d0d0d0] shadow-sm" : "border-[#eaeaea]"}`}>
+                {/* Card header */}
+                <div onClick={() => toggleRow(r.id)} className="p-4 cursor-pointer">
+                  {/* Status + Channel */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={statusPillClass(r.status)}>{r.status}</span>
+                    <ChannelBadge channel={r.channel} compact />
+                  </div>
+                  {/* Guest name */}
+                  <div className="text-[16px] font-semibold text-[#111] mb-0.5">{r.guest}</div>
+                  {/* Property */}
+                  <div className="text-[13px] text-[#888] mb-1.5 truncate">{r.property}</div>
+                  {/* Dates + nights + guests */}
+                  <div className="text-[12px] text-[#666] mb-2">
+                    {fmtDateShort(r.checkIn)} → {fmtDateShort(r.checkOut)} · {r.nights} night{r.nights !== 1 ? "s" : ""} · {r.guests} guest{r.guests !== 1 ? "s" : ""}
+                  </div>
+                  {/* Payout */}
+                  {r.ownerPayout > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[14px] font-semibold text-[#111]">{fmtCurrency(r.ownerPayout)}</span>
+                      <span className="text-[11px] text-[#999]">· {r.payoutStatus} payout</span>
+                    </div>
+                  )}
+                </div>
+                {/* Accordion expansion */}
+                <div className={`overflow-hidden transition-all duration-200 ease-in-out ${isOpen ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"}`}>
+                  <div className="border-t border-[#eaeaea] bg-[#fafafa]">
+                    <AccordionDetail r={r} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Desktop Table ── */}
+      <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr className="bg-[#fafafa]">
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Status</th>
+              {showPropertyCol && <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea] hidden md:table-cell">Property</th>}
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Guest</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea] hidden sm:table-cell">Dates</th>
+              <th className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Payout</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginated.length === 0 ? (
+              <tr><td colSpan={showPropertyCol ? 5 : 4} className="text-center py-10 text-[#999] text-sm">No reservations match your filters.</td></tr>
+            ) : paginated.map((r) => {
+              const isOpen = expandedId === r.id;
+              return (
+                <tr key={r.id} className="group">
+                  <td colSpan={showPropertyCol ? 5 : 4} className="p-0">
+                    {/* Main row */}
+                    <div
+                      onClick={() => toggleRow(r.id)}
+                      className={`flex items-center cursor-pointer transition-colors ${
+                        isOpen ? "bg-[#fafafa]" : "hover:bg-[#f9f9f9]"
+                      } border-b ${isOpen ? "border-[#e2e2e2]" : "border-[#f0f0f0]"}`}
+                    >
+                      {/* Status */}
+                      <div className="px-4 py-3.5 w-[120px] flex-shrink-0">
+                        <span className={statusPillClass(r.status)}>{r.status}</span>
+                      </div>
+                      {/* Property (conditional) */}
+                      {showPropertyCol && (
+                        <div className="px-4 py-3.5 flex-shrink-0 max-w-[180px] hidden md:block">
+                          <span className="text-[13px] text-[#555] truncate block">{r.property}</span>
+                        </div>
+                      )}
+                      {/* Guest + OTA logo */}
+                      <div className="px-4 py-3.5 flex-1 min-w-0 flex items-center gap-2">
+                        <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
+                        <span className="text-[13px] font-medium text-[#111] truncate">{r.guest}</span>
+                      </div>
+                      {/* Dates */}
+                      <div className="px-4 py-3.5 flex-shrink-0 hidden sm:block">
+                        <span className="text-[13px] text-[#666]">{fmtDateShort(r.checkIn)} – {fmtDateShort(r.checkOut)}</span>
+                      </div>
+                      {/* Payout */}
+                      <div className="px-4 py-3.5 flex-shrink-0 text-right min-w-[100px]">
+                        <span className="text-[13px] font-semibold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || 0)}</span>
+                      </div>
+                    </div>
+
+                    {/* Accordion expansion */}
+                    <div
+                      className={`overflow-hidden transition-all duration-200 ease-in-out ${
+                        isOpen ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
+                      }`}
+                    >
+                      <div className={`bg-[#fafafa] border-b border-[#e2e2e2] ${isOpen ? "" : "hidden"}`}>
+                        <AccordionDetail r={r} />
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[#eaeaea]">
+            <p className="text-[13px] text-[#999]">
+              {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </p>
+            <div className="flex gap-1">
+              <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:bg-[#f5f5f5] disabled:opacity-40 transition-colors">Prev</button>
+              <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}
+                className="px-3 py-1.5 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:bg-[#f5f5f5] disabled:opacity-40 transition-colors">Next</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </AppShell>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Page export with Suspense for useSearchParams                      */
+/*  Page export                                                        */
 /* ------------------------------------------------------------------ */
 export default function ReservationsPage() {
   return (
-    <Suspense fallback={<AppShell title="Reservations"><div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading...</div></AppShell>}>
+    <Suspense fallback={<AppShell title="Reservations" minimalTopBar><div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading...</div></AppShell>}>
       <ReservationsContent />
     </Suspense>
   );
