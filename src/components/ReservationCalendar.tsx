@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 
 interface CalendarReservation {
   id: number;
@@ -12,32 +12,30 @@ interface CalendarReservation {
   ownerPayout: number;
 }
 
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-const CHANNEL_COLORS: Record<string, string> = {
-  "Airbnb": "#FF5A5F",
-  "Booking.com": "#003580",
-  "Expedia": "#FBAF17",
-  "VRBO": "#3B5998",
-  "Agoda": "#5D2E8C",
-  "Direct": "#80020E",
+const CHANNEL_COLORS: Record<string, { bg: string; text: string }> = {
+  "Airbnb": { bg: "#FF5A5F", text: "#fff" },
+  "Booking.com": { bg: "#003580", text: "#fff" },
+  "Expedia": { bg: "#FBAF17", text: "#333" },
+  "VRBO": { bg: "#3B5998", text: "#fff" },
+  "Agoda": { bg: "#5D2E8C", text: "#fff" },
+  "Direct": { bg: "#80020E", text: "#fff" },
 };
 
-function getColor(channel: string): string {
-  for (const [key, color] of Object.entries(CHANNEL_COLORS)) {
-    if (channel.toLowerCase().includes(key.toLowerCase())) return color;
+function getColor(channel: string) {
+  for (const [key, colors] of Object.entries(CHANNEL_COLORS)) {
+    if (channel.toLowerCase().includes(key.toLowerCase())) return colors;
   }
-  return "#80020E";
+  return { bg: "#80020E", text: "#fff" };
 }
 
 function pad(n: number) { return n < 10 ? `0${n}` : `${n}`; }
-
-function fmtDateShort(d: string): string {
-  if (!d) return "";
-  const dt = new Date(d + "T00:00:00");
-  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+function toDateStr(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function daysBetween(a: string, b: string) {
+  return Math.ceil((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);
 }
+
+const TOTAL_DAYS = 42;
+const DAY_W = 48;
 
 export default function ReservationCalendar({
   reservations,
@@ -46,139 +44,183 @@ export default function ReservationCalendar({
   reservations: CalendarReservation[];
   onReservationTap?: (r: CalendarReservation) => void;
 }) {
-  const [viewDate, setViewDate] = useState(() => new Date());
-  const [selectedRes, setSelectedRes] = useState<CalendarReservation | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [selected, setSelected] = useState<CalendarReservation | null>(null);
+  const [offset, setOffset] = useState(-3); // start 3 days before today
 
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
+  const today = useMemo(() => new Date(), []);
 
-  const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
+  // Scroll to today on mount
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollLeft = 3 * DAY_W;
+  }, []);
 
-  // Build calendar grid
-  const { days, startOffset } = useMemo(() => {
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    let firstDay = new Date(year, month, 1).getDay();
-    firstDay = firstDay === 0 ? 6 : firstDay - 1; // Monday = 0
-    const d: number[] = [];
-    for (let i = 1; i <= daysInMonth; i++) d.push(i);
-    return { days: d, startOffset: firstDay };
-  }, [year, month]);
-
-  // Find reservations overlapping this month
-  const monthStart = `${year}-${pad(month + 1)}-01`;
-  const monthEnd = `${year}-${pad(month + 1)}-${pad(days.length)}`;
-
-  const overlapping = useMemo(() => {
-    return reservations.filter((r) => {
-      if (!r.checkIn || !r.checkOut) return false;
-      if (r.status === "Cancelled") return false;
-      return r.checkIn <= monthEnd && r.checkOut >= monthStart;
-    });
-  }, [reservations, monthStart, monthEnd]);
-
-  // Map days to reservations
-  const dayMap = useMemo(() => {
-    const map: Record<number, CalendarReservation[]> = {};
-    for (const r of overlapping) {
-      const ciDate = new Date(r.checkIn + "T00:00:00");
-      const coDate = new Date(r.checkOut + "T00:00:00");
-      for (let d = 1; d <= days.length; d++) {
-        const current = new Date(year, month, d);
-        if (current >= ciDate && current < coDate) {
-          if (!map[d]) map[d] = [];
-          map[d].push(r);
-        }
-      }
+  // Day columns
+  const dayCols = useMemo(() => {
+    const cols: { str: string; day: number; dow: string; month: string; isToday: boolean; isWeekend: boolean }[] = [];
+    for (let i = 0; i < TOTAL_DAYS; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + offset + i);
+      const dow = d.toLocaleDateString("en-GB", { weekday: "short" });
+      const month = d.toLocaleDateString("en-GB", { month: "short" });
+      cols.push({
+        str: toDateStr(d), day: d.getDate(), dow, month,
+        isToday: d.toDateString() === today.toDateString(),
+        isWeekend: d.getDay() === 0 || d.getDay() === 6,
+      });
     }
-    return map;
-  }, [overlapping, days.length, year, month]);
+    return cols;
+  }, [today, offset]);
 
-  const today = new Date();
-  const isToday = (d: number) => today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
+  const rangeStart = dayCols[0].str;
+  const rangeEnd = dayCols[TOTAL_DAYS - 1].str;
+
+  // Active reservations in range
+  const active = useMemo(() =>
+    reservations.filter((r) => {
+      if (!r.checkIn || !r.checkOut || r.status === "Cancelled") return false;
+      return r.checkIn <= rangeEnd && r.checkOut > rangeStart;
+    }).sort((a, b) => a.checkIn.localeCompare(b.checkIn)),
+  [reservations, rangeStart, rangeEnd]);
+
+  // Assign rows so bars don't overlap
+  const rows = useMemo(() => {
+    const rowEnds: string[] = []; // tracks when each row's last bar ends
+    return active.map((r) => {
+      let row = rowEnds.findIndex((end) => end <= r.checkIn);
+      if (row === -1) { row = rowEnds.length; rowEnds.push(""); }
+      rowEnds[row] = r.checkOut;
+      return { ...r, row };
+    });
+  }, [active]);
+
+  const totalRows = rows.length > 0 ? Math.max(...rows.map((r) => r.row)) + 1 : 1;
+  const ROW_H = 44;
+
+  const scrollWeek = (dir: number) => setOffset((o) => o + dir * 7);
+  const goToday = () => setOffset(-3);
 
   return (
     <div>
-      {/* Month Header */}
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={prevMonth} className="p-2 text-[#999] hover:text-[#333] transition-colors">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <span className="text-[15px] font-semibold text-[#111]">{MONTH_NAMES[month]} {year}</span>
-        <button onClick={nextMonth} className="p-2 text-[#999] hover:text-[#333] transition-colors">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
-        </button>
+      {/* Controls */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => scrollWeek(-1)} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <button onClick={goToday} className="px-3 py-1.5 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-colors">Today</button>
+          <button onClick={() => scrollWeek(1)} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
+          </button>
+          <span className="text-[13px] font-semibold text-[#111] ml-2">
+            {dayCols[0]?.month} {dayCols[0]?.day} – {dayCols[TOTAL_DAYS - 1]?.month} {dayCols[TOTAL_DAYS - 1]?.day}
+          </span>
+        </div>
+        <div className="hidden md:flex items-center gap-3 text-[10px] text-[#999]">
+          {Object.entries(CHANNEL_COLORS).slice(0, 4).map(([name, { bg }]) => (
+            <span key={name} className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: bg }} />
+              {name}
+            </span>
+          ))}
+        </div>
       </div>
 
-      {/* Day headers */}
-      <div className="grid grid-cols-7 mb-1">
-        {DAY_NAMES.map((d) => (
-          <div key={d} className="text-center text-[10px] font-semibold text-[#999] uppercase py-1">{d}</div>
-        ))}
-      </div>
-
-      {/* Calendar grid */}
-      <div className="grid grid-cols-7 border-t border-l border-[#eaeaea]">
-        {/* Empty cells for offset */}
-        {Array.from({ length: startOffset }).map((_, i) => (
-          <div key={`e${i}`} className="h-[72px] md:h-[90px] border-r border-b border-[#eaeaea] bg-[#fafafa]" />
-        ))}
-
-        {/* Day cells */}
-        {days.map((d) => {
-          const resForDay = dayMap[d] || [];
-          const isT = isToday(d);
-
-          return (
-            <div key={d} className="h-[72px] md:h-[90px] border-r border-b border-[#eaeaea] p-0.5 overflow-hidden relative">
-              <div className={`text-[11px] font-medium px-1 py-0.5 ${isT ? "text-white bg-[#80020E] rounded-full w-5 h-5 flex items-center justify-center text-[10px] mx-auto" : "text-[#666]"}`}>
-                {d}
-              </div>
-              <div className="space-y-0.5 mt-0.5">
-                {resForDay.slice(0, 2).map((r) => {
-                  const color = getColor(r.channel);
-                  const ciDay = new Date(r.checkIn + "T00:00:00").getDate();
-                  const isStart = year === new Date(r.checkIn + "T00:00:00").getFullYear() &&
-                                  month === new Date(r.checkIn + "T00:00:00").getMonth() &&
-                                  d === ciDay;
-                  return (
-                    <button
-                      key={`${r.id}-${d}`}
-                      onClick={(e) => { e.stopPropagation(); setSelectedRes(r); onReservationTap?.(r); }}
-                      className="w-full text-left px-1 py-0.5 rounded text-[9px] md:text-[10px] font-medium text-white truncate block leading-tight"
-                      style={{ backgroundColor: color + "dd" }}
-                      title={`${r.guest} - ${r.property}`}
-                    >
-                      {isStart ? r.guest.split(" ")[0] : ""}
-                    </button>
-                  );
-                })}
-                {resForDay.length > 2 && (
-                  <div className="text-[8px] text-[#999] px-1">+{resForDay.length - 2}</div>
-                )}
-              </div>
+      {/* Timeline */}
+      <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white">
+        <div ref={scrollRef} className="overflow-x-auto" style={{ scrollBehavior: "smooth" }}>
+          <div style={{ width: TOTAL_DAYS * DAY_W + "px", minWidth: "100%" }}>
+            {/* Date headers */}
+            <div className="flex border-b border-[#eaeaea] bg-[#fafafa] sticky top-0 z-10">
+              {dayCols.map((col, i) => (
+                <div
+                  key={i}
+                  className={`flex flex-col items-center justify-end py-1.5 border-r border-[#f0f0f0] ${col.isWeekend ? "bg-[#f5f5f5]" : ""}`}
+                  style={{ width: DAY_W, minWidth: DAY_W }}
+                >
+                  {(col.day === 1 || i === 0) && <span className="text-[8px] font-bold text-[#bbb] uppercase">{col.month}</span>}
+                  <span className={`text-[9px] font-medium ${col.isToday ? "text-[#80020E]" : "text-[#bbb]"}`}>{col.dow}</span>
+                  <span className={`text-[11px] font-semibold leading-none mt-0.5 ${
+                    col.isToday ? "text-white bg-[#80020E] w-5 h-5 rounded-full flex items-center justify-center text-[10px]" : col.isWeekend ? "text-[#ccc]" : "text-[#555]"
+                  }`}>{col.day}</span>
+                </div>
+              ))}
             </div>
-          );
-        })}
+
+            {/* Bars area */}
+            <div className="relative" style={{ height: totalRows * ROW_H + 8 + "px" }}>
+              {/* Grid lines */}
+              <div className="absolute inset-0 flex">
+                {dayCols.map((col, i) => (
+                  <div key={i} className={`border-r border-[#f5f5f5] h-full ${col.isWeekend ? "bg-[#fafafa]" : ""} ${col.isToday ? "bg-[#80020E]/[0.03]" : ""}`}
+                    style={{ width: DAY_W, minWidth: DAY_W }} />
+                ))}
+              </div>
+
+              {/* Reservation bars */}
+              {rows.map((r) => {
+                const barStart = Math.max(0, daysBetween(rangeStart, r.checkIn));
+                const barEnd = Math.min(TOTAL_DAYS, daysBetween(rangeStart, r.checkOut));
+                const barWidth = barEnd - barStart;
+                if (barWidth <= 0) return null;
+
+                const { bg, text } = getColor(r.channel);
+                const nights = daysBetween(r.checkIn, r.checkOut);
+                const ch = r.channel.includes("Booking") ? "Booking.com" : r.channel.includes("Airbnb") ? "Airbnb" : r.channel;
+
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => { setSelected(r); onReservationTap?.(r); }}
+                    className="absolute rounded-lg flex items-center px-2.5 overflow-hidden cursor-pointer hover:brightness-110 hover:shadow-sm transition-all z-[1]"
+                    style={{
+                      left: barStart * DAY_W + 2,
+                      top: r.row * ROW_H + 4,
+                      width: barWidth * DAY_W - 4,
+                      height: ROW_H - 8,
+                      backgroundColor: bg,
+                      color: text,
+                    }}
+                    title={`${r.guest} · ${ch} · ${nights}N`}
+                  >
+                    <div className="truncate leading-tight">
+                      <div className="text-[11px] font-semibold truncate">{r.guest}</div>
+                      {barWidth > 2 && <div className="text-[9px] opacity-75 font-medium truncate">{ch} · {nights} night{nights !== 1 ? "s" : ""}</div>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Empty state */}
+            {active.length === 0 && (
+              <div className="flex items-center justify-center h-[120px] text-[13px] text-[#999]">No reservations in this date range.</div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Selected reservation popover */}
-      {selectedRes && (
-        <div className="mt-4 bg-white border border-[#eaeaea] rounded-xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getColor(selectedRes.channel) }} />
-              <span className="text-[14px] font-semibold text-[#111]">{selectedRes.guest}</span>
+      {/* Detail card */}
+      {selected && (
+        <div className="mt-3 bg-white border border-[#eaeaea] rounded-xl p-4 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-3 h-3 rounded" style={{ backgroundColor: getColor(selected.channel).bg }} />
+                <span className="text-[14px] font-semibold text-[#111]">{selected.guest}</span>
+              </div>
+              <div className="text-[12px] text-[#888] mb-0.5">{selected.property}</div>
+              <div className="text-[12px] text-[#666]">
+                {new Date(selected.checkIn + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })} → {new Date(selected.checkOut + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {daysBetween(selected.checkIn, selected.checkOut)} nights
+              </div>
+              {selected.ownerPayout > 0 && (
+                <div className="text-[13px] font-semibold text-[#111] mt-1.5">€{selected.ownerPayout.toFixed(2)}</div>
+              )}
             </div>
-            <button onClick={() => setSelectedRes(null)} className="p-1 text-[#999] hover:text-[#555]">
+            <button onClick={() => setSelected(null)} className="p-1 text-[#999] hover:text-[#555]">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
-          <div className="text-[12px] text-[#888] mb-1">{selectedRes.property}</div>
-          <div className="text-[12px] text-[#666]">{fmtDateShort(selectedRes.checkIn)} → {fmtDateShort(selectedRes.checkOut)}</div>
-          {selectedRes.ownerPayout > 0 && (
-            <div className="text-[13px] font-semibold text-[#111] mt-2">€{selectedRes.ownerPayout.toFixed(2)}</div>
-          )}
         </div>
       )}
     </div>
