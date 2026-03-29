@@ -126,77 +126,76 @@ export default function ReservationCalendar({
         </div>
       </div>
 
-      {/* Timeline */}
-      <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white">
-        <div ref={scrollRef} className="overflow-x-auto" style={{ scrollBehavior: "smooth" }}>
-          <div style={{ width: TOTAL_DAYS * DAY_W + "px", minWidth: "100%" }}>
-            {/* Date headers */}
-            <div className="flex border-b border-[#eaeaea] bg-[#fafafa] sticky top-0 z-10">
+      {/* Timeline — fits viewport */}
+      <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white flex flex-col" style={{ height: "calc(100vh - 220px)", minHeight: "400px" }}>
+        {/* Date headers (fixed) */}
+        <div className="flex border-b border-[#eaeaea] bg-[#fafafa] flex-shrink-0 overflow-hidden">
+          {dayCols.map((col, i) => (
+            <div
+              key={i}
+              className={`flex flex-col items-center justify-end py-1.5 border-r border-[#f0f0f0] flex-shrink-0 ${col.isWeekend ? "bg-[#f5f5f5]" : ""}`}
+              style={{ width: `${100 / TOTAL_DAYS}%`, minWidth: DAY_W }}
+            >
+              {(col.day === 1 || i === 0) && <span className="text-[8px] font-bold text-[#bbb] uppercase">{col.month}</span>}
+              <span className={`text-[9px] font-medium ${col.isToday ? "text-[#80020E]" : "text-[#bbb]"}`}>{col.dow}</span>
+              <span className={`text-[11px] font-semibold leading-none mt-0.5 ${
+                col.isToday ? "text-white bg-[#80020E] w-5 h-5 rounded-full flex items-center justify-center text-[10px]" : col.isWeekend ? "text-[#ccc]" : "text-[#555]"
+              }`}>{col.day}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Scrollable bars area */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden relative">
+          <div className="relative" style={{ height: Math.max(totalRows * ROW_H + 8, 200) + "px" }}>
+            {/* Grid lines */}
+            <div className="absolute inset-0 flex">
               {dayCols.map((col, i) => (
-                <div
-                  key={i}
-                  className={`flex flex-col items-center justify-end py-1.5 border-r border-[#f0f0f0] ${col.isWeekend ? "bg-[#f5f5f5]" : ""}`}
-                  style={{ width: DAY_W, minWidth: DAY_W }}
-                >
-                  {(col.day === 1 || i === 0) && <span className="text-[8px] font-bold text-[#bbb] uppercase">{col.month}</span>}
-                  <span className={`text-[9px] font-medium ${col.isToday ? "text-[#80020E]" : "text-[#bbb]"}`}>{col.dow}</span>
-                  <span className={`text-[11px] font-semibold leading-none mt-0.5 ${
-                    col.isToday ? "text-white bg-[#80020E] w-5 h-5 rounded-full flex items-center justify-center text-[10px]" : col.isWeekend ? "text-[#ccc]" : "text-[#555]"
-                  }`}>{col.day}</span>
-                </div>
+                <div key={i} className={`border-r border-[#f5f5f5] h-full flex-shrink-0 ${col.isWeekend ? "bg-[#fafafa]" : ""} ${col.isToday ? "bg-[#80020E]/[0.03]" : ""}`}
+                  style={{ width: `${100 / TOTAL_DAYS}%`, minWidth: DAY_W }} />
               ))}
             </div>
 
-            {/* Bars area */}
-            <div className="relative" style={{ height: totalRows * ROW_H + 8 + "px" }}>
-              {/* Grid lines */}
-              <div className="absolute inset-0 flex">
-                {dayCols.map((col, i) => (
-                  <div key={i} className={`border-r border-[#f5f5f5] h-full ${col.isWeekend ? "bg-[#fafafa]" : ""} ${col.isToday ? "bg-[#80020E]/[0.03]" : ""}`}
-                    style={{ width: DAY_W, minWidth: DAY_W }} />
-                ))}
-              </div>
+            {/* Reservation bars */}
+            {rows.map((r) => {
+              const barStart = Math.max(0, daysBetween(rangeStart, r.checkIn));
+              const barEnd = Math.min(TOTAL_DAYS, daysBetween(rangeStart, r.checkOut));
+              const barWidth = barEnd - barStart;
+              if (barWidth <= 0) return null;
 
-              {/* Reservation bars */}
-              {rows.map((r) => {
-                const barStart = Math.max(0, daysBetween(rangeStart, r.checkIn));
-                const barEnd = Math.min(TOTAL_DAYS, daysBetween(rangeStart, r.checkOut));
-                const barWidth = barEnd - barStart;
-                if (barWidth <= 0) return null;
+              const { bg, text } = getColor(r.channel);
+              const nights = daysBetween(r.checkIn, r.checkOut);
+              const ch = r.channel.includes("Booking") ? "Booking.com" : r.channel.includes("Airbnb") ? "Airbnb" : r.channel;
+              const pct = 100 / TOTAL_DAYS;
 
-                const { bg, text } = getColor(r.channel);
-                const nights = daysBetween(r.checkIn, r.checkOut);
-                const ch = r.channel.includes("Booking") ? "Booking.com" : r.channel.includes("Airbnb") ? "Airbnb" : r.channel;
-
-                return (
-                  <button
-                    key={r.id}
-                    onClick={() => { setSelected(r); onReservationTap?.(r); }}
-                    className="absolute rounded-lg flex items-center px-2.5 overflow-hidden cursor-pointer hover:brightness-110 hover:shadow-sm transition-all z-[1]"
-                    style={{
-                      left: barStart * DAY_W + 2,
-                      top: r.row * ROW_H + 4,
-                      width: barWidth * DAY_W - 4,
-                      height: ROW_H - 8,
-                      backgroundColor: bg,
-                      color: text,
-                    }}
-                    title={`${r.guest} · ${ch} · ${nights}N`}
-                  >
-                    <div className="truncate leading-tight">
-                      <div className="text-[11px] font-semibold truncate">{r.guest}</div>
-                      {barWidth > 2 && <div className="text-[9px] opacity-75 font-medium truncate">{ch} · {nights} night{nights !== 1 ? "s" : ""}</div>}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Empty state */}
-            {active.length === 0 && (
-              <div className="flex items-center justify-center h-[120px] text-[13px] text-[#999]">No reservations in this date range.</div>
-            )}
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => { setSelected(r); onReservationTap?.(r); }}
+                  className="absolute rounded-lg flex items-center px-2 overflow-hidden cursor-pointer hover:brightness-110 hover:shadow-sm transition-all z-[1]"
+                  style={{
+                    left: `calc(${barStart * pct}% + 2px)`,
+                    top: r.row * ROW_H + 4,
+                    width: `calc(${barWidth * pct}% - 4px)`,
+                    height: ROW_H - 8,
+                    backgroundColor: bg,
+                    color: text,
+                  }}
+                  title={`${r.guest} · ${ch} · ${nights}N`}
+                >
+                  <div className="truncate leading-tight">
+                    <div className="text-[11px] font-semibold truncate">{r.guest}</div>
+                    {barWidth > 2 && <div className="text-[9px] opacity-75 font-medium truncate">{ch} · {nights} night{nights !== 1 ? "s" : ""}</div>}
+                  </div>
+                </button>
+              );
+            })}
           </div>
+
+          {/* Empty state */}
+          {active.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center text-[13px] text-[#999]">No reservations in this date range.</div>
+          )}
         </div>
       </div>
 
