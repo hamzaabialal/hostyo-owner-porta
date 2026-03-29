@@ -466,16 +466,43 @@ function ReservationsContent() {
         </div>
       )}
 
+      {/* ── Desktop View Toggle ── */}
+      <div className="hidden md:flex items-center gap-2 mb-4">
+        <button onClick={() => setMobileView("list")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "list" ? "bg-[#80020E] text-white" : "bg-white text-[#555] border border-[#e2e2e2] hover:border-[#ccc]"}`}>
+          <span className="flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            List
+          </span>
+        </button>
+        <button onClick={() => setMobileView("calendar")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "calendar" ? "bg-[#80020E] text-white" : "bg-white text-[#555] border border-[#e2e2e2] hover:border-[#ccc]"}`}>
+          <span className="flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Calendar
+          </span>
+        </button>
+      </div>
+
+      {/* ── Desktop Calendar ── */}
+      {mobileView === "calendar" && (
+        <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl p-6">
+          <ReservationCalendar
+            reservations={filtered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
+            onReservationTap={(res) => { const match = filtered.find((rr) => rr.id === res.id); if (match) setExpandedId(match.id); }}
+          />
+        </div>
+      )}
+
       {/* ── Desktop Table ── */}
+      {mobileView === "list" && (
       <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="bg-[#fafafa]">
-              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Status</th>
-              {showPropertyCol && <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea] hidden md:table-cell">Property</th>}
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea] w-[120px]">Status</th>
+              {showPropertyCol && <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Property</th>}
               <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Guest</th>
-              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea] hidden sm:table-cell">Dates</th>
-              <th className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Payout</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea] w-[180px]">Dates</th>
+              <th className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea] w-[120px]">Payout</th>
             </tr>
           </thead>
           <tbody>
@@ -483,53 +510,40 @@ function ReservationsContent() {
               <tr><td colSpan={showPropertyCol ? 5 : 4} className="text-center py-10 text-[#999] text-sm">No reservations match your filters.</td></tr>
             ) : paginated.map((r) => {
               const isOpen = expandedId === r.id;
+              const cols = showPropertyCol ? 5 : 4;
               return (
-                <tr key={r.id} className="group">
-                  <td colSpan={showPropertyCol ? 5 : 4} className="p-0">
-                    {/* Main row */}
-                    <div
-                      onClick={() => toggleRow(r.id)}
-                      className={`flex items-center cursor-pointer transition-colors ${
-                        isOpen ? "bg-[#fafafa]" : "hover:bg-[#f9f9f9]"
-                      } border-b ${isOpen ? "border-[#e2e2e2]" : "border-[#f0f0f0]"}`}
-                    >
-                      {/* Status */}
-                      <div className="px-4 py-3.5 w-[120px] flex-shrink-0">
-                        <span className={statusPillClass(r.status)}>{r.status}</span>
-                      </div>
-                      {/* Property (conditional) */}
-                      {showPropertyCol && (
-                        <div className="px-4 py-3.5 flex-shrink-0 max-w-[180px] hidden md:block">
-                          <span className="text-[13px] text-[#555] truncate block">{r.property}</span>
-                        </div>
-                      )}
-                      {/* Guest + OTA logo */}
-                      <div className="px-4 py-3.5 flex-1 min-w-0 flex items-center gap-2">
+                <tbody key={r.id}>
+                  <tr onClick={() => toggleRow(r.id)}
+                    className={`cursor-pointer transition-colors border-b ${isOpen ? "bg-[#fafafa] border-[#e2e2e2]" : "hover:bg-[#f9f9f9] border-[#f0f0f0]"}`}>
+                    <td className="px-4 py-3.5 w-[120px]">
+                      <span className={statusPillClass(r.status)}>{r.status}</span>
+                    </td>
+                    {showPropertyCol && (
+                      <td className="px-4 py-3.5 max-w-[200px]">
+                        <span className="text-[13px] text-[#555] truncate block">{r.property}</span>
+                      </td>
+                    )}
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-2">
                         <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
-                        <span className="text-[13px] font-medium text-[#111] truncate">{r.guest}</span>
+                        <span className="text-[13px] font-medium text-[#111]">{r.guest}</span>
                       </div>
-                      {/* Dates */}
-                      <div className="px-4 py-3.5 flex-shrink-0 hidden sm:block">
-                        <span className="text-[13px] text-[#666]">{fmtDateShort(r.checkIn)} – {fmtDateShort(r.checkOut)}</span>
-                      </div>
-                      {/* Payout */}
-                      <div className="px-4 py-3.5 flex-shrink-0 text-right min-w-[100px]">
-                        <span className="text-[13px] font-semibold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || 0)}</span>
-                      </div>
-                    </div>
-
-                    {/* Accordion expansion */}
-                    <div
-                      className={`overflow-hidden transition-all duration-200 ease-in-out ${
-                        isOpen ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
-                      }`}
-                    >
-                      <div className={`bg-[#fafafa] border-b border-[#e2e2e2] ${isOpen ? "" : "hidden"}`}>
+                    </td>
+                    <td className="px-4 py-3.5 w-[180px]">
+                      <span className="text-[13px] text-[#666]">{fmtDateShort(r.checkIn)} – {fmtDateShort(r.checkOut)}</span>
+                    </td>
+                    <td className="px-4 py-3.5 text-right w-[120px]">
+                      <span className="text-[13px] font-semibold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || 0)}</span>
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan={cols} className="p-0 bg-[#fafafa] border-b border-[#e2e2e2]">
                         <AccordionDetail r={r} />
-                      </div>
-                    </div>
-                  </td>
-                </tr>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
               );
             })}
           </tbody>
@@ -550,6 +564,7 @@ function ReservationsContent() {
           </div>
         )}
       </div>
+      )}
     </AppShell>
   );
 }
