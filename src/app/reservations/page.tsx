@@ -169,6 +169,15 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-[#f3f3f3] last:border-b-0">
+      <span className="text-[12px] text-[#999]">{label}</span>
+      <span className="text-[13px] font-medium text-[#111] text-right">{value}</span>
+    </div>
+  );
+}
+
 function FinRow({ label, value, neg }: { label: string; value: string; neg?: boolean }) {
   return (
     <div className="flex justify-between items-center py-2 border-b border-[#f0f0f0] last:border-b-0">
@@ -246,6 +255,7 @@ function ReservationsContent() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "calendar">("list");
   const [drawerRes, setDrawerRes] = useState<Reservation | null>(null);
+  const [propertyDrawerName, setPropertyDrawerName] = useState<string | null>(null);
 
   // Filters
   const [filterProperty, setFilterProperty] = useState("");
@@ -296,17 +306,29 @@ function ReservationsContent() {
   }, []);
 
   // All property names for filter
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [allProperties, setAllProperties] = useState<any[]>([]);
   const [allPropertyNames, setAllPropertyNames] = useState<string[]>([]);
   useEffect(() => {
     fetchData("properties", "/api/properties")
       .then((d: unknown) => {
-        const res = d as { data?: { name: string }[] };
-        const names = (res.data || []).map((p) => p.name).filter((n) => n).sort((a, b) => a.localeCompare(b));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const res = d as { data?: any[] };
+        const props = res.data || [];
+        setAllProperties(props);
+        const names = props.map((p) => p.name).filter((n: string) => n).sort((a: string, b: string) => a.localeCompare(b));
         setAllPropertyNames(names);
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const propertyImages = useMemo(() => {
+    const map: Record<string, string> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    allProperties.forEach((p: any) => { if (p.name && p.coverUrl) map[p.name] = p.coverUrl; });
+    return map;
+  }, [allProperties]);
 
   const propertyOptions = useMemo(() =>
     allPropertyNames.map((p) => ({ value: p, label: p })),
@@ -419,6 +441,8 @@ function ReservationsContent() {
               const match = filtered.find((r) => r.id === res.id);
               if (match) setDrawerRes(match);
             }}
+            onPropertyTap={(name) => setPropertyDrawerName(name)}
+            propertyImages={propertyImages}
           />
         </div>
       )}
@@ -489,6 +513,8 @@ function ReservationsContent() {
           <ReservationCalendar
             reservations={filtered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
             onReservationTap={(res) => { const match = filtered.find((rr) => rr.id === res.id); if (match) setDrawerRes(match); }}
+            onPropertyTap={(name) => setPropertyDrawerName(name)}
+            propertyImages={propertyImages}
           />
         </div>
       )}
@@ -571,6 +597,63 @@ function ReservationsContent() {
         )}
       </div>
       )}
+
+      {/* ── Property Detail Drawer ── */}
+      {propertyDrawerName && (() => {
+        const prop = allProperties.find((p) => p.name === propertyDrawerName);
+        if (!prop) return null;
+        const location = [prop.city, prop.country].filter(Boolean).join(", ") || prop.address || "";
+        return (
+          <>
+            <div className="fixed inset-0 bg-black/20 z-[100]" onClick={() => setPropertyDrawerName(null)} />
+            <div className="fixed top-0 right-0 bottom-0 w-full md:max-w-[480px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-[101] flex flex-col">
+              <div className="flex items-center justify-between px-6 h-[60px] border-b border-[#eaeaea] flex-shrink-0">
+                <div className="text-[15px] font-semibold text-[#111]">Property Details</div>
+                <button onClick={() => setPropertyDrawerName(null)} className="p-2 text-[#999] hover:text-[#555] transition-colors">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+                {/* Cover */}
+                {prop.coverUrl && (
+                  <div className="h-[160px] rounded-xl overflow-hidden mb-4 bg-[#f5f5f5]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={prop.coverUrl} alt={prop.name} className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className="text-[18px] font-semibold text-[#111] mb-1">{prop.name}</div>
+                {location && <div className="text-[13px] text-[#888] mb-1">{location}</div>}
+                {prop.propertyType && <div className="text-[12px] text-[#666] bg-[#f5f5f5] px-2 py-0.5 rounded inline-block mb-3">{prop.propertyType}</div>}
+                {prop.status && <div className="mb-4"><span className={`pill pill-${prop.status.toLowerCase().replace(/\s+/g, "")}`}>{prop.status}</span></div>}
+
+                {/* Details */}
+                <div className="space-y-2.5 mb-5">
+                  {prop.bedrooms > 0 && <DetailRow label="Bedrooms" value={String(prop.bedrooms)} />}
+                  {prop.bathrooms > 0 && <DetailRow label="Bathrooms" value={String(prop.bathrooms)} />}
+                  {prop.maxGuests > 0 && <DetailRow label="Max Guests" value={String(prop.maxGuests)} />}
+                  {prop.address && <DetailRow label="Address" value={prop.address} />}
+                  {prop.price > 0 && <DetailRow label="Price" value={`€${prop.price}/night`} />}
+                  {prop.cleaningFee > 0 && <DetailRow label="Cleaning Fee" value={`€${prop.cleaningFee}`} />}
+                  {prop.accessCode && <DetailRow label="Access Code" value={prop.accessCode} />}
+                  {prop.license && <DetailRow label="License" value={prop.license} />}
+                </div>
+
+                {/* Connected Channels */}
+                {prop.connectedChannels?.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-semibold text-[#999] uppercase tracking-wide mb-2">Connected Channels</div>
+                    <div className="flex gap-2 flex-wrap">
+                      {prop.connectedChannels.map((ch: string) => (
+                        <ChannelBadge key={ch} channel={ch} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* ── Calendar Detail Drawer ── */}
       {drawerRes && (

@@ -11,6 +11,7 @@ interface CalendarReservation {
   checkOut: string;
   status: string;
   ownerPayout: number;
+  coverUrl?: string;
 }
 
 const CHANNEL_COLORS: Record<string, { bg: string; text: string }> = {
@@ -155,14 +156,17 @@ function MonthGrid({ year, month, reservations, onTap }: {
 /* ================================================================ */
 /*  HORIZONTAL TIMELINE VIEW (all properties)                        */
 /* ================================================================ */
-function TimelineView({ reservations, onTap }: {
+function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
   reservations: CalendarReservation[];
   onTap: (r: CalendarReservation) => void;
+  onPropertyTap?: (propertyName: string) => void;
+  propertyImages?: Record<string, string>;
 }) {
   const today = useMemo(() => new Date(), []);
   const [offset, setOffset] = useState(-3);
   const DAYS = 35;
   const DAY_W = 48;
+  const ROW_H = 52;
 
   const dayCols = useMemo(() => {
     const cols: { str: string; day: number; dow: string; month: string; isToday: boolean; isWeekend: boolean }[] = [];
@@ -182,73 +186,104 @@ function TimelineView({ reservations, onTap }: {
   const rangeStart = dayCols[0].str;
   const rangeEnd = dayCols[DAYS - 1].str;
 
-  const propertyGroups = useMemo(() => {
-    const active = reservations.filter((r) => {
-      if (!r.checkIn || !r.checkOut || r.status === "Cancelled") return false;
-      return r.checkIn <= rangeEnd && r.checkOut > rangeStart;
-    });
-    const groups: Record<string, CalendarReservation[]> = {};
-    for (const r of active) {
-      if (!groups[r.property]) groups[r.property] = [];
-      groups[r.property].push(r);
+  // Group by ALL properties (not just ones with reservations)
+  const allProps = useMemo(() => {
+    const propSet = new Set(reservations.map((r) => r.property));
+    return Array.from(propSet).sort();
+  }, [reservations]);
+
+  const resMap = useMemo(() => {
+    const map: Record<string, CalendarReservation[]> = {};
+    for (const r of reservations) {
+      if (!r.checkIn || !r.checkOut || r.status === "Cancelled") continue;
+      if (r.checkIn > rangeEnd || r.checkOut <= rangeStart) continue;
+      if (!map[r.property]) map[r.property] = [];
+      map[r.property].push(r);
     }
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+    return map;
   }, [reservations, rangeStart, rangeEnd]);
 
-  const ROW_H = 48;
-
   return (
-    <div>
-      <div className="flex items-center gap-1.5 mb-3">
-        <button onClick={() => setOffset((o) => o - 7)} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <button onClick={() => setOffset(-3)} className="px-3 py-1.5 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-colors">Today</button>
-        <button onClick={() => setOffset((o) => o + 7)} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
-        </button>
-        <span className="text-[13px] font-semibold text-[#111] ml-2">{dayCols[0]?.month} {dayCols[0]?.day} – {dayCols[DAYS - 1]?.month} {dayCols[DAYS - 1]?.day}</span>
+    <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white flex flex-col" style={{ height: "calc(100vh - 200px)", minHeight: "400px" }}>
+      {/* Nav bar inside calendar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[#eaeaea] bg-[#fafafa] flex-shrink-0">
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setOffset((o) => o - 7)} className="p-1 rounded border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <button onClick={() => setOffset(-3)} className="px-2.5 py-1 rounded border border-[#e2e2e2] text-[11px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-colors">Today</button>
+          <button onClick={() => setOffset((o) => o + 7)} className="p-1 rounded border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
+          </button>
+          <span className="text-[13px] font-semibold text-[#111] ml-2">{dayCols[0]?.month} {dayCols[0]?.day} – {dayCols[DAYS - 1]?.month} {dayCols[DAYS - 1]?.day}</span>
+        </div>
+        <div className="hidden md:flex items-center gap-3 text-[10px] text-[#999]">
+          {Object.entries(CHANNEL_COLORS).slice(0, 4).map(([name, { bg }]) => (
+            <span key={name} className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: bg }} />{name}</span>
+          ))}
+        </div>
       </div>
 
-      <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white flex flex-col" style={{ height: "calc(100vh - 240px)", minHeight: "400px" }}>
-        <div className="flex flex-1 overflow-hidden">
-          {/* Property names */}
-          <div className="flex-shrink-0 w-[180px] border-r border-[#eaeaea] bg-white z-10 overflow-y-auto">
-            <div className="h-[50px] px-3 flex items-end pb-2 border-b border-[#eaeaea] bg-[#fafafa]">
-              <span className="text-[10px] font-semibold text-[#999] uppercase">Property</span>
-            </div>
-            {propertyGroups.map(([prop]) => (
-              <div key={prop} className="px-3 flex items-center border-b border-[#f0f0f0]" style={{ height: ROW_H }}>
-                <span className="text-[11px] font-medium text-[#333] truncate">{prop}</span>
-              </div>
-            ))}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Property column (fixed, scrolls vertically with content) */}
+        <div className="flex-shrink-0 w-[200px] border-r border-[#eaeaea] bg-white z-10 flex flex-col">
+          <div className="h-[46px] px-3 flex items-end pb-1.5 border-b border-[#eaeaea] bg-[#fafafa] flex-shrink-0">
+            <span className="text-[10px] font-semibold text-[#999] uppercase">Property</span>
           </div>
-
-          {/* Scrollable area */}
-          <div className="flex-1 overflow-auto">
-            <div style={{ width: DAYS * DAY_W }}>
-              {/* Headers */}
-              <div className="flex h-[50px] border-b border-[#eaeaea] bg-[#fafafa] sticky top-0 z-10">
-                {dayCols.map((col, i) => (
-                  <div key={i} className={`flex flex-col items-center justify-end pb-1 border-r border-[#f0f0f0] ${col.isWeekend ? "bg-[#f5f5f5]" : ""}`}
-                    style={{ width: DAY_W, minWidth: DAY_W }}>
-                    {(col.day === 1 || i === 0) && <span className="text-[8px] font-bold text-[#bbb] uppercase">{col.month}</span>}
-                    <span className={`text-[9px] ${col.isToday ? "text-[#80020E]" : "text-[#bbb]"}`}>{col.dow}</span>
-                    <span className={`text-[11px] font-semibold ${col.isToday ? "text-white bg-[#80020E] w-5 h-5 rounded-full flex items-center justify-center text-[10px]" : col.isWeekend ? "text-[#ccc]" : "text-[#555]"}`}>{col.day}</span>
+          <div className="flex-1 overflow-y-auto">
+            {allProps.map((prop) => {
+              const img = propertyImages?.[prop];
+              return (
+                <button key={prop} onClick={() => onPropertyTap?.(prop)}
+                  className="w-full px-2.5 flex items-center gap-2 border-b border-[#f0f0f0] text-left hover:bg-[#f5f5f5] transition-colors cursor-pointer"
+                  style={{ height: ROW_H }}>
+                  {/* Property thumbnail */}
+                  <div className="w-8 h-8 rounded-md bg-[#f0f0f0] flex-shrink-0 overflow-hidden">
+                    {img ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={img} alt="" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                  <span className="text-[11px] font-medium text-[#333] truncate hover:text-[#80020E] transition-colors">{prop}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-              {/* Rows */}
-              {propertyGroups.map(([, propRes]) => (
-                <div key={propRes[0]?.property} className="relative border-b border-[#f0f0f0]" style={{ height: ROW_H }}>
+        {/* Timeline area (scrolls both directions) */}
+        <div className="flex-1 overflow-auto">
+          <div style={{ width: DAYS * DAY_W, minWidth: "100%" }}>
+            {/* Date headers (sticky) */}
+            <div className="flex h-[46px] border-b border-[#eaeaea] bg-[#fafafa] sticky top-0 z-10">
+              {dayCols.map((col, i) => (
+                <div key={i} className={`flex flex-col items-center justify-end pb-1 border-r border-[#f0f0f0] flex-shrink-0 ${col.isWeekend ? "bg-[#f5f5f5]" : ""}`}
+                  style={{ width: DAY_W, minWidth: DAY_W }}>
+                  {(col.day === 1 || i === 0) && <span className="text-[8px] font-bold text-[#bbb] uppercase">{col.month}</span>}
+                  <span className={`text-[9px] ${col.isToday ? "text-[#80020E]" : "text-[#bbb]"}`}>{col.dow}</span>
+                  <span className={`text-[11px] font-semibold ${col.isToday ? "text-white bg-[#80020E] w-5 h-5 rounded-full flex items-center justify-center text-[10px]" : col.isWeekend ? "text-[#ccc]" : "text-[#555]"}`}>{col.day}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Property rows */}
+            {allProps.map((prop) => {
+              const propRes = resMap[prop] || [];
+              return (
+                <div key={prop} className="relative border-b border-[#f0f0f0]" style={{ height: ROW_H }}>
+                  {/* Grid bg */}
                   <div className="absolute inset-0 flex">
                     {dayCols.map((col, i) => (
-                      <div key={i} className={`border-r border-[#f5f5f5] h-full ${col.isWeekend ? "bg-[#fafafa]" : ""} ${col.isToday ? "bg-[#80020E]/[0.03]" : ""}`}
+                      <div key={i} className={`border-r border-[#f5f5f5] h-full flex-shrink-0 ${col.isWeekend ? "bg-[#fafafa]" : ""} ${col.isToday ? "bg-[#80020E]/[0.03]" : ""}`}
                         style={{ width: DAY_W, minWidth: DAY_W }} />
                     ))}
                   </div>
-                  {propRes.filter((r) => r.status !== "Cancelled").map((r) => {
+                  {/* Bars */}
+                  {propRes.map((r) => {
                     const barStart = Math.max(0, daysBetween(rangeStart, r.checkIn));
                     const barEnd = Math.min(DAYS, daysBetween(rangeStart, r.checkOut));
                     const w = barEnd - barStart;
@@ -258,9 +293,9 @@ function TimelineView({ reservations, onTap }: {
                     const ch = r.channel.includes("Booking") ? "Booking.com" : r.channel.includes("Airbnb") ? "Airbnb" : r.channel;
                     return (
                       <button key={r.id} onClick={() => onTap(r)}
-                        className="absolute top-[6px] rounded-lg flex items-center gap-1 px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all z-[1]"
-                        style={{ left: barStart * DAY_W + 2, width: w * DAY_W - 4, height: ROW_H - 12, backgroundColor: bg, color: text }}>
-                        <span className="flex-shrink-0 [&_svg]:w-[12px] [&_svg]:h-[12px]">{getChannelIcon(r.channel)}</span>
+                        className="absolute top-[7px] rounded-lg flex items-center gap-1 px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all z-[1]"
+                        style={{ left: barStart * DAY_W + 2, width: w * DAY_W - 4, height: ROW_H - 14, backgroundColor: bg, color: text }}>
+                        <span className="flex-shrink-0 [&_svg]:w-[11px] [&_svg]:h-[11px]">{getChannelIcon(r.channel)}</span>
                         <div className="truncate text-[10px] font-semibold leading-tight">
                           {r.guest}
                           {w > 3 && <span className="text-[8px] opacity-75 font-medium ml-1">{ch} · {nights}N</span>}
@@ -269,8 +304,8 @@ function TimelineView({ reservations, onTap }: {
                     );
                   })}
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -284,9 +319,13 @@ function TimelineView({ reservations, onTap }: {
 export default function ReservationCalendar({
   reservations,
   onReservationTap,
+  onPropertyTap,
+  propertyImages,
 }: {
   reservations: CalendarReservation[];
   onReservationTap?: (r: CalendarReservation) => void;
+  onPropertyTap?: (propertyName: string) => void;
+  propertyImages?: Record<string, string>;
 }) {
   const today = new Date();
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -340,7 +379,7 @@ export default function ReservationCalendar({
           <MonthGrid year={viewMonth === 11 ? viewYear + 1 : viewYear} month={viewMonth === 11 ? 0 : viewMonth + 1} reservations={reservations} onTap={handleTap} />
         </div>
       ) : (
-        <TimelineView reservations={reservations} onTap={handleTap} />
+        <TimelineView reservations={reservations} onTap={handleTap} onPropertyTap={onPropertyTap} propertyImages={propertyImages} />
       )}
     </div>
   );
