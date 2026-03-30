@@ -342,11 +342,10 @@ export default function ReservationCalendar({
   }
 
   // Single property → monthly grid
-  // Responsive: mobile=1, tablet=3, desktop=6
-  const monthsToShow = typeof window !== "undefined" ? (window.innerWidth < 768 ? 1 : window.innerWidth < 1280 ? 3 : 6) : 6;
-
+  // Show 6 months worth of data, CSS handles responsive columns:
+  // mobile=1col, tablet=3col, desktop=6col (2 rows of 3)
   const monthGrids: { y: number; m: number }[] = [];
-  for (let i = 0; i < monthsToShow; i++) {
+  for (let i = 0; i < 6; i++) {
     let m = viewMonth + i;
     let y = viewYear;
     while (m > 11) { m -= 12; y += 1; }
@@ -361,15 +360,15 @@ export default function ReservationCalendar({
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <span className="text-[14px] font-semibold text-[#111] min-w-[140px] text-center">
-          {MONTHS[viewMonth]} {viewYear}
+          {MONTHS[viewMonth]} – {MONTHS[monthGrids[monthGrids.length - 1].m]} {monthGrids[monthGrids.length - 1].y}
         </span>
         <button onClick={nextMonth} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
         </button>
       </div>
 
-      {/* Month grids — responsive columns */}
-      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-3">
+      {/* Month grids — responsive: 1 mobile, 3 tablet, 3 desktop (2 rows) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {monthGrids.map(({ y, m }) => (
           <MonthGrid key={`${y}-${m}`} year={y} month={m} reservations={reservations} onTap={handleTap} />
         ))}
