@@ -245,6 +245,7 @@ function ReservationsContent() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "calendar">("list");
+  const [drawerRes, setDrawerRes] = useState<Reservation | null>(null);
 
   // Filters
   const [filterProperty, setFilterProperty] = useState("");
@@ -416,7 +417,7 @@ function ReservationsContent() {
             reservations={filtered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
             onReservationTap={(res) => {
               const match = filtered.find((r) => r.id === res.id);
-              if (match) setExpandedId(match.id);
+              if (match) setDrawerRes(match);
             }}
           />
         </div>
@@ -487,7 +488,7 @@ function ReservationsContent() {
         <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl p-6">
           <ReservationCalendar
             reservations={filtered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
-            onReservationTap={(res) => { const match = filtered.find((rr) => rr.id === res.id); if (match) setExpandedId(match.id); }}
+            onReservationTap={(res) => { const match = filtered.find((rr) => rr.id === res.id); if (match) setDrawerRes(match); }}
           />
         </div>
       )}
@@ -569,6 +570,24 @@ function ReservationsContent() {
           </div>
         )}
       </div>
+      )}
+
+      {/* ── Calendar Detail Drawer ── */}
+      {drawerRes && (
+        <>
+          <div className="fixed inset-0 bg-black/20 z-[100]" onClick={() => setDrawerRes(null)} />
+          <div className="fixed top-0 right-0 bottom-0 w-full md:max-w-[480px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-[101] flex flex-col">
+            <div className="flex items-center justify-between px-6 h-[60px] border-b border-[#eaeaea] flex-shrink-0">
+              <div className="text-[15px] font-semibold text-[#111]">Reservation Details</div>
+              <button onClick={() => setDrawerRes(null)} className="p-2 text-[#999] hover:text-[#555] transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <AccordionDetail r={drawerRes} />
+            </div>
+          </div>
+        </>
       )}
     </AppShell>
   );

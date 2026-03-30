@@ -1,5 +1,6 @@
 "use client";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo } from "react";
+import { getChannelIcon } from "./ChannelBadge";
 
 interface CalendarReservation {
   id: number;
@@ -29,42 +30,148 @@ function getColor(channel: string) {
 }
 
 function pad(n: number) { return n < 10 ? `0${n}` : `${n}`; }
-function toDateStr(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function toStr(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function daysBetween(a: string, b: string) {
   return Math.ceil((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);
 }
 
-const TOTAL_DAYS = 42;
-const DAY_W = 48;
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-export default function ReservationCalendar({
-  reservations,
-  onReservationTap,
-}: {
+/* ================================================================ */
+/*  MONTHLY GRID VIEW (single property default)                      */
+/* ================================================================ */
+function MonthGrid({ year, month, reservations, onTap }: {
+  year: number; month: number;
   reservations: CalendarReservation[];
-  onReservationTap?: (r: CalendarReservation) => void;
+  onTap: (r: CalendarReservation) => void;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [selected, setSelected] = useState<CalendarReservation | null>(null);
-  const [offset, setOffset] = useState(-3); // start 3 days before today
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+  const today = new Date();
+  const todayStr = toStr(today);
+  const monthStr = `${year}-${pad(month + 1)}`;
 
+  // Reservations that overlap this month
+  const monthStart = `${monthStr}-01`;
+  const monthEnd = `${monthStr}-${pad(daysInMonth)}`;
+  const active = reservations.filter((r) => {
+    if (!r.checkIn || !r.checkOut || r.status === "Cancelled") return false;
+    return r.checkIn <= monthEnd && r.checkOut > monthStart;
+  });
+
+  // For each day, find reservations
+  const dayRes = useMemo(() => {
+    const map: Record<number, { r: CalendarReservation; isStart: boolean; span: number }[]> = {};
+    for (const r of active) {
+      const ci = new Date(r.checkIn + "T00:00:00");
+      const co = new Date(r.checkOut + "T00:00:00");
+      for (let d = 1; d <= daysInMonth; d++) {
+        const cur = new Date(year, month, d);
+        if (cur >= ci && cur < co) {
+          if (!map[d]) map[d] = [];
+          const isStart = cur.getTime() === ci.getTime();
+          // Calculate how many days the bar spans from this day (within this week row)
+          const dayOfWeek = cur.getDay();
+          const daysLeft = 7 - dayOfWeek; // days until end of week
+          const daysUntilEnd = daysBetween(toStr(cur), r.checkOut);
+          const daysUntilMonthEnd = daysInMonth - d + 1;
+          const span = isStart || dayOfWeek === 0 ? Math.min(daysUntilEnd, daysLeft, daysUntilMonthEnd) : 0;
+          map[d].push({ r, isStart, span });
+        }
+      }
+    }
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, daysInMonth, year, month]);
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let i = 1; i <= daysInMonth; i++) cells.push(i);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white">
+      <div className="text-center py-2 text-[14px] font-semibold text-[#111] border-b border-[#eaeaea] bg-[#fafafa]">
+        {MONTHS[month]} {year}
+      </div>
+      {/* Day headers */}
+      <div className="grid grid-cols-7 border-b border-[#eaeaea]">
+        {DOW.map((d, i) => (
+          <div key={d} className={`text-center text-[11px] font-semibold py-1.5 ${i === 5 || i === 6 ? "text-[#FF5A5F]" : "text-[#999]"}`}>{d}</div>
+        ))}
+      </div>
+      {/* Cells */}
+      <div className="grid grid-cols-7">
+        {cells.map((day, idx) => {
+          if (day === null) {
+            return <div key={`e${idx}`} className="h-[80px] md:h-[100px] border-r border-b border-[#f0f0f0] bg-[#fafafa]/50" />;
+          }
+          const dateStr = `${monthStr}-${pad(day)}`;
+          const isT = dateStr === todayStr;
+          const entries = dayRes[day] || [];
+
+          return (
+            <div key={day} className={`h-[80px] md:h-[100px] border-r border-b border-[#f0f0f0] relative overflow-visible ${isT ? "bg-[#80020E]/[0.03]" : ""}`}>
+              <div className={`text-[11px] font-medium px-1.5 pt-1 ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>
+                {isT ? (
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#80020E] text-white text-[10px]">{day}</span>
+                ) : day}
+              </div>
+              <div className="mt-0.5 space-y-0.5 px-0.5">
+                {entries.filter((e) => e.isStart || new Date(year, month, day).getDay() === 0).slice(0, 2).map((entry) => {
+                  const { bg, text } = getColor(entry.r.channel);
+                  const nights = daysBetween(entry.r.checkIn, entry.r.checkOut);
+                  const ch = entry.r.channel.includes("Booking") ? "Booking.com" : entry.r.channel.includes("Airbnb") ? "Airbnb" : entry.r.channel;
+                  const span = Math.max(1, entry.span);
+                  return (
+                    <button
+                      key={entry.r.id}
+                      onClick={() => onTap(entry.r)}
+                      className="block text-left rounded px-1 py-0.5 text-[9px] md:text-[10px] font-semibold leading-tight truncate cursor-pointer hover:brightness-110 relative z-[2]"
+                      style={{
+                        backgroundColor: bg, color: text,
+                        width: `calc(${span * 100}% + ${(span - 1) * 1}px)`,
+                      }}
+                      title={`${entry.r.guest} · ${ch} · ${nights}N`}
+                    >
+                      <span className="flex items-center gap-0.5 truncate">
+                        <span className="flex-shrink-0 [&_svg]:w-[10px] [&_svg]:h-[10px]">{getChannelIcon(entry.r.channel)}</span>
+                        {entry.r.guest.split(" ")[0]}
+                      </span>
+                      <span className="text-[8px] opacity-80 block truncate">{ch} · {nights}N</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================ */
+/*  HORIZONTAL TIMELINE VIEW (all properties)                        */
+/* ================================================================ */
+function TimelineView({ reservations, onTap }: {
+  reservations: CalendarReservation[];
+  onTap: (r: CalendarReservation) => void;
+}) {
   const today = useMemo(() => new Date(), []);
+  const [offset, setOffset] = useState(-3);
+  const DAYS = 35;
+  const DAY_W = 48;
 
-  // Scroll to today on mount
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollLeft = 3 * DAY_W;
-  }, []);
-
-  // Day columns
   const dayCols = useMemo(() => {
     const cols: { str: string; day: number; dow: string; month: string; isToday: boolean; isWeekend: boolean }[] = [];
-    for (let i = 0; i < TOTAL_DAYS; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() + offset + i);
-      const dow = d.toLocaleDateString("en-GB", { weekday: "short" });
-      const month = d.toLocaleDateString("en-GB", { month: "short" });
+    for (let i = 0; i < DAYS; i++) {
+      const d = new Date(today); d.setDate(d.getDate() + offset + i);
       cols.push({
-        str: toDateStr(d), day: d.getDate(), dow, month,
+        str: toStr(d), day: d.getDate(),
+        dow: d.toLocaleDateString("en-GB", { weekday: "short" }),
+        month: d.toLocaleDateString("en-GB", { month: "short" }),
         isToday: d.toDateString() === today.toDateString(),
         isWeekend: d.getDay() === 0 || d.getDay() === 6,
       });
@@ -73,154 +180,167 @@ export default function ReservationCalendar({
   }, [today, offset]);
 
   const rangeStart = dayCols[0].str;
-  const rangeEnd = dayCols[TOTAL_DAYS - 1].str;
+  const rangeEnd = dayCols[DAYS - 1].str;
 
-  // Active reservations in range
-  const active = useMemo(() =>
-    reservations.filter((r) => {
+  const propertyGroups = useMemo(() => {
+    const active = reservations.filter((r) => {
       if (!r.checkIn || !r.checkOut || r.status === "Cancelled") return false;
       return r.checkIn <= rangeEnd && r.checkOut > rangeStart;
-    }).sort((a, b) => a.checkIn.localeCompare(b.checkIn)),
-  [reservations, rangeStart, rangeEnd]);
-
-  // Assign rows so bars don't overlap
-  const rows = useMemo(() => {
-    const rowEnds: string[] = []; // tracks when each row's last bar ends
-    return active.map((r) => {
-      let row = rowEnds.findIndex((end) => end <= r.checkIn);
-      if (row === -1) { row = rowEnds.length; rowEnds.push(""); }
-      rowEnds[row] = r.checkOut;
-      return { ...r, row };
     });
-  }, [active]);
+    const groups: Record<string, CalendarReservation[]> = {};
+    for (const r of active) {
+      if (!groups[r.property]) groups[r.property] = [];
+      groups[r.property].push(r);
+    }
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [reservations, rangeStart, rangeEnd]);
 
-  const totalRows = rows.length > 0 ? Math.max(...rows.map((r) => r.row)) + 1 : 1;
-  const ROW_H = 44;
-
-  const scrollWeek = (dir: number) => setOffset((o) => o + dir * 7);
-  const goToday = () => setOffset(-3);
+  const ROW_H = 48;
 
   return (
     <div>
-      {/* Controls */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => scrollWeek(-1)} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <button onClick={goToday} className="px-3 py-1.5 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-colors">Today</button>
-          <button onClick={() => scrollWeek(1)} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
-          </button>
-          <span className="text-[13px] font-semibold text-[#111] ml-2">
-            {dayCols[0]?.month} {dayCols[0]?.day} – {dayCols[TOTAL_DAYS - 1]?.month} {dayCols[TOTAL_DAYS - 1]?.day}
-          </span>
-        </div>
-        <div className="hidden md:flex items-center gap-3 text-[10px] text-[#999]">
-          {Object.entries(CHANNEL_COLORS).slice(0, 4).map(([name, { bg }]) => (
-            <span key={name} className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: bg }} />
-              {name}
-            </span>
-          ))}
-        </div>
+      <div className="flex items-center gap-1.5 mb-3">
+        <button onClick={() => setOffset((o) => o - 7)} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <button onClick={() => setOffset(-3)} className="px-3 py-1.5 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-colors">Today</button>
+        <button onClick={() => setOffset((o) => o + 7)} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
+        </button>
+        <span className="text-[13px] font-semibold text-[#111] ml-2">{dayCols[0]?.month} {dayCols[0]?.day} – {dayCols[DAYS - 1]?.month} {dayCols[DAYS - 1]?.day}</span>
       </div>
 
-      {/* Timeline — fits viewport */}
-      <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white flex flex-col" style={{ height: "calc(100vh - 220px)", minHeight: "400px" }}>
-        {/* Date headers (fixed) */}
-        <div className="flex border-b border-[#eaeaea] bg-[#fafafa] flex-shrink-0 overflow-hidden">
-          {dayCols.map((col, i) => (
-            <div
-              key={i}
-              className={`flex flex-col items-center justify-end py-1.5 border-r border-[#f0f0f0] flex-shrink-0 ${col.isWeekend ? "bg-[#f5f5f5]" : ""}`}
-              style={{ width: `${100 / TOTAL_DAYS}%`, minWidth: DAY_W }}
-            >
-              {(col.day === 1 || i === 0) && <span className="text-[8px] font-bold text-[#bbb] uppercase">{col.month}</span>}
-              <span className={`text-[9px] font-medium ${col.isToday ? "text-[#80020E]" : "text-[#bbb]"}`}>{col.dow}</span>
-              <span className={`text-[11px] font-semibold leading-none mt-0.5 ${
-                col.isToday ? "text-white bg-[#80020E] w-5 h-5 rounded-full flex items-center justify-center text-[10px]" : col.isWeekend ? "text-[#ccc]" : "text-[#555]"
-              }`}>{col.day}</span>
+      <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white flex flex-col" style={{ height: "calc(100vh - 240px)", minHeight: "400px" }}>
+        <div className="flex flex-1 overflow-hidden">
+          {/* Property names */}
+          <div className="flex-shrink-0 w-[180px] border-r border-[#eaeaea] bg-white z-10 overflow-y-auto">
+            <div className="h-[50px] px-3 flex items-end pb-2 border-b border-[#eaeaea] bg-[#fafafa]">
+              <span className="text-[10px] font-semibold text-[#999] uppercase">Property</span>
             </div>
-          ))}
-        </div>
+            {propertyGroups.map(([prop]) => (
+              <div key={prop} className="px-3 flex items-center border-b border-[#f0f0f0]" style={{ height: ROW_H }}>
+                <span className="text-[11px] font-medium text-[#333] truncate">{prop}</span>
+              </div>
+            ))}
+          </div>
 
-        {/* Scrollable bars area */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden relative">
-          <div className="relative" style={{ height: Math.max(totalRows * ROW_H + 8, 200) + "px" }}>
-            {/* Grid lines */}
-            <div className="absolute inset-0 flex">
-              {dayCols.map((col, i) => (
-                <div key={i} className={`border-r border-[#f5f5f5] h-full flex-shrink-0 ${col.isWeekend ? "bg-[#fafafa]" : ""} ${col.isToday ? "bg-[#80020E]/[0.03]" : ""}`}
-                  style={{ width: `${100 / TOTAL_DAYS}%`, minWidth: DAY_W }} />
+          {/* Scrollable area */}
+          <div className="flex-1 overflow-auto">
+            <div style={{ width: DAYS * DAY_W }}>
+              {/* Headers */}
+              <div className="flex h-[50px] border-b border-[#eaeaea] bg-[#fafafa] sticky top-0 z-10">
+                {dayCols.map((col, i) => (
+                  <div key={i} className={`flex flex-col items-center justify-end pb-1 border-r border-[#f0f0f0] ${col.isWeekend ? "bg-[#f5f5f5]" : ""}`}
+                    style={{ width: DAY_W, minWidth: DAY_W }}>
+                    {(col.day === 1 || i === 0) && <span className="text-[8px] font-bold text-[#bbb] uppercase">{col.month}</span>}
+                    <span className={`text-[9px] ${col.isToday ? "text-[#80020E]" : "text-[#bbb]"}`}>{col.dow}</span>
+                    <span className={`text-[11px] font-semibold ${col.isToday ? "text-white bg-[#80020E] w-5 h-5 rounded-full flex items-center justify-center text-[10px]" : col.isWeekend ? "text-[#ccc]" : "text-[#555]"}`}>{col.day}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Rows */}
+              {propertyGroups.map(([, propRes]) => (
+                <div key={propRes[0]?.property} className="relative border-b border-[#f0f0f0]" style={{ height: ROW_H }}>
+                  <div className="absolute inset-0 flex">
+                    {dayCols.map((col, i) => (
+                      <div key={i} className={`border-r border-[#f5f5f5] h-full ${col.isWeekend ? "bg-[#fafafa]" : ""} ${col.isToday ? "bg-[#80020E]/[0.03]" : ""}`}
+                        style={{ width: DAY_W, minWidth: DAY_W }} />
+                    ))}
+                  </div>
+                  {propRes.filter((r) => r.status !== "Cancelled").map((r) => {
+                    const barStart = Math.max(0, daysBetween(rangeStart, r.checkIn));
+                    const barEnd = Math.min(DAYS, daysBetween(rangeStart, r.checkOut));
+                    const w = barEnd - barStart;
+                    if (w <= 0) return null;
+                    const { bg, text } = getColor(r.channel);
+                    const nights = daysBetween(r.checkIn, r.checkOut);
+                    const ch = r.channel.includes("Booking") ? "Booking.com" : r.channel.includes("Airbnb") ? "Airbnb" : r.channel;
+                    return (
+                      <button key={r.id} onClick={() => onTap(r)}
+                        className="absolute top-[6px] rounded-lg flex items-center gap-1 px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all z-[1]"
+                        style={{ left: barStart * DAY_W + 2, width: w * DAY_W - 4, height: ROW_H - 12, backgroundColor: bg, color: text }}>
+                        <span className="flex-shrink-0 [&_svg]:w-[12px] [&_svg]:h-[12px]">{getChannelIcon(r.channel)}</span>
+                        <div className="truncate text-[10px] font-semibold leading-tight">
+                          {r.guest}
+                          {w > 3 && <span className="text-[8px] opacity-75 font-medium ml-1">{ch} · {nights}N</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               ))}
             </div>
-
-            {/* Reservation bars */}
-            {rows.map((r) => {
-              const barStart = Math.max(0, daysBetween(rangeStart, r.checkIn));
-              const barEnd = Math.min(TOTAL_DAYS, daysBetween(rangeStart, r.checkOut));
-              const barWidth = barEnd - barStart;
-              if (barWidth <= 0) return null;
-
-              const { bg, text } = getColor(r.channel);
-              const nights = daysBetween(r.checkIn, r.checkOut);
-              const ch = r.channel.includes("Booking") ? "Booking.com" : r.channel.includes("Airbnb") ? "Airbnb" : r.channel;
-              const pct = 100 / TOTAL_DAYS;
-
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => { setSelected(r); onReservationTap?.(r); }}
-                  className="absolute rounded-lg flex items-center px-2 overflow-hidden cursor-pointer hover:brightness-110 hover:shadow-sm transition-all z-[1]"
-                  style={{
-                    left: `calc(${barStart * pct}% + 2px)`,
-                    top: r.row * ROW_H + 4,
-                    width: `calc(${barWidth * pct}% - 4px)`,
-                    height: ROW_H - 8,
-                    backgroundColor: bg,
-                    color: text,
-                  }}
-                  title={`${r.guest} · ${ch} · ${nights}N`}
-                >
-                  <div className="truncate leading-tight">
-                    <div className="text-[11px] font-semibold truncate">{r.guest}</div>
-                    {barWidth > 2 && <div className="text-[9px] opacity-75 font-medium truncate">{ch} · {nights} night{nights !== 1 ? "s" : ""}</div>}
-                  </div>
-                </button>
-              );
-            })}
           </div>
-
-          {/* Empty state */}
-          {active.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center text-[13px] text-[#999]">No reservations in this date range.</div>
-          )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Detail card */}
-      {selected && (
-        <div className="mt-3 bg-white border border-[#eaeaea] rounded-xl p-4 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-3 h-3 rounded" style={{ backgroundColor: getColor(selected.channel).bg }} />
-                <span className="text-[14px] font-semibold text-[#111]">{selected.guest}</span>
-              </div>
-              <div className="text-[12px] text-[#888] mb-0.5">{selected.property}</div>
-              <div className="text-[12px] text-[#666]">
-                {new Date(selected.checkIn + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })} → {new Date(selected.checkOut + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {daysBetween(selected.checkIn, selected.checkOut)} nights
-              </div>
-              {selected.ownerPayout > 0 && (
-                <div className="text-[13px] font-semibold text-[#111] mt-1.5">€{selected.ownerPayout.toFixed(2)}</div>
-              )}
-            </div>
-            <button onClick={() => setSelected(null)} className="p-1 text-[#999] hover:text-[#555]">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+/* ================================================================ */
+/*  MAIN EXPORT                                                      */
+/* ================================================================ */
+export default function ReservationCalendar({
+  reservations,
+  onReservationTap,
+}: {
+  reservations: CalendarReservation[];
+  onReservationTap?: (r: CalendarReservation) => void;
+}) {
+  const today = new Date();
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [calMode, setCalMode] = useState<"month" | "timeline">("month");
+
+  const uniqueProps = useMemo(() => new Set(reservations.map((r) => r.property)), [reservations]);
+  const hasMultipleProperties = uniqueProps.size > 1;
+
+  const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); } else setViewMonth((m) => m - 1); };
+  const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1); } else setViewMonth((m) => m + 1); };
+
+  const handleTap = (r: CalendarReservation) => { onReservationTap?.(r); };
+
+  return (
+    <div>
+      {/* View toggle + month nav */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          {calMode === "month" && (
+            <>
+              <button onClick={prevMonth} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span className="text-[14px] font-semibold text-[#111] min-w-[140px] text-center">{MONTHS[viewMonth]} {viewYear}</span>
+              <button onClick={nextMonth} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
+              </button>
+            </>
+          )}
+        </div>
+
+        {hasMultipleProperties && (
+          <div className="flex items-center gap-1 border border-[#e2e2e2] rounded-lg p-0.5">
+            <button onClick={() => setCalMode("month")}
+              className={`px-3 py-1 rounded-md text-[11px] font-medium transition-colors ${calMode === "month" ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"}`}>
+              Monthly
+            </button>
+            <button onClick={() => setCalMode("timeline")}
+              className={`px-3 py-1 rounded-md text-[11px] font-medium transition-colors ${calMode === "timeline" ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"}`}>
+              All Properties
             </button>
           </div>
+        )}
+      </div>
+
+      {/* Calendar content */}
+      {calMode === "month" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MonthGrid year={viewYear} month={viewMonth} reservations={reservations} onTap={handleTap} />
+          <MonthGrid year={viewMonth === 11 ? viewYear + 1 : viewYear} month={viewMonth === 11 ? 0 : viewMonth + 1} reservations={reservations} onTap={handleTap} />
         </div>
+      ) : (
+        <TimelineView reservations={reservations} onTap={handleTap} />
       )}
     </div>
   );
