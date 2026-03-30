@@ -163,6 +163,10 @@ body {
 .toast-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
 .toast-msg { font-size: 13px; color: #a1a1aa; }
 
+/* ── Hide scrollbars on calendar ── */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* ── Mobile Safe Area ── */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
