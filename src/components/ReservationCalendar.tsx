@@ -145,7 +145,6 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
   const today = useMemo(() => new Date(), []);
   const [offset, setOffset] = useState(-3);
   const DAYS = 35;
-  const DAY_W = 48;
   const ROW_H = 52;
 
   const propScrollRef = useRef<HTMLDivElement>(null);
@@ -163,6 +162,13 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
       timelineScrollRef.current.scrollTop = propScrollRef.current.scrollTop;
     }
   }, []);
+
+  // Scroll to start (left edge) on mount
+  useEffect(() => {
+    if (timelineScrollRef.current) {
+      timelineScrollRef.current.scrollLeft = 0;
+    }
+  }, [offset]);
 
   useEffect(() => {
     const timeline = timelineScrollRef.current;
@@ -207,7 +213,7 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
   }, [reservations, rangeStart, rangeEnd]);
 
   return (
-    <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white flex flex-col" style={{ height: "calc(100vh - 200px)", minHeight: "400px" }}>
+    <div className="border border-[#eaeaea] rounded-xl bg-white flex flex-col" style={{ height: "calc(100vh - 200px)", minHeight: "400px", overflow: "hidden" }}>
       {/* Nav */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-[#eaeaea] bg-[#fafafa] flex-shrink-0">
         <div className="flex items-center gap-1.5">
@@ -227,14 +233,14 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Property column */}
+      {/* Content — property list fixed left, timeline scrolls horizontally */}
+      <div className="flex flex-1 min-h-0">
+        {/* Property column (fixed, only vertical scroll) */}
         <div className="flex-shrink-0 w-[200px] border-r border-[#eaeaea] bg-white z-10 flex flex-col">
           <div className="h-[46px] px-3 flex items-end pb-1.5 border-b border-[#eaeaea] bg-[#fafafa] flex-shrink-0">
             <span className="text-[10px] font-semibold text-[#999] uppercase">Property</span>
           </div>
-          <div ref={propScrollRef} className="flex-1 overflow-y-auto hide-scrollbar">
+          <div ref={propScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar">
             {allProps.map((prop) => {
               const img = propertyImages?.[prop];
               return (
@@ -258,29 +264,32 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
           </div>
         </div>
 
-        {/* Timeline */}
-        <div ref={timelineScrollRef} className="flex-1 overflow-auto hide-scrollbar">
-          <div style={{ width: DAYS * DAY_W, minWidth: "100%" }}>
+        {/* Timeline — 100% width, no overflow, percentage-based columns */}
+        <div ref={timelineScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden hide-scrollbar">
+          <div className="w-full">
+            {/* Date headers */}
             <div className="flex h-[46px] border-b border-[#eaeaea] bg-[#fafafa] sticky top-0 z-10">
               {dayCols.map((col, i) => (
-                <div key={i} className={`flex flex-col items-center justify-end pb-1 border-r border-[#f0f0f0] flex-shrink-0 ${col.isWeekend ? "bg-[#f5f5f5]" : ""}`}
-                  style={{ width: DAY_W, minWidth: DAY_W }}>
+                <div key={i} className={`flex-1 flex flex-col items-center justify-end pb-1 border-r border-[#f0f0f0] min-w-0 ${col.isWeekend ? "bg-[#f5f5f5]" : ""}`}>
                   {(col.day === 1 || i === 0) && <span className="text-[8px] font-bold text-[#bbb] uppercase">{col.month}</span>}
                   <span className={`text-[9px] ${col.isToday ? "text-[#80020E]" : "text-[#bbb]"}`}>{col.dow}</span>
                   <span className={`text-[11px] font-semibold ${col.isToday ? "text-white bg-[#80020E] w-5 h-5 rounded-full flex items-center justify-center text-[10px]" : col.isWeekend ? "text-[#ccc]" : "text-[#555]"}`}>{col.day}</span>
                 </div>
               ))}
             </div>
+            {/* Property rows */}
             {allProps.map((prop) => {
               const propRes = resMap[prop] || [];
+              const pct = 100 / DAYS;
               return (
                 <div key={prop} className="relative border-b border-[#f0f0f0]" style={{ height: ROW_H }}>
+                  {/* Grid bg */}
                   <div className="absolute inset-0 flex">
                     {dayCols.map((col, i) => (
-                      <div key={i} className={`border-r border-[#f5f5f5] h-full flex-shrink-0 ${col.isWeekend ? "bg-[#fafafa]" : ""} ${col.isToday ? "bg-[#80020E]/[0.03]" : ""}`}
-                        style={{ width: DAY_W, minWidth: DAY_W }} />
+                      <div key={i} className={`flex-1 border-r border-[#f5f5f5] h-full min-w-0 ${col.isWeekend ? "bg-[#fafafa]" : ""} ${col.isToday ? "bg-[#80020E]/[0.03]" : ""}`} />
                     ))}
                   </div>
+                  {/* Bars — percentage-based positioning */}
                   {propRes.map((r) => {
                     const barStart = Math.max(0, daysBetween(rangeStart, r.checkIn));
                     const barEnd = Math.min(DAYS, daysBetween(rangeStart, r.checkOut));
@@ -292,7 +301,7 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
                     return (
                       <button key={r.id} onClick={() => onTap(r)}
                         className="absolute top-[7px] rounded-lg flex items-center gap-1 px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all z-[1]"
-                        style={{ left: barStart * DAY_W + 2, width: w * DAY_W - 4, height: ROW_H - 14, backgroundColor: bg, color: text }}>
+                        style={{ left: `calc(${barStart * pct}% + 2px)`, width: `calc(${w * pct}% - 4px)`, height: ROW_H - 14, backgroundColor: bg, color: text }}>
                         <span className="flex-shrink-0 [&_img]:w-[11px] [&_img]:h-[11px] [&_svg]:w-[11px] [&_svg]:h-[11px]">{getChannelIcon(r.channel)}</span>
                         <div className="truncate text-[10px] font-semibold leading-tight">
                           {r.guest}
@@ -336,8 +345,17 @@ export default function ReservationCalendar({
 
   const handleTap = (r: CalendarReservation) => { onReservationTap?.(r); };
 
-  // All Properties → timeline view
-  if (showAllProperties) {
+  // All Properties on desktop → timeline view
+  // On mobile, always show monthly grid (timeline doesn't fit small screens)
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  if (showAllProperties && !isMobile) {
     return <TimelineView reservations={reservations} onTap={handleTap} onPropertyTap={onPropertyTap} propertyImages={propertyImages} />;
   }
 
