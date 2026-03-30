@@ -230,7 +230,7 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
           <div className="h-[46px] px-3 flex items-end pb-1.5 border-b border-[#eaeaea] bg-[#fafafa] flex-shrink-0">
             <span className="text-[10px] font-semibold text-[#999] uppercase">Property</span>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto hide-scrollbar">
             {allProps.map((prop) => {
               const img = propertyImages?.[prop];
               return (
@@ -256,7 +256,7 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
         </div>
 
         {/* Timeline area (scrolls both directions) */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto hide-scrollbar">
           <div style={{ width: DAYS * DAY_W, minWidth: "100%" }}>
             {/* Date headers (sticky) */}
             <div className="flex h-[46px] border-b border-[#eaeaea] bg-[#fafafa] sticky top-0 z-10">
