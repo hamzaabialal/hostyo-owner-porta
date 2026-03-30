@@ -417,8 +417,8 @@ function ReservationsContent() {
         <button onClick={() => setMobileView("calendar")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "calendar" ? "bg-[#80020E] text-white" : "bg-white text-[#555] border border-[#e2e2e2]"}`}>Calendar</button>
       </div>
 
-      {/* ── Desktop Filters ── */}
-      <div className="hidden md:flex items-center gap-3 mb-5 flex-wrap">
+      {/* ── Desktop Filters + View Toggle ── */}
+      <div className="hidden md:flex items-center gap-3 mb-4 flex-wrap">
         <FilterDropdown placeholder="All Properties" value={filterProperty} onChange={setFilterProperty} options={propertyOptions} searchable />
         <FilterDropdown placeholder="All Statuses" value={filterStatus} onChange={setFilterStatus} options={statusOptions} />
         <FilterDropdown placeholder="All Channels" value={filterChannel} onChange={setFilterChannel} options={channelOptions} />
@@ -429,6 +429,17 @@ function ReservationsContent() {
           </svg>
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search guest name or booking ref..."
             className="w-full h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
+        </div>
+        {/* List / Calendar toggle */}
+        <div className="flex items-center border border-[#e2e2e2] rounded-lg overflow-hidden ml-auto">
+          <button onClick={() => setMobileView("list")} className={`px-3.5 py-2 text-[12px] font-medium flex items-center gap-1.5 transition-colors ${mobileView === "list" ? "bg-accent text-white" : "bg-white text-[#555] hover:bg-[#f5f5f5]"}`}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            List
+          </button>
+          <button onClick={() => setMobileView("calendar")} className={`px-3.5 py-2 text-[12px] font-medium flex items-center gap-1.5 transition-colors ${mobileView === "calendar" ? "bg-accent text-white" : "bg-white text-[#555] hover:bg-[#f5f5f5]"}`}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Calendar
+          </button>
         </div>
       </div>
 
@@ -491,21 +502,6 @@ function ReservationsContent() {
         </div>
       )}
 
-      {/* ── Desktop View Toggle ── */}
-      <div className="hidden md:flex items-center gap-2 mb-4">
-        <button onClick={() => setMobileView("list")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "list" ? "bg-[#80020E] text-white" : "bg-white text-[#555] border border-[#e2e2e2] hover:border-[#ccc]"}`}>
-          <span className="flex items-center gap-1.5">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            List
-          </span>
-        </button>
-        <button onClick={() => setMobileView("calendar")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "calendar" ? "bg-[#80020E] text-white" : "bg-white text-[#555] border border-[#e2e2e2] hover:border-[#ccc]"}`}>
-          <span className="flex items-center gap-1.5">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            Calendar
-          </span>
-        </button>
-      </div>
 
       {/* ── Desktop Calendar ── */}
       {mobileView === "calendar" && (
