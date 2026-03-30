@@ -454,6 +454,7 @@ function ReservationsContent() {
             }}
             onPropertyTap={(name) => setPropertyDrawerName(name)}
             propertyImages={propertyImages}
+            showAllProperties={showPropertyCol}
           />
         </div>
       )}
@@ -505,12 +506,13 @@ function ReservationsContent() {
 
       {/* ── Desktop Calendar ── */}
       {mobileView === "calendar" && (
-        <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl p-6">
+        <div className={`hidden md:block ${showPropertyCol ? "" : "bg-white border border-[#eaeaea] rounded-xl p-6"}`}>
           <ReservationCalendar
             reservations={filtered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
             onReservationTap={(res) => { const match = filtered.find((rr) => rr.id === res.id); if (match) setDrawerRes(match); }}
             onPropertyTap={(name) => setPropertyDrawerName(name)}
             propertyImages={propertyImages}
+            showAllProperties={showPropertyCol}
           />
         </div>
       )}

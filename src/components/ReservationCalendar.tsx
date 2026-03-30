@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { getChannelIcon } from "./ChannelBadge";
 
 interface CalendarReservation {
@@ -11,7 +11,6 @@ interface CalendarReservation {
   checkOut: string;
   status: string;
   ownerPayout: number;
-  coverUrl?: string;
 }
 
 const CHANNEL_COLORS: Record<string, { bg: string; text: string }> = {
@@ -40,7 +39,7 @@ const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /* ================================================================ */
-/*  MONTHLY GRID VIEW (single property default)                      */
+/*  MONTHLY GRID (single property) — responsive month count          */
 /* ================================================================ */
 function MonthGrid({ year, month, reservations, onTap }: {
   year: number; month: number;
@@ -48,20 +47,17 @@ function MonthGrid({ year, month, reservations, onTap }: {
   onTap: (r: CalendarReservation) => void;
 }) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
-  const today = new Date();
-  const todayStr = toStr(today);
+  const firstDow = new Date(year, month, 1).getDay();
+  const todayStr = toStr(new Date());
   const monthStr = `${year}-${pad(month + 1)}`;
-
-  // Reservations that overlap this month
   const monthStart = `${monthStr}-01`;
   const monthEnd = `${monthStr}-${pad(daysInMonth)}`;
+
   const active = reservations.filter((r) => {
     if (!r.checkIn || !r.checkOut || r.status === "Cancelled") return false;
     return r.checkIn <= monthEnd && r.checkOut > monthStart;
   });
 
-  // For each day, find reservations
   const dayRes = useMemo(() => {
     const map: Record<number, { r: CalendarReservation; isStart: boolean; span: number }[]> = {};
     for (const r of active) {
@@ -72,9 +68,8 @@ function MonthGrid({ year, month, reservations, onTap }: {
         if (cur >= ci && cur < co) {
           if (!map[d]) map[d] = [];
           const isStart = cur.getTime() === ci.getTime();
-          // Calculate how many days the bar spans from this day (within this week row)
           const dayOfWeek = cur.getDay();
-          const daysLeft = 7 - dayOfWeek; // days until end of week
+          const daysLeft = 7 - dayOfWeek;
           const daysUntilEnd = daysBetween(toStr(cur), r.checkOut);
           const daysUntilMonthEnd = daysInMonth - d + 1;
           const span = isStart || dayOfWeek === 0 ? Math.min(daysUntilEnd, daysLeft, daysUntilMonthEnd) : 0;
@@ -93,54 +88,39 @@ function MonthGrid({ year, month, reservations, onTap }: {
 
   return (
     <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white">
-      <div className="text-center py-2 text-[14px] font-semibold text-[#111] border-b border-[#eaeaea] bg-[#fafafa]">
+      <div className="text-center py-2 text-[13px] font-semibold text-[#111] border-b border-[#eaeaea] bg-[#fafafa]">
         {MONTHS[month]} {year}
       </div>
-      {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-[#eaeaea]">
         {DOW.map((d, i) => (
-          <div key={d} className={`text-center text-[11px] font-semibold py-1.5 ${i === 5 || i === 6 ? "text-[#FF5A5F]" : "text-[#999]"}`}>{d}</div>
+          <div key={d} className={`text-center text-[10px] font-semibold py-1 ${i === 5 || i === 6 ? "text-[#FF5A5F]" : "text-[#999]"}`}>{d}</div>
         ))}
       </div>
-      {/* Cells */}
       <div className="grid grid-cols-7">
         {cells.map((day, idx) => {
-          if (day === null) {
-            return <div key={`e${idx}`} className="h-[80px] md:h-[100px] border-r border-b border-[#f0f0f0] bg-[#fafafa]/50" />;
-          }
+          if (day === null) return <div key={`e${idx}`} className="h-[70px] border-r border-b border-[#f0f0f0] bg-[#fafafa]/50" />;
           const dateStr = `${monthStr}-${pad(day)}`;
           const isT = dateStr === todayStr;
           const entries = dayRes[day] || [];
-
           return (
-            <div key={day} className={`h-[80px] md:h-[100px] border-r border-b border-[#f0f0f0] relative overflow-visible ${isT ? "bg-[#80020E]/[0.03]" : ""}`}>
-              <div className={`text-[11px] font-medium px-1.5 pt-1 ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>
-                {isT ? (
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#80020E] text-white text-[10px]">{day}</span>
-                ) : day}
+            <div key={day} className={`h-[70px] border-r border-b border-[#f0f0f0] relative overflow-visible ${isT ? "bg-[#80020E]/[0.03]" : ""}`}>
+              <div className={`text-[10px] font-medium px-1 pt-0.5 ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>
+                {isT ? <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#80020E] text-white text-[9px]">{day}</span> : day}
               </div>
               <div className="mt-0.5 space-y-0.5 px-0.5">
                 {entries.filter((e) => e.isStart || new Date(year, month, day).getDay() === 0).slice(0, 2).map((entry) => {
                   const { bg, text } = getColor(entry.r.channel);
                   const nights = daysBetween(entry.r.checkIn, entry.r.checkOut);
-                  const ch = entry.r.channel.includes("Booking") ? "Booking.com" : entry.r.channel.includes("Airbnb") ? "Airbnb" : entry.r.channel;
                   const span = Math.max(1, entry.span);
                   return (
-                    <button
-                      key={entry.r.id}
-                      onClick={() => onTap(entry.r)}
-                      className="block text-left rounded px-1 py-0.5 text-[9px] md:text-[10px] font-semibold leading-tight truncate cursor-pointer hover:brightness-110 relative z-[2]"
-                      style={{
-                        backgroundColor: bg, color: text,
-                        width: `calc(${span * 100}% + ${(span - 1) * 1}px)`,
-                      }}
-                      title={`${entry.r.guest} · ${ch} · ${nights}N`}
-                    >
+                    <button key={entry.r.id} onClick={() => onTap(entry.r)}
+                      className="block text-left rounded px-1 py-0.5 text-[8px] font-semibold leading-tight truncate cursor-pointer hover:brightness-110 relative z-[2]"
+                      style={{ backgroundColor: bg, color: text, width: `calc(${span * 100}% + ${(span - 1) * 1}px)` }}
+                      title={`${entry.r.guest} · ${nights}N`}>
                       <span className="flex items-center gap-0.5 truncate">
-                        <span className="flex-shrink-0 [&_svg]:w-[10px] [&_svg]:h-[10px]">{getChannelIcon(entry.r.channel)}</span>
-                        {entry.r.guest.split(" ")[0]}
+                        <span className="flex-shrink-0 [&_img]:w-[10px] [&_img]:h-[10px] [&_svg]:w-[10px] [&_svg]:h-[10px]">{getChannelIcon(entry.r.channel)}</span>
+                        {entry.r.guest.split(" ")[0]} · {nights}N
                       </span>
-                      <span className="text-[8px] opacity-80 block truncate">{ch} · {nights}N</span>
                     </button>
                   );
                 })}
@@ -154,7 +134,7 @@ function MonthGrid({ year, month, reservations, onTap }: {
 }
 
 /* ================================================================ */
-/*  HORIZONTAL TIMELINE VIEW (all properties)                        */
+/*  HORIZONTAL TIMELINE (all properties) — synced scroll             */
 /* ================================================================ */
 function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
   reservations: CalendarReservation[];
@@ -167,6 +147,33 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
   const DAYS = 35;
   const DAY_W = 48;
   const ROW_H = 52;
+
+  const propScrollRef = useRef<HTMLDivElement>(null);
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
+
+  // Sync vertical scroll between property list and timeline
+  const handleTimelineScroll = useCallback(() => {
+    if (timelineScrollRef.current && propScrollRef.current) {
+      propScrollRef.current.scrollTop = timelineScrollRef.current.scrollTop;
+    }
+  }, []);
+
+  const handlePropScroll = useCallback(() => {
+    if (propScrollRef.current && timelineScrollRef.current) {
+      timelineScrollRef.current.scrollTop = propScrollRef.current.scrollTop;
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeline = timelineScrollRef.current;
+    const propList = propScrollRef.current;
+    if (timeline) timeline.addEventListener("scroll", handleTimelineScroll);
+    if (propList) propList.addEventListener("scroll", handlePropScroll);
+    return () => {
+      if (timeline) timeline.removeEventListener("scroll", handleTimelineScroll);
+      if (propList) propList.removeEventListener("scroll", handlePropScroll);
+    };
+  }, [handleTimelineScroll, handlePropScroll]);
 
   const dayCols = useMemo(() => {
     const cols: { str: string; day: number; dow: string; month: string; isToday: boolean; isWeekend: boolean }[] = [];
@@ -186,11 +193,7 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
   const rangeStart = dayCols[0].str;
   const rangeEnd = dayCols[DAYS - 1].str;
 
-  // Group by ALL properties (not just ones with reservations)
-  const allProps = useMemo(() => {
-    const propSet = new Set(reservations.map((r) => r.property));
-    return Array.from(propSet).sort();
-  }, [reservations]);
+  const allProps = useMemo(() => Array.from(new Set(reservations.map((r) => r.property))).sort(), [reservations]);
 
   const resMap = useMemo(() => {
     const map: Record<string, CalendarReservation[]> = {};
@@ -205,7 +208,7 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
 
   return (
     <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white flex flex-col" style={{ height: "calc(100vh - 200px)", minHeight: "400px" }}>
-      {/* Nav bar inside calendar */}
+      {/* Nav */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-[#eaeaea] bg-[#fafafa] flex-shrink-0">
         <div className="flex items-center gap-1.5">
           <button onClick={() => setOffset((o) => o - 7)} className="p-1 rounded border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
@@ -224,20 +227,20 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
         </div>
       </div>
 
+      {/* Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Property column (fixed, scrolls vertically with content) */}
+        {/* Property column */}
         <div className="flex-shrink-0 w-[200px] border-r border-[#eaeaea] bg-white z-10 flex flex-col">
           <div className="h-[46px] px-3 flex items-end pb-1.5 border-b border-[#eaeaea] bg-[#fafafa] flex-shrink-0">
             <span className="text-[10px] font-semibold text-[#999] uppercase">Property</span>
           </div>
-          <div className="flex-1 overflow-y-auto hide-scrollbar">
+          <div ref={propScrollRef} className="flex-1 overflow-y-auto hide-scrollbar">
             {allProps.map((prop) => {
               const img = propertyImages?.[prop];
               return (
                 <button key={prop} onClick={() => onPropertyTap?.(prop)}
                   className="w-full px-2.5 flex items-center gap-2 border-b border-[#f0f0f0] text-left hover:bg-[#f5f5f5] transition-colors cursor-pointer"
-                  style={{ height: ROW_H }}>
-                  {/* Property thumbnail */}
+                  style={{ height: ROW_H, minHeight: ROW_H }}>
                   <div className="w-8 h-8 rounded-md bg-[#f0f0f0] flex-shrink-0 overflow-hidden">
                     {img ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -255,10 +258,9 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
           </div>
         </div>
 
-        {/* Timeline area (scrolls both directions) */}
-        <div className="flex-1 overflow-auto hide-scrollbar">
+        {/* Timeline */}
+        <div ref={timelineScrollRef} className="flex-1 overflow-auto hide-scrollbar">
           <div style={{ width: DAYS * DAY_W, minWidth: "100%" }}>
-            {/* Date headers (sticky) */}
             <div className="flex h-[46px] border-b border-[#eaeaea] bg-[#fafafa] sticky top-0 z-10">
               {dayCols.map((col, i) => (
                 <div key={i} className={`flex flex-col items-center justify-end pb-1 border-r border-[#f0f0f0] flex-shrink-0 ${col.isWeekend ? "bg-[#f5f5f5]" : ""}`}
@@ -269,20 +271,16 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
                 </div>
               ))}
             </div>
-
-            {/* Property rows */}
             {allProps.map((prop) => {
               const propRes = resMap[prop] || [];
               return (
                 <div key={prop} className="relative border-b border-[#f0f0f0]" style={{ height: ROW_H }}>
-                  {/* Grid bg */}
                   <div className="absolute inset-0 flex">
                     {dayCols.map((col, i) => (
                       <div key={i} className={`border-r border-[#f5f5f5] h-full flex-shrink-0 ${col.isWeekend ? "bg-[#fafafa]" : ""} ${col.isToday ? "bg-[#80020E]/[0.03]" : ""}`}
                         style={{ width: DAY_W, minWidth: DAY_W }} />
                     ))}
                   </div>
-                  {/* Bars */}
                   {propRes.map((r) => {
                     const barStart = Math.max(0, daysBetween(rangeStart, r.checkIn));
                     const barEnd = Math.min(DAYS, daysBetween(rangeStart, r.checkOut));
@@ -295,7 +293,7 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
                       <button key={r.id} onClick={() => onTap(r)}
                         className="absolute top-[7px] rounded-lg flex items-center gap-1 px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all z-[1]"
                         style={{ left: barStart * DAY_W + 2, width: w * DAY_W - 4, height: ROW_H - 14, backgroundColor: bg, color: text }}>
-                        <span className="flex-shrink-0 [&_svg]:w-[11px] [&_svg]:h-[11px]">{getChannelIcon(r.channel)}</span>
+                        <span className="flex-shrink-0 [&_img]:w-[11px] [&_img]:h-[11px] [&_svg]:w-[11px] [&_svg]:h-[11px]">{getChannelIcon(r.channel)}</span>
                         <div className="truncate text-[10px] font-semibold leading-tight">
                           {r.guest}
                           {w > 3 && <span className="text-[8px] opacity-75 font-medium ml-1">{ch} · {nights}N</span>}
@@ -321,66 +319,61 @@ export default function ReservationCalendar({
   onReservationTap,
   onPropertyTap,
   propertyImages,
+  showAllProperties = false,
 }: {
   reservations: CalendarReservation[];
   onReservationTap?: (r: CalendarReservation) => void;
   onPropertyTap?: (propertyName: string) => void;
   propertyImages?: Record<string, string>;
+  showAllProperties?: boolean;
 }) {
   const today = new Date();
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [calMode, setCalMode] = useState<"month" | "timeline">("month");
-
-  const uniqueProps = useMemo(() => new Set(reservations.map((r) => r.property)), [reservations]);
-  const hasMultipleProperties = uniqueProps.size > 1;
 
   const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); } else setViewMonth((m) => m - 1); };
   const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1); } else setViewMonth((m) => m + 1); };
 
   const handleTap = (r: CalendarReservation) => { onReservationTap?.(r); };
 
+  // All Properties → timeline view
+  if (showAllProperties) {
+    return <TimelineView reservations={reservations} onTap={handleTap} onPropertyTap={onPropertyTap} propertyImages={propertyImages} />;
+  }
+
+  // Single property → monthly grid
+  // Responsive: mobile=1, tablet=3, desktop=6
+  const monthsToShow = typeof window !== "undefined" ? (window.innerWidth < 768 ? 1 : window.innerWidth < 1280 ? 3 : 6) : 6;
+
+  const monthGrids: { y: number; m: number }[] = [];
+  for (let i = 0; i < monthsToShow; i++) {
+    let m = viewMonth + i;
+    let y = viewYear;
+    while (m > 11) { m -= 12; y += 1; }
+    monthGrids.push({ y, m });
+  }
+
   return (
     <div>
-      {/* View toggle + month nav */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          {calMode === "month" && (
-            <>
-              <button onClick={prevMonth} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <span className="text-[14px] font-semibold text-[#111] min-w-[140px] text-center">{MONTHS[viewMonth]} {viewYear}</span>
-              <button onClick={nextMonth} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
-              </button>
-            </>
-          )}
-        </div>
-
-        {hasMultipleProperties && (
-          <div className="flex items-center gap-1 border border-[#e2e2e2] rounded-lg p-0.5">
-            <button onClick={() => setCalMode("month")}
-              className={`px-3 py-1 rounded-md text-[11px] font-medium transition-colors ${calMode === "month" ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"}`}>
-              Monthly
-            </button>
-            <button onClick={() => setCalMode("timeline")}
-              className={`px-3 py-1 rounded-md text-[11px] font-medium transition-colors ${calMode === "timeline" ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"}`}>
-              All Properties
-            </button>
-          </div>
-        )}
+      {/* Month nav */}
+      <div className="flex items-center gap-2 mb-3">
+        <button onClick={prevMonth} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span className="text-[14px] font-semibold text-[#111] min-w-[140px] text-center">
+          {MONTHS[viewMonth]} {viewYear}
+        </span>
+        <button onClick={nextMonth} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
+        </button>
       </div>
 
-      {/* Calendar content */}
-      {calMode === "month" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <MonthGrid year={viewYear} month={viewMonth} reservations={reservations} onTap={handleTap} />
-          <MonthGrid year={viewMonth === 11 ? viewYear + 1 : viewYear} month={viewMonth === 11 ? 0 : viewMonth + 1} reservations={reservations} onTap={handleTap} />
-        </div>
-      ) : (
-        <TimelineView reservations={reservations} onTap={handleTap} onPropertyTap={onPropertyTap} propertyImages={propertyImages} />
-      )}
+      {/* Month grids — responsive columns */}
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-3">
+        {monthGrids.map(({ y, m }) => (
+          <MonthGrid key={`${y}-${m}`} year={y} month={m} reservations={reservations} onTap={handleTap} />
+        ))}
+      </div>
     </div>
   );
 }
