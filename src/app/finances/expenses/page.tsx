@@ -258,12 +258,12 @@ export default function ExpensesPage() {
         Expenses and deductions linked to your properties.
       </div>
       {/* ── Group Tabs ── */}
-      <div className="flex gap-1.5 mb-5">
+      <div className="flex gap-1.5 mb-5 overflow-x-auto pb-1 hide-scrollbar">
         {groupTabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-[18px] py-2 rounded-lg border text-[13px] font-medium cursor-pointer transition-all ${
+            className={`px-[14px] md:px-[18px] py-2 rounded-lg border text-[12px] md:text-[13px] font-medium cursor-pointer transition-all whitespace-nowrap flex-shrink-0 ${
               activeTab === tab
                 ? "bg-[#80020E] text-white border-[#80020E] font-semibold"
                 : "bg-white text-[#555] border-[#ddd] hover:border-[#bbb] hover:text-[#111]"
@@ -274,23 +274,15 @@ export default function ExpensesPage() {
         ))}
       </div>
 
-      {/* ── Filter Bar ── */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <FilterDropdown
-          value={filterProperty}
-          onChange={setFilterProperty}
-          placeholder="All Properties"
-          options={propertyList.map((p) => ({ value: p, label: p }))}
-          searchable
-        />
-
-        <FilterDropdown
-          value={filterStatus}
-          onChange={setFilterStatus}
-          placeholder="All Statuses"
-          options={statusList.map((s) => ({ value: s, label: s }))}
-        />
-
+      {/* ── Mobile Filters ── */}
+      <div className="flex items-center gap-2 mb-4 overflow-x-auto md:hidden pb-1">
+        <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="Properties" options={propertyList.map((p) => ({ value: p, label: p }))} searchable />
+        <FilterDropdown value={filterStatus} onChange={setFilterStatus} placeholder="Status" options={statusList.map((s) => ({ value: s, label: s }))} />
+      </div>
+      {/* ── Desktop Filter Bar ── */}
+      <div className="hidden md:flex items-center gap-3 mb-5 flex-wrap">
+        <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="All Properties" options={propertyList.map((p) => ({ value: p, label: p }))} searchable />
+        <FilterDropdown value={filterStatus} onChange={setFilterStatus} placeholder="All Statuses" options={statusList.map((s) => ({ value: s, label: s }))} />
         <DateRangePicker from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
 
         <div className="relative">
@@ -354,8 +346,32 @@ export default function ExpensesPage() {
           </div>
         </div>
       ) : (
-        /* ── Flat Table View ── */
-        <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
+        <>
+        {/* ── Mobile Card View ── */}
+        <div className="md:hidden space-y-3">
+          {filtered.length === 0 ? (
+            <div className="text-center py-10 text-[#999] text-sm">No expenses match your filters.</div>
+          ) : filtered.map((exp) => (
+            <div key={exp.id} onClick={() => openDrawer(exp)} className="bg-white border border-[#eaeaea] rounded-xl p-4 cursor-pointer hover:shadow-sm transition-all">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-mono text-[11px] font-semibold text-[#80020E]">{exp.expenseId}</span>
+                <span className={pillClass(exp.status)}>{exp.status}</span>
+              </div>
+              <div className="text-[14px] font-semibold text-[#111] mb-0.5">{exp.property || "—"}</div>
+              {exp.category && <span className="text-[11px] text-[#555] bg-[#f5f5f5] px-2 py-0.5 rounded-md inline-block mb-1">{exp.category}</span>}
+              <div className="text-[12px] text-[#888] mb-2">{exp.vendor ? `${exp.vendor} · ` : ""}{fmtDate(exp.date)}</div>
+              <div className="flex items-center justify-between">
+                <span className="text-[15px] font-semibold text-[#111] tabular-nums">{exp.amount ? fmtMoney(exp.amount) : "—"}</span>
+                {exp.proof && exp.proof.length > 0 && (
+                  <span className="text-[10px] text-[#999] bg-[#f5f5f5] px-2 py-0.5 rounded">{exp.proof.length} file{exp.proof.length !== 1 ? "s" : ""}</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Desktop Table View ── */}
+        <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse min-w-[1100px]">
               <thead>
@@ -435,6 +451,7 @@ export default function ExpensesPage() {
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* ── Drawer Overlay ── */}

@@ -144,6 +144,7 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
 }) {
   const today = useMemo(() => new Date(), []);
   const [offset, setOffset] = useState(-3);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const DAYS = 35;
   const ROW_H = 52;
 
@@ -224,7 +225,58 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
           <button onClick={() => setOffset((o) => o + 7)} className="p-1 rounded border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
           </button>
-          <span className="text-[13px] font-semibold text-[#111] ml-2">{dayCols[0]?.month} {dayCols[0]?.day} – {dayCols[DAYS - 1]?.month} {dayCols[DAYS - 1]?.day}</span>
+
+          {/* Month/Year dropdown */}
+          <div className="relative ml-2">
+            <button onClick={() => setMonthPickerOpen(!monthPickerOpen)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e2e2e2] text-[13px] font-semibold text-[#111] hover:border-[#ccc] transition-colors">
+              {(() => {
+                const startD = new Date(today);
+                startD.setDate(startD.getDate() + offset);
+                return `${MONTHS[startD.getMonth()]} ${startD.getFullYear()}`;
+              })()}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#999]"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            {monthPickerOpen && (
+              <div className="absolute top-full left-0 mt-1 bg-white border border-[#e2e2e2] rounded-xl shadow-lg z-50 p-3 w-[260px]">
+                {/* Year selector */}
+                {(() => {
+                  const currentYear = new Date(today.getTime() + offset * 86400000).getFullYear();
+                  const years = [currentYear - 1, currentYear, currentYear + 1];
+                  return (
+                    <>
+                      <div className="flex items-center justify-center gap-3 mb-3">
+                        {years.map((y) => (
+                          <button key={y} className={`px-3 py-1 rounded-lg text-[12px] font-semibold transition-colors ${
+                            y === currentYear ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"
+                          }`} onClick={() => {
+                            const target = new Date(y, new Date(today.getTime() + offset * 86400000).getMonth(), 1);
+                            const diff = Math.floor((target.getTime() - today.getTime()) / 86400000);
+                            setOffset(diff);
+                          }}>{y}</button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {MONTHS.map((m, i) => {
+                          const isActive = i === new Date(today.getTime() + offset * 86400000).getMonth() && currentYear === new Date(today.getTime() + offset * 86400000).getFullYear();
+                          return (
+                            <button key={m} onClick={() => {
+                              const target = new Date(currentYear, i, 1);
+                              const diff = Math.floor((target.getTime() - today.getTime()) / 86400000);
+                              setOffset(diff);
+                              setMonthPickerOpen(false);
+                            }} className={`px-2 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                              isActive ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"
+                            }`}>{m.slice(0, 3)}</button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
         </div>
         <div className="hidden md:flex items-center gap-3 text-[10px] text-[#999]">
           {Object.entries(CHANNEL_COLORS).slice(0, 4).map(([name, { bg }]) => (
@@ -340,8 +392,21 @@ export default function ReservationCalendar({
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [viewYear, setViewYear] = useState(today.getFullYear());
 
-  const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); } else setViewMonth((m) => m - 1); };
-  const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1); } else setViewMonth((m) => m + 1); };
+  // Jump 6 months at a time to match the 6-month grid
+  const prevMonth = () => {
+    let m = viewMonth - 6;
+    let y = viewYear;
+    while (m < 0) { m += 12; y -= 1; }
+    setViewMonth(m);
+    setViewYear(y);
+  };
+  const nextMonth = () => {
+    let m = viewMonth + 6;
+    let y = viewYear;
+    while (m > 11) { m -= 12; y += 1; }
+    setViewMonth(m);
+    setViewYear(y);
+  };
 
   const handleTap = (r: CalendarReservation) => { onReservationTap?.(r); };
 

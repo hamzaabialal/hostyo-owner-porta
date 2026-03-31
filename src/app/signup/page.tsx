@@ -1,35 +1,49 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
 
-function LoginForm() {
-  const searchParams = useSearchParams();
-  const error = searchParams.get("error");
+export default function SignupPage() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loginError, setLoginError] = useState(error === "CredentialsSignin" ? "Invalid email or password" : "");
+  const [error, setError] = useState("");
 
-  const handleCredentialLogin = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!name.trim() || !email || !password) { setError("All fields are required"); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters"); return; }
+    if (password !== confirm) { setError("Passwords do not match"); return; }
+
     setLoading(true);
-    setLoginError("");
-    const result = await signIn("credentials", {
-      email,
-      password,
-      callbackUrl: "/dashboard",
-      redirect: true,
-    });
-    if (result?.error) {
-      setLoginError("Invalid email or password");
+    setError("");
+
+    try {
+      // Register via API
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), email, password }),
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        setError(data.error || "Registration failed");
+        setLoading(false);
+        return;
+      }
+
+      // Auto sign in after registration
+      await signIn("credentials", { email, password, callbackUrl: "/dashboard", redirect: true });
+    } catch {
+      setError("Something went wrong. Please try again.");
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleSignup = () => {
     signIn("google", { callbackUrl: "/dashboard" });
   };
 
@@ -44,18 +58,18 @@ function LoginForm() {
         </div>
 
         <div className="bg-white border border-[#eaeaea] rounded-2xl p-8 shadow-sm">
-          <h1 className="text-[18px] font-semibold text-[#111] text-center mb-1">Welcome back</h1>
-          <p className="text-[13px] text-[#888] text-center mb-6">Sign in to your owner portal</p>
+          <h1 className="text-[18px] font-semibold text-[#111] text-center mb-1">Create your account</h1>
+          <p className="text-[13px] text-[#888] text-center mb-6">Get started with your owner portal</p>
 
-          {loginError && (
+          {error && (
             <div className="mb-4 p-3 bg-[#F6EDED] border border-[#E8D8D8] rounded-xl text-[12px] text-[#7A5252] font-medium text-center">
-              {loginError}
+              {error}
             </div>
           )}
 
-          {/* Google Sign In */}
+          {/* Google Sign Up */}
           <button
-            onClick={handleGoogleLogin}
+            onClick={handleGoogleSignup}
             className="w-full h-[44px] flex items-center justify-center gap-2.5 border border-[#e2e2e2] rounded-xl text-[13px] font-medium text-[#333] hover:bg-[#f5f5f5] transition-colors mb-4"
           >
             <svg width="18" height="18" viewBox="0 0 24 24">
@@ -73,8 +87,19 @@ function LoginForm() {
             <div className="flex-1 h-px bg-[#eaeaea]" />
           </div>
 
-          {/* Email/Password */}
-          <form onSubmit={handleCredentialLogin} className="space-y-3">
+          {/* Signup Form */}
+          <form onSubmit={handleSignup} className="space-y-3">
+            <div>
+              <label className="block text-[12px] font-medium text-[#888] mb-1.5">Full Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Smith"
+                required
+                className="w-full h-[42px] px-3.5 border border-[#e2e2e2] rounded-xl text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white"
+              />
+            </div>
             <div>
               <label className="block text-[12px] font-medium text-[#888] mb-1.5">Email</label>
               <input
@@ -92,7 +117,18 @@ function LoginForm() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder="At least 6 characters"
+                required
+                className="w-full h-[42px] px-3.5 border border-[#e2e2e2] rounded-xl text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-[#888] mb-1.5">Confirm Password</label>
+              <input
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder="Confirm your password"
                 required
                 className="w-full h-[42px] px-3.5 border border-[#e2e2e2] rounded-xl text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white"
               />
@@ -102,25 +138,16 @@ function LoginForm() {
               disabled={loading}
               className="w-full h-[44px] bg-[#80020E] text-white rounded-xl text-[13px] font-semibold hover:bg-[#6b010c] transition-colors disabled:opacity-50"
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Creating account..." : "Create account"}
             </button>
           </form>
-
         </div>
 
         <p className="text-[13px] text-[#888] text-center mt-5">
-          Don&apos;t have an account?{" "}
-          <a href="/signup" className="text-[#80020E] font-semibold hover:underline">Sign up</a>
+          Already have an account?{" "}
+          <a href="/login" className="text-[#80020E] font-semibold hover:underline">Sign in</a>
         </p>
       </div>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center text-[#999]">Loading...</div>}>
-      <LoginForm />
-    </Suspense>
   );
 }

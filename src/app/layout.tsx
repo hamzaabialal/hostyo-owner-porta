@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { DataProvider } from "@/lib/DataContext";
+import AuthProvider from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
   title: "Hostyo Owner Portal",
@@ -18,7 +19,7 @@ export default function RootLayout({
         <meta name="color-scheme" content="light only" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
-      <body><DataProvider>{children}</DataProvider></body>
+      <body><AuthProvider><DataProvider>{children}</DataProvider></AuthProvider></body>
     </html>
   );
 }

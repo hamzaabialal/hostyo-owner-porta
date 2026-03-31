@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import AddPropertyWizardComponent from "@/components/AddPropertyWizard";
 import FilterDropdown from "@/components/FilterDropdown";
@@ -312,6 +312,7 @@ function exportCSV(properties: Property[]) {
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 function PropertiesPageInner() {
+  const router = useRouter();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -322,6 +323,10 @@ function PropertiesPageInner() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [topBarFilter, setTopBarFilter] = useState("All Properties");
+
+  const openProperty = useCallback((p: Property) => {
+    router.push(`/properties/${p.id}`);
+  }, [router]);
 
   const searchParams = useSearchParams();
 
@@ -455,11 +460,11 @@ function PropertiesPageInner() {
         </div>
       ) : view === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.map((p) => (<PropertyCard key={p.id} property={p} onClick={() => setSelectedProperty(p)} />))}
+          {filtered.map((p) => (<PropertyCard key={p.id} property={p} onClick={() => openProperty(p)} />))}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {filtered.map((p) => (<PropertyRow key={p.id} property={p} onClick={() => setSelectedProperty(p)} />))}
+          {filtered.map((p) => (<PropertyRow key={p.id} property={p} onClick={() => openProperty(p)} />))}
         </div>
       )}
 

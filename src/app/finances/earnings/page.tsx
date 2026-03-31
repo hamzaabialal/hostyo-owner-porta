@@ -233,8 +233,13 @@ export default function FinancesEarningsPage() {
       <MobileTabs tabs={FINANCE_TABS} />
       <div className="text-[13px] text-[#888] mb-6 -mt-1 hidden md:block">Detailed income from completed reservations and owner payouts.</div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
+      {/* Mobile Filters */}
+      <div className="flex items-center gap-2 mb-4 overflow-x-auto md:hidden pb-1">
+        <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="Properties" options={propertyOptions} searchable />
+        <FilterDropdown value={filterPayoutStatus} onChange={setFilterPayoutStatus} placeholder="Status" options={payoutStatusOptions} />
+      </div>
+      {/* Desktop Filters */}
+      <div className="hidden md:flex items-center gap-3 mb-6 flex-wrap">
         <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="All Properties" options={propertyOptions} searchable />
         <FilterDropdown value={filterPayoutStatus} onChange={setFilterPayoutStatus} placeholder="All Statuses" options={payoutStatusOptions} />
         <FilterDropdown value={filterChannel} onChange={setFilterChannel} placeholder="All Channels" options={channelOptions} />
@@ -248,7 +253,7 @@ export default function FinancesEarningsPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Mobile Card List */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="w-16 h-16 rounded-2xl bg-[#f5f5f5] flex items-center justify-center mb-5">
@@ -262,7 +267,42 @@ export default function FinancesEarningsPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
+        <>
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-3">
+          {filtered.map((r) => {
+            const deductions = r.platformFee + r.hostyoFee + r.cleaning + r.expenses;
+            return (
+              <div key={r.id} onClick={() => { setSelectedRow(r); document.body.style.overflow = "hidden"; }}
+                className="bg-white border border-[#eaeaea] rounded-xl p-4 cursor-pointer hover:shadow-sm transition-all">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={statusPillFinance(r.payoutStatus)}>{r.payoutStatus}</span>
+                  <ChannelBadge channel={r.channel} compact />
+                </div>
+                <div className="text-[15px] font-semibold text-[#111] mb-0.5">{r.guest}</div>
+                <div className="text-[12px] text-[#888] mb-2 truncate">{r.property}</div>
+                <div className="text-[12px] text-[#666] mb-2">{fmtDate(r.date)} · {r.stayDates}</div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-[#999]">Gross </span>
+                    <span className="text-[13px] font-medium text-[#111]">{fmtCurrency(r.gross)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-[#999]">Deductions </span>
+                    <span className="text-[13px] font-medium text-[#999]">{fmtCurrency(deductions)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-[#999]">Net </span>
+                    <span className="text-[13px] font-semibold text-accent">{fmtCurrency(r.net)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-[13px]">
               <thead>
@@ -297,6 +337,7 @@ export default function FinancesEarningsPage() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {selectedRow && <EarningDrawer row={selectedRow} onClose={closeDrawer} />}
