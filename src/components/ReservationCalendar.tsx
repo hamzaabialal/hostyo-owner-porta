@@ -103,7 +103,7 @@ function MonthGrid({ year, month, reservations, onTap }: {
           const isT = dateStr === todayStr;
           const entries = dayRes[day] || [];
           return (
-            <div key={day} className={`h-[60px] md:h-[70px] border-r border-b border-[#f0f0f0] relative overflow-hidden ${isT ? "bg-[#80020E]/[0.03]" : ""}`}>
+            <div key={day} className={`h-[60px] md:h-[70px] border-r border-b border-[#f0f0f0] relative overflow-hidden md:overflow-visible ${isT ? "bg-[#80020E]/[0.03]" : ""}`}>
               <div className={`text-[9px] md:text-[10px] font-medium px-0.5 md:px-1 pt-0.5 ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>
                 {isT ? <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#80020E] text-white text-[8px]">{day}</span> : day}
               </div>
@@ -114,10 +114,11 @@ function MonthGrid({ year, month, reservations, onTap }: {
                   const span = Math.max(1, entry.span);
                   return (
                     <button key={entry.r.id} onClick={() => onTap(entry.r)}
-                      className="block text-left rounded px-0.5 md:px-1 py-0.5 text-[7px] md:text-[8px] font-semibold leading-tight truncate cursor-pointer hover:brightness-110 relative z-[1]"
+                      className="block text-left rounded px-0.5 md:px-1 py-0.5 text-[7px] md:text-[9px] font-semibold leading-tight truncate cursor-pointer hover:brightness-110 relative z-[1]"
                       style={{ backgroundColor: bg, color: text, width: `calc(${span * 100}% + ${(span - 1) * 1}px)` }}
                       title={`${entry.r.guest} · ${nights}N`}>
-                      <span className="truncate">
+                      <span className="flex items-center gap-0.5 truncate">
+                        <span className="hidden md:inline-flex flex-shrink-0 [&_img]:w-[10px] [&_img]:h-[10px] [&_svg]:w-[10px] [&_svg]:h-[10px]">{getChannelIcon(entry.r.channel)}</span>
                         {entry.r.guest.split(" ")[0]} · {nights}N
                       </span>
                     </button>
