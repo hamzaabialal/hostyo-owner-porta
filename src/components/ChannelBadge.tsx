@@ -5,12 +5,12 @@ const logoImages: Record<string, string> = {
   "Airbnb": "/ota-logos/airbnb.avif",
   "Booking.com": "/ota-logos/booking.svg",
   "Expedia": "/ota-logos/expedia.ico",
+  "Direct": "/hostyo-logo.png",
 };
 
 const logoFallbacks: Record<string, { bg: string; letter: string }> = {
   "Vrbo": { bg: "#3D67B0", letter: "V" },
   "Agoda": { bg: "#5FC2EC", letter: "A" },
-  "Direct": { bg: "#80020E", letter: "H" },
 };
 
 function normalizeChannel(channel: string): string {

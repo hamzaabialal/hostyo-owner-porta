@@ -14,7 +14,7 @@ const PREFETCH_URLS = [
   ["today", "/api/today"],
 ];
 
-export default function AppShell({ title, children, minimalTopBar = false }: { title: string; children: React.ReactNode; minimalTopBar?: boolean }) {
+export default function AppShell({ title, children }: { title: string; children: React.ReactNode }) {
   const { fetchData } = useData();
 
   // Prefetch all data in background on mount
@@ -37,7 +37,7 @@ export default function AppShell({ title, children, minimalTopBar = false }: { t
         <MobileHeader title={title} />
         {/* Desktop top bar - hidden on mobile */}
         <div className="hidden md:block">
-          <TopBar title={title} minimal={minimalTopBar} />
+          <TopBar title={title} />
         </div>
 
         <main className="flex-1 p-4 md:p-8 pb-20 md:pb-8">{children}</main>

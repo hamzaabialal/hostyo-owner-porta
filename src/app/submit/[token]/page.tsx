@@ -135,7 +135,6 @@ function UploadArea({
   hint,
   files,
   onFiles,
-  uploading,
   accept,
   capture,
 }: {
@@ -143,12 +142,11 @@ function UploadArea({
   hint: string;
   files: UploadedFile[];
   onFiles: (f: UploadedFile) => void;
-  uploading: boolean;
   accept: string;
   capture?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { upload } = useFileUpload();
+  const { upload, uploading } = useFileUpload();
 
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList) return;
@@ -384,7 +382,7 @@ export default function SubmitExpensePage() {
             hint="Take or upload photos"
             files={photos}
             onFiles={(f) => setPhotos((prev) => [...prev, f])}
-            uploading={false}
+
             accept="image/*"
             capture="environment"
           />
@@ -395,7 +393,7 @@ export default function SubmitExpensePage() {
             hint="Upload receipt or invoice"
             files={receipts}
             onFiles={(f) => setReceipts((prev) => [...prev, f])}
-            uploading={false}
+
             accept="image/*,.pdf"
           />
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import ChannelBadge, { getChannelIcon, normalizeChannel } from "@/components/ChannelBadge";
+import ChannelBadge, { getChannelIcon } from "@/components/ChannelBadge";
 import FilterDropdown from "@/components/FilterDropdown";
 import DateRangePicker from "@/components/DateRangePicker";
 import ReservationCalendar from "@/components/ReservationCalendar";
@@ -80,15 +80,17 @@ function AccordionDetail({ r }: { r: Reservation }) {
   ];
 
   return (
-    <div className="px-6 md:px-10 py-5">
+    <div className="px-5 md:px-8 py-5">
       {/* Tabs */}
-      <div className="flex gap-0 border-b border-[#eaeaea] mb-5">
+      <div className="flex gap-0 mb-5">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={(e) => { e.stopPropagation(); setTab(t.key); }}
-            className={`px-4 py-2 text-[13px] font-medium border-b-2 transition-colors ${
-              tab === t.key ? "text-[#80020E] border-[#80020E]" : "text-[#999] border-transparent hover:text-[#555]"
+            className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-all mr-1 ${
+              tab === t.key
+                ? "bg-[#80020E] text-white shadow-sm"
+                : "text-[#666] hover:bg-[#f5f5f5] hover:text-[#333]"
             }`}
           >
             {t.label}
@@ -98,41 +100,50 @@ function AccordionDetail({ r }: { r: Reservation }) {
 
       {/* Overview Tab */}
       {tab === "overview" && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-4">
-          <DetailItem label="Guest" value={r.guest} />
-          <DetailItem label="Booking Ref" value={r.ref} />
-          <DetailItem label="Property" value={r.property} />
-          <div>
-            <span className="text-[11px] font-medium text-[#999] uppercase tracking-wide block mb-1">Channel</span>
-            <ChannelBadge channel={r.channel} />
-          </div>
-          <DetailItem label="Total Guests" value={String(r.guests || 1)} />
-          <DetailItem label="Total Nights" value={String(r.nights)} />
-          <DetailItem label="Check-in" value={fmtDate(r.checkIn)} />
-          <DetailItem label="Check-out" value={fmtDate(r.checkOut)} />
-          <div>
-            <span className="text-[11px] font-medium text-[#999] uppercase tracking-wide block mb-1">Status</span>
-            <span className={statusPillClass(r.status)}>{r.status}</span>
-          </div>
-          <div>
-            <span className="text-[11px] font-medium text-[#999] uppercase tracking-wide block mb-1">Payout Status</span>
-            <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
+        <div className="bg-white border border-[#e8e8e8] rounded-xl p-5 shadow-sm">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
+            <DetailItem label="Guest" value={r.guest} />
+            <DetailItem label="Booking Ref" value={r.ref} />
+            <DetailItem label="Property" value={r.property} />
+            <div>
+              <span className="text-[10px] font-semibold text-[#bbb] uppercase tracking-wider block mb-1.5">Channel</span>
+              <ChannelBadge channel={r.channel} />
+            </div>
+            <DetailItem label="Total Guests" value={String(r.guests || 1)} />
+            <DetailItem label="Total Nights" value={String(r.nights)} />
+            <DetailItem label="Check-in" value={fmtDate(r.checkIn)} />
+            <DetailItem label="Check-out" value={fmtDate(r.checkOut)} />
+            <div>
+              <span className="text-[10px] font-semibold text-[#bbb] uppercase tracking-wider block mb-1.5">Status</span>
+              <span className={statusPillClass(r.status)}>{r.status}</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-semibold text-[#bbb] uppercase tracking-wider block mb-1.5">Payout Status</span>
+              <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
+            </div>
           </div>
         </div>
       )}
 
       {/* Earnings Tab */}
       {tab === "earnings" && (
-        <div className="max-w-[400px]">
-          <div className="bg-[#fafafa] border border-[#eaeaea] rounded-xl p-4">
-            <FinRow label="Gross Booking" value={fmtCurrency(r.gross)} />
-            {r.platformFee !== 0 && <FinRow label="Platform Fee" value={fmtCurrency(r.platformFee)} neg />}
-            {r.hostyoFee !== 0 && <FinRow label="Management Fee" value={fmtCurrency(r.hostyoFee)} neg />}
-            {r.cleaningFee !== 0 && <FinRow label="Cleaning" value={fmtCurrency(r.cleaningFee)} neg />}
-            {r.expensesTotal !== 0 && <FinRow label="Expenses" value={fmtCurrency(r.expensesTotal)} neg />}
-            <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-[#e2e2e2]">
-              <span className="text-[13px] font-bold text-[#111]">Owner Payout</span>
-              <span className="text-[15px] font-bold text-[#80020E] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
+        <div className="max-w-[440px]">
+          <div className="bg-white border border-[#e8e8e8] rounded-xl overflow-hidden shadow-sm">
+            <div className="px-5 py-3 bg-gradient-to-r from-[#fafafa] to-white border-b border-[#f0f0f0]">
+              <span className="text-[12px] font-semibold text-[#999] uppercase tracking-wide">Financial Breakdown</span>
+            </div>
+            <div className="p-5">
+              <FinRow label="Gross Booking" value={fmtCurrency(r.gross)} />
+              {r.platformFee !== 0 && <FinRow label="Platform Fee" value={fmtCurrency(r.platformFee)} neg />}
+              {r.hostyoFee !== 0 && <FinRow label="Management Fee" value={fmtCurrency(r.hostyoFee)} neg />}
+              {r.cleaningFee !== 0 && <FinRow label="Cleaning" value={fmtCurrency(r.cleaningFee)} neg />}
+              {r.expensesTotal !== 0 && <FinRow label="Expenses" value={fmtCurrency(r.expensesTotal)} neg />}
+            </div>
+            <div className="px-5 py-4 bg-gradient-to-r from-[#80020E]/5 to-[#80020E]/[0.02] border-t border-[#80020E]/10">
+              <div className="flex justify-between items-center">
+                <span className="text-[13px] font-bold text-[#111]">Net Owner Payout</span>
+                <span className="text-[18px] font-bold text-[#80020E] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -141,11 +152,15 @@ function AccordionDetail({ r }: { r: Reservation }) {
       {/* Expenses Tab */}
       {tab === "expenses" && (
         <div>
-          <p className="text-[13px] text-[#999] mb-3">Expenses linked to this reservation.</p>
           {r.expensesTotal === 0 ? (
-            <p className="text-[13px] text-[#bbb] italic">No linked expenses for this reservation.</p>
+            <div className="bg-white border border-[#e8e8e8] rounded-xl p-6 shadow-sm text-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ddd" strokeWidth="1.5" className="mx-auto mb-3">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              </svg>
+              <p className="text-[13px] text-[#999]">No linked expenses for this reservation.</p>
+            </div>
           ) : (
-            <div className="bg-[#fafafa] border border-[#eaeaea] rounded-xl p-4 max-w-[400px]">
+            <div className="bg-white border border-[#e8e8e8] rounded-xl p-5 shadow-sm max-w-[440px]">
               <FinRow label="Total Linked Expenses" value={fmtCurrency(r.expensesTotal)} neg />
             </div>
           )}
@@ -163,8 +178,8 @@ function AccordionDetail({ r }: { r: Reservation }) {
 function DetailItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <span className="text-[11px] font-medium text-[#999] uppercase tracking-wide block mb-1">{label}</span>
-      <span className="text-[13px] font-medium text-[#111]">{value || "—"}</span>
+      <span className="text-[10px] font-semibold text-[#bbb] uppercase tracking-wider block mb-1.5">{label}</span>
+      <span className="text-[13px] font-semibold text-[#222]">{value || "—"}</span>
     </div>
   );
 }
@@ -260,7 +275,7 @@ function ReservationsContent() {
   // Filters
   const [filterProperty, setFilterProperty] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [filterChannel, setFilterChannel] = useState("");
+  const filterChannel = ""; // removed from UI
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -338,13 +353,6 @@ function ReservationsContent() {
     Array.from(new Set(data.map((r) => r.status))).filter(Boolean).sort().map((s) => ({ value: s, label: s })),
   [data]);
 
-  const channelOptions = useMemo(() =>
-    Array.from(new Set(data.map((r) => r.channel))).filter(Boolean).sort().map((c) => ({
-      value: c,
-      label: normalizeChannel(c) === "Direct" ? "Hostyo" : normalizeChannel(c),
-      icon: getChannelIcon(c),
-    })),
-  [data]);
 
   // Show property column only if >1 unique property AND "All Properties"
   const uniqueProperties = useMemo(() => new Set(data.map((r) => r.property)), [data]);
@@ -384,14 +392,14 @@ function ReservationsContent() {
 
   if (loading) {
     return (
-      <AppShell title="Reservations" minimalTopBar>
+      <AppShell title="Reservations">
         <div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading reservations...</div>
       </AppShell>
     );
   }
 
   return (
-    <AppShell title="Reservations" minimalTopBar>
+    <AppShell title="Reservations">
       {/* ── Mobile Search ── */}
       <div className="mb-3 md:hidden">
         <div className="relative">
@@ -403,15 +411,13 @@ function ReservationsContent() {
         </div>
       </div>
 
-      {/* ── Mobile Filters (compact) ── */}
+      {/* ── Mobile Filters ── */}
       <div className="flex items-center gap-2 mb-4 overflow-x-auto md:hidden pb-1">
         <FilterDropdown placeholder="Properties" value={filterProperty} onChange={setFilterProperty} options={propertyOptions} searchable />
         <FilterDropdown placeholder="Status" value={filterStatus} onChange={setFilterStatus} options={statusOptions} />
-        <FilterDropdown placeholder="Channels" value={filterChannel} onChange={setFilterChannel} options={channelOptions} />
-        <FilterDropdown placeholder="Dates" value={dateFrom ? "Filtered" : ""} onChange={() => {}} options={[]} />
       </div>
 
-      {/* ── Mobile View Toggle (List / Calendar) ── */}
+      {/* ── Mobile View Toggle ── */}
       <div className="flex gap-1 mb-4 md:hidden">
         <button onClick={() => setMobileView("list")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "list" ? "bg-[#80020E] text-white" : "bg-white text-[#555] border border-[#e2e2e2]"}`}>List</button>
         <button onClick={() => setMobileView("calendar")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "calendar" ? "bg-[#80020E] text-white" : "bg-white text-[#555] border border-[#e2e2e2]"}`}>Calendar</button>
@@ -421,15 +427,18 @@ function ReservationsContent() {
       <div className="hidden md:flex items-center gap-3 mb-4 flex-wrap">
         <FilterDropdown placeholder="All Properties" value={filterProperty} onChange={setFilterProperty} options={propertyOptions} searchable />
         <FilterDropdown placeholder="All Statuses" value={filterStatus} onChange={setFilterStatus} options={statusOptions} />
-        <FilterDropdown placeholder="All Channels" value={filterChannel} onChange={setFilterChannel} options={channelOptions} />
-        <DateRangePicker from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
-        <div className="relative flex-1 min-w-[180px] max-w-[280px]">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search guest name or booking ref..."
-            className="w-full h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
-        </div>
+        {mobileView === "list" && (
+          <>
+            <DateRangePicker from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+            <div className="relative flex-1 min-w-[180px] max-w-[280px]">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search guest name or booking ref..."
+                className="w-full h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
+            </div>
+          </>
+        )}
         {/* List / Calendar toggle */}
         <div className="flex items-center border border-[#e2e2e2] rounded-lg overflow-hidden ml-auto">
           <button onClick={() => setMobileView("list")} className={`px-3.5 py-2 text-[12px] font-medium flex items-center gap-1.5 transition-colors ${mobileView === "list" ? "bg-accent text-white" : "bg-white text-[#555] hover:bg-[#f5f5f5]"}`}>
@@ -679,7 +688,7 @@ function ReservationsContent() {
 /* ------------------------------------------------------------------ */
 export default function ReservationsPage() {
   return (
-    <Suspense fallback={<AppShell title="Reservations" minimalTopBar><div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading...</div></AppShell>}>
+    <Suspense fallback={<AppShell title="Reservations"><div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading...</div></AppShell>}>
       <ReservationsContent />
     </Suspense>
   );

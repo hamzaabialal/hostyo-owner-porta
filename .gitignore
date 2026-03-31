@@ -37,3 +37,4 @@ next-env.d.ts
 
 # Vendor uploads
 public/uploads/
+data/

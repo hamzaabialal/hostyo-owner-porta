@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 
 const FinancesIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[18px] h-[18px]">
@@ -24,8 +25,14 @@ const financesSubNav = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const financesActive = pathname.startsWith("/finances");
   const [financesOpen, setFinancesOpen] = useState(financesActive);
+
+  const userName = session?.user?.name || "User";
+  const userEmail = session?.user?.email || "";
+  const userImage = session?.user?.image || "";
+  const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/" || pathname === "/dashboard";
@@ -132,21 +139,26 @@ export default function Sidebar() {
       {/* User Profile + Sign out */}
       <div className="border-t border-[#eaeaea] px-4 py-3">
         <div className="flex items-center gap-2.5 mb-3">
-          <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-white text-[12px] font-bold flex-shrink-0">AP</div>
+          {userImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={userImage} alt={userName} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-white text-[12px] font-bold flex-shrink-0">{initials}</div>
+          )}
           <div className="min-w-0">
-            <div className="text-[13px] font-semibold text-[#111] truncate">Alexandra Pemberton</div>
-            <div className="text-[11px] text-[#999]">Property Owner</div>
+            <div className="text-[13px] font-semibold text-[#111] truncate">{userName}</div>
+            {userEmail && <div className="text-[10px] text-[#999] truncate">{userEmail}</div>}
           </div>
         </div>
-        <Link
-          href="/login?signed_out=1"
-          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] text-[#999] hover:bg-[#f5f5f5] hover:text-[#555] transition-colors"
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] text-[#999] hover:bg-[#f5f5f5] hover:text-[#555] transition-colors w-full"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[16px] h-[16px]">
             <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
           Log out
-        </Link>
+        </button>
       </div>
     </aside>
   );

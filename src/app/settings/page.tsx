@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
 
 /* ------------------------------------------------------------------ */
@@ -189,6 +190,8 @@ function PasswordPanel({ onClose, showToast }: { onClose: () => void; showToast:
 /*  Main Page                                                          */
 /* ------------------------------------------------------------------ */
 export default function SettingsPage() {
+  const { data: session } = useSession();
+
   /* ---- toast ---- */
   const [toastMsg, setToastMsg] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
@@ -205,10 +208,18 @@ export default function SettingsPage() {
     return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, []);
 
-  /* ---- Profile ---- */
-  const [fullName, setFullName] = useState("Alexandra Pemberton");
-  const [email] = useState("alexandra@pemberton.co.uk");
-  const [phone, setPhone] = useState("+44 7700 900123");
+  /* ---- Profile (from session) ---- */
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+
+  // Populate from session when it loads
+  useEffect(() => {
+    if (session?.user) {
+      setFullName(session.user.name || "");
+      setEmail(session.user.email || "");
+    }
+  }, [session]);
 
   /* ---- Notifications ---- */
   const [notifs, setNotifs] = useState([
@@ -250,6 +261,22 @@ export default function SettingsPage() {
         {/* ── 1. Profile ── */}
         <div className={cardCls}>
           <h2 className="mb-6 text-[15px] font-bold text-[#111]">Profile</h2>
+
+          {/* Profile picture */}
+          <div className="flex items-center gap-4 mb-6">
+            {session?.user?.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={session.user.image} alt={fullName} className="w-16 h-16 rounded-full object-cover" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center text-white text-[20px] font-bold">
+                {fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "U"}
+              </div>
+            )}
+            <div>
+              <div className="text-[14px] font-semibold text-[#111]">{fullName || "User"}</div>
+              <div className="text-[12px] text-[#888]">{email}</div>
+            </div>
+          </div>
 
           <div className="mb-5">
             <label className={labelCls}>Full name</label>
@@ -321,7 +348,48 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ── 4. Active Sessions ── */}
+        {/* ── 4. Finance & Payout ── */}
+        <div className={cardCls}>
+          <h2 className="mb-2 text-[15px] font-bold text-[#111]">Finance & Payout</h2>
+          <p className="text-[12px] text-[#999] mb-5">Manage your payout details and billing preferences.</p>
+
+          <div className="mb-5">
+            <label className={labelCls}>IBAN</label>
+            <input type="text" defaultValue="" placeholder="e.g. CY17 0020 0128 0000 0012 0052 7600" className={inputCls} />
+          </div>
+          <div className="mb-5">
+            <label className={labelCls}>BIC / SWIFT</label>
+            <input type="text" defaultValue="" placeholder="e.g. BCYPCY2N" className={inputCls} />
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            <div>
+              <label className={labelCls}>Beneficiary Name</label>
+              <input type="text" defaultValue="" placeholder="Account holder name" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Payout Method</label>
+              <input type="text" defaultValue="Bank Transfer" placeholder="Bank Transfer" className={inputCls} />
+            </div>
+          </div>
+          <div className="mb-5">
+            <label className={labelCls}>Invoice / Legal Display Name</label>
+            <input type="text" defaultValue="" placeholder="Business or legal name for invoices" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Billing Address</label>
+            <input type="text" defaultValue="" placeholder="Full billing address" className={inputCls} />
+          </div>
+
+          <button
+            type="button"
+            className="mt-6 rounded-lg bg-[#80020E] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6b010c]"
+            onClick={() => showToast("Payout details saved.")}
+          >
+            Save payout details
+          </button>
+        </div>
+
+        {/* ── 5. Active Sessions ── */}
         <div className={cardCls}>
           <h2 className="mb-5 text-[15px] font-bold text-[#111]">Active Sessions</h2>
 
