@@ -1,17 +1,18 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { readFile } from "fs/promises";
-import path from "path";
 import { createHash } from "crypto";
 
 function hashPassword(password: string): string {
-  return createHash("sha256").update(password + process.env.NEXTAUTH_SECRET).digest("hex");
+  return createHash("sha256").update(password + (process.env.NEXTAUTH_SECRET || "fallback")).digest("hex");
 }
 
 async function getUsers() {
   try {
-    const data = await readFile(path.join(process.cwd(), "data", "users.json"), "utf-8");
+    // Dynamic import to avoid build errors on serverless
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    const data = await fs.readFile(path.join(process.cwd(), "data", "users.json"), "utf-8");
     return JSON.parse(data);
   } catch {
     return [];
@@ -73,7 +74,7 @@ const handler = NextAuth({
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || "hostyo-default-secret-change-me",
 });
 
 export { handler as GET, handler as POST };
