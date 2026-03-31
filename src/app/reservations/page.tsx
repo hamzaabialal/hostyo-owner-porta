@@ -81,16 +81,16 @@ function AccordionDetail({ r }: { r: Reservation }) {
 
   return (
     <div className="px-5 md:px-8 py-5">
-      {/* Tabs */}
-      <div className="flex gap-0 mb-5">
+      {/* Tabs — underline style */}
+      <div className="flex gap-0 border-b border-[#eaeaea] mb-5">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={(e) => { e.stopPropagation(); setTab(t.key); }}
-            className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-all mr-1 ${
+            className={`px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors ${
               tab === t.key
-                ? "bg-[#80020E] text-white shadow-sm"
-                : "text-[#666] hover:bg-[#f5f5f5] hover:text-[#333]"
+                ? "text-[#80020E] border-[#80020E]"
+                : "text-[#999] border-transparent hover:text-[#555]"
             }`}
           >
             {t.label}
@@ -236,8 +236,8 @@ function ExpenseLinkButton({ notionId }: { notionId: string }) {
   if (!link) {
     return (
       <button onClick={generate} disabled={generating}
-        className="flex items-center gap-2 px-4 py-2.5 bg-[#80020E] text-white rounded-xl text-[12px] font-semibold hover:bg-[#6b010c] transition-colors disabled:opacity-50">
-        {generating ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (
+        className="flex items-center gap-2 px-4 py-2.5 border border-[#80020E] text-[#80020E] bg-transparent rounded-xl text-[12px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-50">
+        {generating ? <div className="w-3.5 h-3.5 border-2 border-[#80020E] border-t-transparent rounded-full animate-spin" /> : (
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
         )}
         {generating ? "Generating..." : "Generate Expense Link"}
