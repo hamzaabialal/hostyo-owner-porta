@@ -207,15 +207,15 @@ function BalanceSummarySection({ paid, pending, upcoming }: { paid: number; pend
   ];
 
   return (
-    <div className="bg-white border border-[#eaeaea] rounded-xl p-6">
-      <div className="text-[13px] font-semibold text-[#111] mb-4">Balance Summary</div>
-      <div className="flex h-[6px] rounded-full overflow-hidden bg-[#f0f0f0] mb-5">
+    <div className="bg-white border border-[#eaeaea] rounded-xl p-4 md:p-6">
+      <div className="text-[12px] md:text-[13px] font-semibold text-[#111] mb-3 md:mb-4">Balance Summary</div>
+      <div className="flex h-[6px] rounded-full overflow-hidden bg-[#f0f0f0] mb-4 md:mb-5">
         <div className="bg-[#2F6B57] rounded-l-full" style={{ width: `${paidPct}%` }} />
         <div className="bg-[#d4a843]" style={{ width: `${pendingPct}%` }} />
       </div>
-      <div className="space-y-3">
+      <div className="space-y-2.5 md:space-y-3">
         {rows.map((r) => (
-          <div key={r.label} className="flex items-center justify-between text-[13px]">
+          <div key={r.label} className="flex items-center justify-between text-[12px] md:text-[13px]">
             <div className="flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${r.dot}`} />
               <span className="text-[#555]">{r.label}</span>
@@ -390,14 +390,14 @@ export default function FinancesOverviewPage() {
       </div>
 
       {/* ── B & D. Balance Summary + Trend ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-6">
         <BalanceSummarySection paid={paidThisMonth} pending={pendingPayment} upcoming={upcomingPayouts} />
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-[13px] font-semibold text-[#111]">Earnings vs Expenses</div>
-            <div className="flex items-center gap-4 text-[11px] text-[#999]">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-accent/20" />Earnings</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#e8d8d8]" />Expenses</span>
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-4 md:p-6">
+          <div className="flex items-center justify-between mb-3 md:mb-4">
+            <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Earnings vs Expenses</div>
+            <div className="flex items-center gap-3 text-[10px] md:text-[11px] text-[#999]">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-accent/20" />Earnings</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#e8d8d8]" />Expenses</span>
             </div>
           </div>
           <TrendChart data={monthlyTrend} />
@@ -405,9 +405,9 @@ export default function FinancesOverviewPage() {
       </div>
 
       {/* ── C. Recent Payouts ── */}
-      <div className="bg-white border border-[#eaeaea] rounded-xl mb-6">
-        <div className="px-5 py-4 border-b border-[#f0f0f0]">
-          <div className="text-[13px] font-semibold text-[#111]">Recent Payouts</div>
+      <div className="bg-white border border-[#eaeaea] rounded-xl mb-4 md:mb-6">
+        <div className="px-4 md:px-5 py-3 md:py-4 border-b border-[#f0f0f0]">
+          <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Recent Payouts</div>
         </div>
         {recentPayouts.length === 0 ? (
           <div className="px-5 py-8 text-center text-[13px] text-[#aaa]">No recent payouts to show.</div>
@@ -429,8 +429,8 @@ export default function FinancesOverviewPage() {
 
       {/* ── C. Upcoming Payouts / Forecast ── */}
       <div className="bg-white border border-[#eaeaea] rounded-xl">
-        <div className="px-5 py-4 border-b border-[#f0f0f0]">
-          <div className="text-[13px] font-semibold text-[#111]">Upcoming Payouts (Forecast)</div>
+        <div className="px-4 md:px-5 py-3 md:py-4 border-b border-[#f0f0f0]">
+          <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Upcoming Payouts (Forecast)</div>
         </div>
         {upcomingRows.length === 0 ? (
           <div className="px-5 py-8 text-center text-[13px] text-[#aaa]">No upcoming payouts forecasted.</div>

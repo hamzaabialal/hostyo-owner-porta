@@ -87,25 +87,25 @@ function MonthGrid({ year, month, reservations, onTap }: {
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
-    <div className="border border-[#eaeaea] rounded-xl overflow-hidden bg-white">
+    <div className="border border-[#eaeaea] rounded-xl bg-white overflow-hidden">
       <div className="text-center py-2 text-[13px] font-semibold text-[#111] border-b border-[#eaeaea] bg-[#fafafa]">
         {MONTHS[month]} {year}
       </div>
       <div className="grid grid-cols-7 border-b border-[#eaeaea]">
         {DOW.map((d, i) => (
-          <div key={d} className={`text-center text-[10px] font-semibold py-1 ${i === 5 || i === 6 ? "text-[#FF5A5F]" : "text-[#999]"}`}>{d}</div>
+          <div key={d} className={`text-center text-[9px] md:text-[10px] font-semibold py-1 ${i === 5 || i === 6 ? "text-[#FF5A5F]" : "text-[#999]"}`}>{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7">
         {cells.map((day, idx) => {
-          if (day === null) return <div key={`e${idx}`} className="h-[70px] border-r border-b border-[#f0f0f0] bg-[#fafafa]/50" />;
+          if (day === null) return <div key={`e${idx}`} className="h-[60px] md:h-[70px] border-r border-b border-[#f0f0f0] bg-[#fafafa]/50" />;
           const dateStr = `${monthStr}-${pad(day)}`;
           const isT = dateStr === todayStr;
           const entries = dayRes[day] || [];
           return (
-            <div key={day} className={`h-[70px] border-r border-b border-[#f0f0f0] relative overflow-visible ${isT ? "bg-[#80020E]/[0.03]" : ""}`}>
-              <div className={`text-[10px] font-medium px-1 pt-0.5 ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>
-                {isT ? <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#80020E] text-white text-[9px]">{day}</span> : day}
+            <div key={day} className={`h-[60px] md:h-[70px] border-r border-b border-[#f0f0f0] relative overflow-hidden ${isT ? "bg-[#80020E]/[0.03]" : ""}`}>
+              <div className={`text-[9px] md:text-[10px] font-medium px-0.5 md:px-1 pt-0.5 ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>
+                {isT ? <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#80020E] text-white text-[8px]">{day}</span> : day}
               </div>
               <div className="mt-0.5 space-y-0.5 px-0.5">
                 {entries.filter((e) => e.isStart || new Date(year, month, day).getDay() === 0).slice(0, 2).map((entry) => {
@@ -114,11 +114,10 @@ function MonthGrid({ year, month, reservations, onTap }: {
                   const span = Math.max(1, entry.span);
                   return (
                     <button key={entry.r.id} onClick={() => onTap(entry.r)}
-                      className="block text-left rounded px-1 py-0.5 text-[8px] font-semibold leading-tight truncate cursor-pointer hover:brightness-110 relative z-[2]"
+                      className="block text-left rounded px-0.5 md:px-1 py-0.5 text-[7px] md:text-[8px] font-semibold leading-tight truncate cursor-pointer hover:brightness-110 relative z-[1]"
                       style={{ backgroundColor: bg, color: text, width: `calc(${span * 100}% + ${(span - 1) * 1}px)` }}
                       title={`${entry.r.guest} · ${nights}N`}>
-                      <span className="flex items-center gap-0.5 truncate">
-                        <span className="flex-shrink-0 [&_img]:w-[10px] [&_img]:h-[10px] [&_svg]:w-[10px] [&_svg]:h-[10px]">{getChannelIcon(entry.r.channel)}</span>
+                      <span className="truncate">
                         {entry.r.guest.split(" ")[0]} · {nights}N
                       </span>
                     </button>
