@@ -392,27 +392,12 @@ export default function ReservationCalendar({
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [viewYear, setViewYear] = useState(today.getFullYear());
 
-  // Jump 6 months at a time to match the 6-month grid
-  const prevMonth = () => {
-    let m = viewMonth - 6;
-    let y = viewYear;
-    while (m < 0) { m += 12; y -= 1; }
-    setViewMonth(m);
-    setViewYear(y);
-  };
-  const nextMonth = () => {
-    let m = viewMonth + 6;
-    let y = viewYear;
-    while (m > 11) { m -= 12; y += 1; }
-    setViewMonth(m);
-    setViewYear(y);
-  };
 
   const handleTap = (r: CalendarReservation) => { onReservationTap?.(r); };
 
   // All Properties on desktop → timeline view
   // On mobile, always show monthly grid (timeline doesn't fit small screens)
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(true); // default to mobile-safe
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -424,28 +409,43 @@ export default function ReservationCalendar({
     return <TimelineView reservations={reservations} onTap={handleTap} onPropertyTap={onPropertyTap} propertyImages={propertyImages} />;
   }
 
-  // Single property → monthly grid
-  // Show 6 months worth of data, CSS handles responsive columns:
-  // mobile=1col, tablet=3col, desktop=6col (2 rows of 3)
+  // Monthly grid: mobile=1, tablet=3, desktop=6
+  const monthCount = isMobile ? 1 : 6;
   const monthGrids: { y: number; m: number }[] = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < monthCount; i++) {
     let m = viewMonth + i;
     let y = viewYear;
     while (m > 11) { m -= 12; y += 1; }
     monthGrids.push({ y, m });
   }
 
+  // Nav jump = number of months shown
+  const jumpPrev = () => {
+    let m = viewMonth - monthCount;
+    let y = viewYear;
+    while (m < 0) { m += 12; y -= 1; }
+    setViewMonth(m); setViewYear(y);
+  };
+  const jumpNext = () => {
+    let m = viewMonth + monthCount;
+    let y = viewYear;
+    while (m > 11) { m -= 12; y += 1; }
+    setViewMonth(m); setViewYear(y);
+  };
+
+  const rangeLabel = monthCount === 1
+    ? `${MONTHS[viewMonth]} ${viewYear}`
+    : `${MONTHS[viewMonth]} – ${MONTHS[monthGrids[monthGrids.length - 1].m]} ${monthGrids[monthGrids.length - 1].y}`;
+
   return (
     <div>
       {/* Month nav */}
       <div className="flex items-center gap-2 mb-3">
-        <button onClick={prevMonth} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+        <button onClick={jumpPrev} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <span className="text-[14px] font-semibold text-[#111] min-w-[140px] text-center">
-          {MONTHS[viewMonth]} – {MONTHS[monthGrids[monthGrids.length - 1].m]} {monthGrids[monthGrids.length - 1].y}
-        </span>
-        <button onClick={nextMonth} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+        <span className="text-[14px] font-semibold text-[#111] min-w-[120px] text-center">{rangeLabel}</span>
+        <button onClick={jumpNext} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
         </button>
       </div>
