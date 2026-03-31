@@ -184,10 +184,10 @@ function ReservationDrawer({ r, onClose }: { r: Reservation; onClose: () => void
 /* ------------------------------------------------------------------ */
 function SummaryCard({ label, value, accent, subtitle, onClick }: { label: string; value: string; accent?: boolean; subtitle?: string; onClick?: () => void }) {
   return (
-    <div onClick={onClick} className={`bg-white border border-[#eaeaea] rounded-xl p-5 ${onClick ? "cursor-pointer hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-[#ddd] transition-all" : ""}`}>
-      <div className="text-[12px] font-medium text-[#888] uppercase tracking-wide mb-2">{label}</div>
-      <div className={`text-[24px] font-semibold ${accent ? "text-accent" : "text-[#111]"}`}>{value}</div>
-      {subtitle && <div className="text-[11px] text-[#aaa] mt-1">{subtitle}</div>}
+    <div onClick={onClick} className={`bg-white border border-[#eaeaea] rounded-xl p-3 md:p-5 overflow-hidden ${onClick ? "cursor-pointer hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-[#ddd] transition-all" : ""}`}>
+      <div className="text-[10px] md:text-[12px] font-medium text-[#888] uppercase tracking-wide mb-1 md:mb-2 truncate">{label}</div>
+      <div className={`text-[18px] md:text-[24px] font-semibold truncate ${accent ? "text-accent" : "text-[#111]"}`}>{value}</div>
+      {subtitle && <div className="text-[10px] md:text-[11px] text-[#aaa] mt-1 truncate">{subtitle}</div>}
     </div>
   );
 }
@@ -382,7 +382,7 @@ export default function FinancesOverviewPage() {
       <div className="text-[13px] text-[#888] mb-6 -mt-1 hidden md:block">Your financial overview across all properties.</div>
 
       {/* ── A. Summary Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
         <SummaryCard label="Owner Balance" value={fmtCurrency(ownerBalance)} accent subtitle="Completed stays, payout pending" onClick={() => router.push("/finances/earnings")} />
         <SummaryCard label="Paid This Month" value={fmtCurrency(paidThisMonth)} subtitle={new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" })} onClick={() => router.push("/finances/earnings")} />
         <SummaryCard label="Pending Payment" value={fmtCurrency(pendingPayment)} subtitle="Net owner payout after all fees" onClick={() => router.push("/finances/earnings")} />
@@ -414,14 +414,13 @@ export default function FinancesOverviewPage() {
         ) : (
           <div className="divide-y divide-[#f3f3f3]">
             {recentPayouts.map((r, i) => (
-              <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-4 px-5 py-3.5 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
+              <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-3 px-4 md:px-5 py-3 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-[#111] truncate">{r.property}</div>
-                  <div className="text-[12px] text-[#999] mt-0.5">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
+                  <div className="font-medium text-[#111] truncate text-[12px] md:text-[13px]">{r.property}</div>
+                  <div className="text-[11px] md:text-[12px] text-[#999] mt-0.5 truncate">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
                 </div>
-                <div className="flex-shrink-0"><ChannelBadge channel={r.channel} compact /></div>
-                <div className="w-[90px] text-right font-semibold text-[#111] flex-shrink-0">{fmtCurrency(r.ownerPayout || 0)}</div>
-                <div className="flex-shrink-0"><span className={statusPillFinance(r.payoutStatus)}>{r.payoutStatus}</span></div>
+                <div className="hidden md:block flex-shrink-0"><ChannelBadge channel={r.channel} compact /></div>
+                <div className="text-right font-semibold text-[#111] flex-shrink-0 text-[12px] md:text-[13px]">{fmtCurrency(r.ownerPayout || 0)}</div>
               </div>
             ))}
           </div>
