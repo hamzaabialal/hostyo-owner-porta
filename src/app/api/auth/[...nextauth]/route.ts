@@ -1,21 +1,28 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { Client } from "@notionhq/client";
 import { createHash } from "crypto";
 
+const notion = new Client({ auth: process.env.NOTION_API_KEY });
+const USERS_DB = process.env.NOTION_USERS_DB || "";
+const SECRET = process.env.NEXTAUTH_SECRET || "hostyo-default-secret-change-me";
+
 function hashPassword(password: string): string {
-  return createHash("sha256").update(password + (process.env.NEXTAUTH_SECRET || "fallback")).digest("hex");
+  return createHash("sha256").update(password + SECRET).digest("hex");
 }
 
-async function getUsers() {
-  try {
-    // Dynamic import to avoid build errors on serverless
-    const fs = await import("fs/promises");
-    const path = await import("path");
-    const data = await fs.readFile(path.join(process.cwd(), "data", "users.json"), "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return [];
+function getProp(page: any, name: string): any {
+  const p = page.properties?.[name];
+  if (!p) return null;
+  switch (p.type) {
+    case "title": return p.title?.[0]?.plain_text || "";
+    case "rich_text": return p.rich_text?.[0]?.plain_text || "";
+    case "email": return p.email || "";
+    case "checkbox": return p.checkbox ?? false;
+    case "unique_id": return p.unique_id?.number || 0;
+    default: return null;
   }
 }
 
@@ -31,7 +38,7 @@ const handler = NextAuth({
         ]
       : []),
 
-    // Email/Password
+    // Email/Password — checks Notion users DB
     CredentialsProvider({
       name: "Email",
       credentials: {
@@ -41,21 +48,35 @@ const handler = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        // Check registered users first
-        const users = await getUsers();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const user = users.find((u: any) => u.email.toLowerCase() === credentials.email.toLowerCase());
+        const passwordHash = hashPassword(credentials.password);
 
-        if (user && user.passwordHash === hashPassword(credentials.password)) {
-          return { id: user.id, email: user.email, name: user.name, image: null };
+        // Check Notion users database
+        if (USERS_DB) {
+          try {
+            const res = await notion.databases.query({
+              database_id: USERS_DB,
+              filter: { property: "Email", email: { equals: credentials.email.toLowerCase().trim() } },
+              page_size: 1,
+            });
+
+            if (res.results.length > 0) {
+              const user = res.results[0];
+              const storedHash = getProp(user, "Password");
+              const name = getProp(user, "Full Name");
+              const email = getProp(user, "Email");
+
+              if (storedHash === passwordHash) {
+                return { id: user.id, email, name, image: null };
+              }
+              // Wrong password
+              return null;
+            }
+          } catch (e) {
+            console.error("Notion auth error:", e);
+          }
         }
 
-        // Fallback demo: accept any email with "hostyo123"
-        if (credentials.password === "hostyo123") {
-          const name = credentials.email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-          return { id: credentials.email, email: credentials.email, name, image: null };
-        }
-
+        // No user found in Notion
         return null;
       },
     }),
@@ -74,7 +95,7 @@ const handler = NextAuth({
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET || "hostyo-default-secret-change-me",
+  secret: SECRET,
 });
 
 export { handler as GET, handler as POST };
