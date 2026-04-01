@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
+import { invalidate } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     await notion.pages.update({ page_id: id, properties });
+
+    // Invalidate cache so next fetch gets fresh data
+    invalidate("expenses");
+
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error("Update expense error:", error?.message);
@@ -33,6 +38,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   try {
     await notion.pages.update({ page_id: id, archived: true });
+
+    // Invalidate cache
+    invalidate("expenses");
+
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error("Delete expense error:", error?.message);
