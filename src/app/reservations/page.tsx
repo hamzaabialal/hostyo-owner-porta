@@ -498,7 +498,7 @@ function ReservationsContent() {
       </div>
 
       {/* ── Mobile Filters ── */}
-      <div className="flex items-center gap-2 mb-4 overflow-x-auto md:hidden pb-1">
+      <div className="flex items-center gap-2 mb-4 md:hidden flex-wrap">
         <FilterDropdown placeholder="Properties" value={filterProperty} onChange={setFilterProperty} options={propertyOptions} searchable />
         <FilterDropdown placeholder="Status" value={filterStatus} onChange={setFilterStatus} options={statusOptions} />
       </div>

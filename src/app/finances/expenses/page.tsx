@@ -275,7 +275,7 @@ export default function ExpensesPage() {
       </div>
 
       {/* ── Mobile Filters ── */}
-      <div className="flex items-center gap-2 mb-4 overflow-x-auto md:hidden pb-1">
+      <div className="flex items-center gap-2 mb-4 md:hidden flex-wrap">
         <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="Properties" options={propertyList.map((p) => ({ value: p, label: p }))} searchable />
         <FilterDropdown value={filterStatus} onChange={setFilterStatus} placeholder="Status" options={statusList.map((s) => ({ value: s, label: s }))} />
       </div>

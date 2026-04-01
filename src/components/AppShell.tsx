@@ -40,7 +40,7 @@ export default function AppShell({ title, children }: { title: string; children:
           <TopBar title={title} />
         </div>
 
-        <main className="flex-1 p-4 md:p-8 pb-20 md:pb-8 min-w-0 overflow-x-hidden">{children}</main>
+        <main className="flex-1 p-4 md:p-8 pb-20 md:pb-8 min-w-0">{children}</main>
       </div>
 
       {/* Mobile bottom nav - shown only on mobile */}
