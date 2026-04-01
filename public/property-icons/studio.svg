@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <rect x="25" y="35" width="150" height="130" rx="8" fill="#F5F6F8" stroke="#C0C4CC" stroke-width="2"/>
+  <path d="M25 35 H175 V55 Q175 65 165 65 H35 Q25 65 25 55 Z" fill="#ECEDF0" stroke="#C0C4CC" stroke-width="1.5"/>
+  <rect x="55" y="95" width="90" height="50" rx="6" fill="white" stroke="#C0C4CC" stroke-width="2"/>
+  <rect x="60" y="90" width="35" height="15" rx="4" fill="#E8E9EC" stroke="#C0C4CC" stroke-width="1.5"/>
+  <rect x="105" y="90" width="35" height="15" rx="4" fill="#E8E9EC" stroke="#C0C4CC" stroke-width="1.5"/>
+  <rect x="55" y="140" width="90" height="8" rx="2" fill="#ECEDF0"/>
+  <rect x="145" y="105" width="20" height="35" rx="3" fill="#ECEDF0" stroke="#C0C4CC" stroke-width="1.5"/>
+  <rect x="150" y="112" width="8" height="12" rx="2" fill="#D0D3DA"/>
+  <rect x="155" y="115" width="5" height="8" rx="1" fill="#C0C4CC"/>
+  <rect x="75" y="45" width="15" height="12" rx="3" fill="#D0D3DA" stroke="#C0C4CC" stroke-width="1"/>
+  <circle cx="125" cy="80" r="3" fill="#D0D3DA"/>
+  <line x1="25" y1="165" x2="175" y2="165" stroke="#D0D3DA" stroke-width="1.5"/>
+</svg>

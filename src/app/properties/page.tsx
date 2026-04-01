@@ -292,21 +292,6 @@ function PropertyRow({ property: p, onClick }: { property: Property; onClick: ()
 /* ------------------------------------------------------------------ */
 /*  Export                                                             */
 /* ------------------------------------------------------------------ */
-function exportCSV(properties: Property[]) {
-  const headers = ["Name", "Status", "Address", "City", "Country", "Postcode", "Client", "Email", "Phone", "Price", "Cleaning Fee", "Channels", "Access Code", "License"];
-  const rows = properties.map((p) => [
-    p.name, p.status, p.address, p.city, p.country, p.postcode, p.client, p.email, p.phone,
-    p.price, p.cleaningFee, p.connectedChannels.join("; "), p.accessCode, p.license,
-  ]);
-  const csv = [headers.join(","), ...rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `hostyo-properties-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -415,26 +400,11 @@ function PropertiesPageInner() {
         <FilterDropdown value={filterStatus} onChange={setFilterStatus} placeholder="All Statuses" options={statusOptions} />
         <FilterDropdown value={filterType} onChange={setFilterType} placeholder="All Types" options={typeOptions} />
         <FilterDropdown value={filterCity} onChange={setFilterCity} placeholder="All Cities" options={cityOptions} />
-        <div className="flex-1 hidden md:block" />
-
-        {/* Export - hidden on mobile */}
-        <button onClick={() => exportCSV(filtered)} className="dropdown-trigger text-text-secondary hover:text-text-primary hidden md:flex">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-          <span>Export</span>
-        </button>
-
-        {/* View toggle - hidden on mobile */}
-        <div className="hidden md:flex items-center border border-[#e2e2e2] rounded-lg overflow-hidden">
-          <button onClick={() => setView("grid")} className={`p-2 transition-colors ${view === "grid" ? "bg-accent text-white" : "bg-white text-[#999] hover:text-[#555]"}`}><GridIcon /></button>
-          <button onClick={() => setView("list")} className={`p-2 transition-colors ${view === "list" ? "bg-accent text-white" : "bg-white text-[#999] hover:text-[#555]"}`}><ListIcon /></button>
+        {/* View toggle — ghost style */}
+        <div className="hidden md:flex items-center gap-1 ml-auto">
+          <button onClick={() => setView("grid")} className={`p-2 rounded-lg transition-all ${view === "grid" ? "text-[#80020E] border border-[#80020E] bg-[#80020E]/5" : "text-[#888] border border-transparent hover:text-[#555] hover:bg-[#f5f5f5]"}`}><GridIcon /></button>
+          <button onClick={() => setView("list")} className={`p-2 rounded-lg transition-all ${view === "list" ? "text-[#80020E] border border-[#80020E] bg-[#80020E]/5" : "text-[#888] border border-transparent hover:text-[#555] hover:bg-[#f5f5f5]"}`}><ListIcon /></button>
         </div>
-
-        <button onClick={() => setWizardOpen(true)} className="flex items-center gap-1.5 px-3 md:px-3.5 py-2 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover transition-colors">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          <span className="hidden sm:inline">Add property</span>
-        </button>
       </div>
 
       {/* Content */}
@@ -445,7 +415,7 @@ function PropertiesPageInner() {
           </div>
           <div className="text-[16px] font-semibold text-[#111] mb-2">No properties yet</div>
           <div className="text-[13px] text-[#888] max-w-[380px] mb-6 leading-relaxed">Add your first property to start onboarding it into Hostyo. You can save your progress as a draft and return at any time.</div>
-          <button onClick={() => setWizardOpen(true)} className="flex items-center gap-1.5 px-4 py-2.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover transition-colors">
+          <button onClick={() => setWizardOpen(true)} className="flex items-center gap-1.5 px-4 py-2.5 border border-[#80020E] text-[#80020E] bg-transparent rounded-lg text-[13px] font-medium hover:bg-[#80020E]/5 transition-colors">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add property
           </button>

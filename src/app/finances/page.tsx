@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import MobileTabs from "@/components/MobileTabs";
-import ChannelBadge from "@/components/ChannelBadge";
+import ChannelBadge, { getChannelIcon } from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
 
 const FINANCE_TABS = [
@@ -414,13 +414,13 @@ export default function FinancesOverviewPage() {
         ) : (
           <div className="divide-y divide-[#f3f3f3]">
             {recentPayouts.map((r, i) => (
-              <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-3 px-4 md:px-5 py-3 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
+              <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-2 md:gap-3 px-4 md:px-5 py-3 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
+                <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-[#111] truncate text-[12px] md:text-[13px]">{r.property}</div>
-                  <div className="text-[11px] md:text-[12px] text-[#999] mt-0.5 truncate">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
+                  <div className="text-[11px] text-[#999] mt-0.5 truncate">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
                 </div>
-                <div className="hidden md:block flex-shrink-0"><ChannelBadge channel={r.channel} compact /></div>
-                <div className="text-right font-semibold text-[#111] flex-shrink-0 text-[12px] md:text-[13px]">{fmtCurrency(r.ownerPayout || 0)}</div>
+                <div className="text-right font-medium text-[#111] flex-shrink-0 text-[12px] md:text-[13px]">{fmtCurrency(r.ownerPayout || 0)}</div>
               </div>
             ))}
           </div>

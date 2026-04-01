@@ -281,7 +281,8 @@ export default function SubmitExpensePage() {
       } else {
         setValidationErrors([data.error || "Submission failed"]);
       }
-    } catch {
+    } catch (err) {
+      console.error("Submit error:", err);
       setValidationErrors(["Network error. Please try again."]);
     } finally {
       setSubmitting(false);

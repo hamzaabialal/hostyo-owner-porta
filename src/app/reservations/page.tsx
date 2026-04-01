@@ -68,10 +68,30 @@ function statusPillClass(s: string): string {
 /* ------------------------------------------------------------------ */
 /*  Accordion Detail Tabs                                              */
 /* ------------------------------------------------------------------ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function AccordionDetail({ r }: { r: Reservation }) {
   const [tab, setTab] = useState<"overview" | "earnings" | "expenses">("overview");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [linkedExpenses, setLinkedExpenses] = useState<any[]>([]);
+  const [expensesLoaded, setExpensesLoaded] = useState(false);
 
   const netEarnings = r.gross + r.platformFee + r.hostyoFee + r.cleaningFee + r.expensesTotal;
+
+  // Fetch linked expenses when Expenses tab is opened
+  useEffect(() => {
+    if (tab === "expenses" && !expensesLoaded && r.ref) {
+      fetch("/api/expenses")
+        .then((res) => res.json())
+        .then((data) => {
+          const all = data?.data || [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const linked = all.filter((e: any) => e.reservation && r.ref && e.reservation.includes(r.ref.slice(0, 10)));
+          setLinkedExpenses(linked);
+        })
+        .catch(() => {})
+        .finally(() => setExpensesLoaded(true));
+    }
+  }, [tab, expensesLoaded, r.ref]);
 
   const tabs = [
     { key: "overview" as const, label: "Overview" },
@@ -152,16 +172,41 @@ function AccordionDetail({ r }: { r: Reservation }) {
       {/* Expenses Tab */}
       {tab === "expenses" && (
         <div>
-          {r.expensesTotal === 0 ? (
+          {/* Linked expenses from Notion */}
+          {linkedExpenses.length > 0 ? (
+            <div className="bg-white border border-[#e8e8e8] rounded-xl shadow-sm overflow-hidden mb-4">
+              <div className="px-5 py-3 bg-[#fafafa] border-b border-[#f0f0f0]">
+                <span className="text-[12px] font-semibold text-[#999] uppercase tracking-wide">Linked Expenses ({linkedExpenses.length})</span>
+              </div>
+              <div className="divide-y divide-[#f3f3f3]">
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {linkedExpenses.map((exp: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between px-5 py-3">
+                    <div>
+                      <div className="text-[13px] font-medium text-[#111]">{exp.category || "Expense"}</div>
+                      <div className="text-[11px] text-[#999]">{exp.vendor ? `${exp.vendor} · ` : ""}{exp.date || ""}</div>
+                      {exp.description && <div className="text-[11px] text-[#888] mt-0.5 italic">{exp.description}</div>}
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-3">
+                      <div className="text-[13px] font-semibold text-[#111] tabular-nums">{exp.amount ? fmtCurrency(exp.amount) : "—"}</div>
+                      {exp.status && <div className="text-[10px] text-[#999]">{exp.status}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : !expensesLoaded ? (
+            <div className="bg-white border border-[#e8e8e8] rounded-xl p-6 shadow-sm text-center">
+              <div className="w-5 h-5 border-2 border-[#80020E] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-[12px] text-[#999]">Loading expenses...</p>
+            </div>
+          ) : (
             <div className="bg-white border border-[#e8e8e8] rounded-xl p-6 shadow-sm text-center">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ddd" strokeWidth="1.5" className="mx-auto mb-3">
                 <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
               </svg>
               <p className="text-[13px] text-[#999]">No linked expenses for this reservation.</p>
-            </div>
-          ) : (
-            <div className="bg-white border border-[#e8e8e8] rounded-xl p-5 shadow-sm max-w-[440px]">
-              <FinRow label="Total Linked Expenses" value={fmtCurrency(r.expensesTotal)} neg />
+              <p className="text-[11px] text-[#bbb] mt-1">Expenses submitted against this stay will appear here.</p>
             </div>
           )}
           {r.notionId && (
