@@ -313,27 +313,27 @@ export default function ExpensesPage() {
             <div className="bg-white border border-[#eaeaea] rounded-xl py-10 text-center text-[#999] text-sm">No expenses match your filters.</div>
           ) : grouped.map(([groupName, { items, total }]) => (
             <div key={groupName} className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 bg-[#fafafa] border-b border-[#eaeaea]">
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-semibold text-[#111]">{groupName}</span>
-                  <span className="text-[11px] text-[#999] bg-[#f0f0f0] px-2 py-0.5 rounded-full">{items.length}</span>
+              <div className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 bg-[#fafafa] border-b border-[#eaeaea]">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[12px] md:text-[13px] font-semibold text-[#111] truncate">{groupName}</span>
+                  <span className="text-[10px] text-[#999] bg-[#f0f0f0] px-1.5 py-0.5 rounded-full flex-shrink-0">{items.length}</span>
                 </div>
-                <span className="text-[13px] font-semibold text-[#111] tabular-nums">{fmtMoney(total)}</span>
+                <span className="text-[12px] md:text-[13px] font-semibold text-[#111] tabular-nums flex-shrink-0 ml-2">{fmtMoney(total)}</span>
               </div>
               <div className="divide-y divide-[#f3f3f3]">
                 {items.map((exp) => (
-                  <div key={exp.id} onClick={() => openDrawer(exp)} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[#fafafa] transition-colors">
+                  <div key={exp.id} onClick={() => openDrawer(exp)} className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-3 cursor-pointer hover:bg-[#fafafa] transition-colors">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-mono text-[#80020E] font-semibold">{exp.expenseId}</span>
-                        {exp.category && <span className="text-[11px] text-[#555] bg-[#f5f5f5] px-2 py-0.5 rounded-md">{exp.category}</span>}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-mono text-[#80020E] font-semibold">{exp.expenseId}</span>
+                        {exp.category && <span className="text-[10px] text-[#555] bg-[#f5f5f5] px-1.5 py-0.5 rounded">{exp.category}</span>}
                       </div>
-                      <div className="text-[12px] text-[#999] mt-0.5">
+                      <div className="text-[11px] text-[#999] mt-0.5 truncate">
                         {exp.property}{exp.vendor ? ` · ${exp.vendor}` : ""}{exp.date ? ` · ${fmtDate(exp.date)}` : ""}
                       </div>
                     </div>
-                    <div className="text-[13px] font-semibold text-[#111] tabular-nums flex-shrink-0">{exp.amount ? fmtMoney(exp.amount) : "—"}</div>
-                    <span className={`flex-shrink-0 ${pillClass(exp.status)}`}>{exp.status}</span>
+                    <div className="text-[12px] md:text-[13px] font-semibold text-[#111] tabular-nums flex-shrink-0">{exp.amount ? fmtMoney(exp.amount) : "—"}</div>
+                    <span className={`flex-shrink-0 hidden md:inline-flex ${pillClass(exp.status)}`}>{exp.status}</span>
                   </div>
                 ))}
               </div>

@@ -234,14 +234,14 @@ function BalanceSummarySection({ paid, pending, upcoming }: { paid: number; pend
 function TrendChart({ data }: { data: { month: string; earnings: number; expenses: number }[] }) {
   const maxVal = Math.max(...data.map((d) => d.earnings), 1);
   return (
-    <div className="flex items-end gap-3 h-[140px]">
+    <div className="flex items-end gap-1.5 md:gap-3 h-[100px] md:h-[140px]">
       {data.map((d) => (
-        <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
-          <div className="flex gap-[2px] items-end w-full justify-center h-[110px]">
-            <div className="w-[14px] rounded-t bg-accent/20" style={{ height: `${(d.earnings / maxVal) * 100}%` }} title={`Earnings: ${fmtCurrency(d.earnings)}`} />
-            <div className="w-[14px] rounded-t bg-[#e8d8d8]" style={{ height: `${(d.expenses / maxVal) * 100}%` }} title={`Expenses: ${fmtCurrency(d.expenses)}`} />
+        <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+          <div className="flex gap-[1px] md:gap-[2px] items-end w-full justify-center h-[75px] md:h-[110px]">
+            <div className="w-[8px] md:w-[14px] rounded-t bg-accent/20" style={{ height: `${(d.earnings / maxVal) * 100}%` }} title={`Earnings: ${fmtCurrency(d.earnings)}`} />
+            <div className="w-[8px] md:w-[14px] rounded-t bg-[#e8d8d8]" style={{ height: `${(d.expenses / maxVal) * 100}%` }} title={`Expenses: ${fmtCurrency(d.expenses)}`} />
           </div>
-          <span className="text-[10px] text-[#999] font-medium">{d.month}</span>
+          <span className="text-[8px] md:text-[10px] text-[#999] font-medium">{d.month}</span>
         </div>
       ))}
     </div>
@@ -433,18 +433,17 @@ export default function FinancesOverviewPage() {
           <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Upcoming Payouts (Forecast)</div>
         </div>
         {upcomingRows.length === 0 ? (
-          <div className="px-5 py-8 text-center text-[13px] text-[#aaa]">No upcoming payouts forecasted.</div>
+          <div className="px-4 py-8 text-center text-[12px] text-[#aaa]">No upcoming payouts forecasted.</div>
         ) : (
           <div className="divide-y divide-[#f3f3f3]">
             {upcomingRows.map((r, i) => (
-              <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-4 px-5 py-3.5 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
+              <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-2 md:gap-3 px-4 md:px-5 py-3 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
+                <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-[#111] truncate">{r.property}</div>
-                  <div className="text-[12px] text-[#999] mt-0.5">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
+                  <div className="font-medium text-[#111] truncate text-[12px] md:text-[13px]">{r.property}</div>
+                  <div className="text-[11px] text-[#999] mt-0.5 truncate">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
                 </div>
-                <div className="flex-shrink-0"><ChannelBadge channel={r.channel} compact /></div>
-                <div className="w-[90px] text-right font-semibold text-[#111] flex-shrink-0">{fmtCurrency(r.ownerPayout || 0)}</div>
-                <div className="flex-shrink-0"><span className={statusPillFinance("Upcoming")}>Upcoming</span></div>
+                <div className="text-right font-medium text-[#111] flex-shrink-0 text-[12px] md:text-[13px]">{fmtCurrency(r.ownerPayout || 0)}</div>
               </div>
             ))}
           </div>
