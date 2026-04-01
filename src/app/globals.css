@@ -52,6 +52,9 @@ body {
 .pill-approved   { color: #2F6B57; background: #EAF3EF; border-color: #D6E7DE; }
 .pill-rejected   { color: #7A5252; background: #F6EDED; border-color: #E8D8D8; }
 .pill-scheduled  { color: #5E6673; background: #EEF1F5; border-color: #DDE3EA; }
+.pill-in-review, .pill-in-progress  { color: #655E7A; background: #F1EFF7; border-color: #E1DCEF; }
+.pill-revision-requested  { color: #8A6A2E; background: #F6F1E6; border-color: #E8DDC7; }
+.pill-not-started { color: #5E6673; background: #EEF1F5; border-color: #DDE3EA; }
 
 /* Property status pills */
 .pill-draft      { color: #666666; background: #F3F3F3; border-color: #E3E3E3; }

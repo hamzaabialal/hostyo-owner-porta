@@ -254,6 +254,11 @@ function ExpenseLinkButton({ notionId }: { notionId: string }) {
   const [link, setLink] = useState("");
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
+  const [adminCategory, setAdminCategory] = useState("");
+  const [adminNote, setAdminNote] = useState("");
+
+  const CATEGORIES = ["Maintenance", "Plumbing", "Electrical", "Cleaning", "Laundry", "Supplies", "Repair", "Other"];
 
   const generate = async () => {
     setGenerating(true);
@@ -261,7 +266,7 @@ function ExpenseLinkButton({ notionId }: { notionId: string }) {
       const res = await fetch("/api/submit/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reservationId: notionId }),
+        body: JSON.stringify({ reservationId: notionId, category: adminCategory, internalNote: adminNote }),
       });
       const data = await res.json();
       if (data.ok) setLink(data.url);
@@ -278,27 +283,62 @@ function ExpenseLinkButton({ notionId }: { notionId: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (!link) {
+  if (link) {
     return (
-      <button onClick={generate} disabled={generating}
-        className="flex items-center gap-2 px-4 py-2.5 border border-[#80020E] text-[#80020E] bg-transparent rounded-xl text-[12px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-50">
-        {generating ? <div className="w-3.5 h-3.5 border-2 border-[#80020E] border-t-transparent rounded-full animate-spin" /> : (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-        )}
-        {generating ? "Generating..." : "Generate Expense Link"}
-      </button>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 p-2.5 bg-[#f8f8f8] border border-[#e2e2e2] rounded-xl">
+          <input type="text" value={link} readOnly className="flex-1 text-[11px] text-[#555] bg-transparent outline-none font-mono truncate" />
+          <button onClick={copyLink} className={`flex-shrink-0 px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors ${copied ? "bg-[#EAF3EF] text-[#2F6B57]" : "bg-[#80020E] text-white hover:bg-[#6b010c]"}`}>
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+        <p className="text-[10px] text-[#999]">Share with vendor via WhatsApp, SMS, or email. Vendor only needs to upload photos + invoice.</p>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 p-2.5 bg-[#f8f8f8] border border-[#e2e2e2] rounded-xl">
-        <input type="text" value={link} readOnly className="flex-1 text-[11px] text-[#555] bg-transparent outline-none font-mono truncate" />
-        <button onClick={copyLink} className={`flex-shrink-0 px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors ${copied ? "bg-[#EAF3EF] text-[#2F6B57]" : "bg-[#80020E] text-white hover:bg-[#6b010c]"}`}>
-          {copied ? "Copied!" : "Copy"}
+    <div>
+      {!showOptions ? (
+        <button onClick={() => setShowOptions(true)}
+          className="flex items-center gap-2 px-4 py-2.5 border border-[#80020E] text-[#80020E] bg-transparent rounded-xl text-[12px] font-semibold hover:bg-[#80020E]/5 transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+          Generate Expense Link
         </button>
-      </div>
-      <p className="text-[10px] text-[#999]">Share with vendor via WhatsApp, SMS, or email.</p>
+      ) : (
+        <div className="bg-white border border-[#e8e8e8] rounded-xl p-4 space-y-3">
+          <div className="text-[12px] font-semibold text-[#111]">Expense Link Options <span className="text-[10px] font-normal text-[#999]">(admin only — vendor won&apos;t see these)</span></div>
+
+          {/* Category pre-select */}
+          <div>
+            <label className="block text-[11px] font-medium text-[#888] mb-1.5">Category</label>
+            <div className="flex flex-wrap gap-1.5">
+              {CATEGORIES.map((c) => (
+                <button key={c} type="button" onClick={() => setAdminCategory(adminCategory === c ? "" : c)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                    adminCategory === c ? "bg-[#80020E] text-white" : "bg-[#f5f5f5] text-[#555] hover:bg-[#eee]"
+                  }`}>{c}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Internal note */}
+          <div>
+            <label className="block text-[11px] font-medium text-[#888] mb-1.5">Internal note</label>
+            <input type="text" value={adminNote} onChange={(e) => setAdminNote(e.target.value)}
+              placeholder="e.g. Future maintenance required, check plumbing"
+              className="w-full h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
+          </div>
+
+          <button onClick={generate} disabled={generating}
+            className="flex items-center gap-2 px-4 py-2 border border-[#80020E] text-[#80020E] bg-transparent rounded-xl text-[12px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-50">
+            {generating ? <div className="w-3 h-3 border-2 border-[#80020E] border-t-transparent rounded-full animate-spin" /> : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+            )}
+            {generating ? "Generating..." : "Generate Link"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
