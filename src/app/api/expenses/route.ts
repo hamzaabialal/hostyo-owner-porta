@@ -13,19 +13,22 @@ async function fetchExpenses() {
   );
 
   return pages.filter((p: any) => {
-    // Skip empty rows (no expense ID)
     const expId = getProp(p, "Expense ID") || "";
     return expId.trim().length > 0;
   }).map((p: any) => {
-    // Amount is rich_text in Notion — parse as number
     const amountStr = getProp(p, "Amount") || "0";
     const amount = parseFloat(amountStr.replace(/[^0-9.\-]/g, "")) || 0;
 
-    // Proof is a files property
-    const proofFiles = p.properties?.["Proof "]?.files || p.properties?.["Proof"]?.files || [];
-    const proof = proofFiles.map((f: any) => f.file?.url || f.external?.url || "").filter(Boolean);
+    // Proof — read from files property
+    const proofProp = p.properties?.["Proof "] || p.properties?.["Proof"];
+    const proofFiles = proofProp?.files || [];
+    const proof = proofFiles.map((f: any) => {
+      if (f.file?.url) return f.file.url;
+      if (f.external?.url) return f.external.url;
+      return "";
+    }).filter(Boolean);
 
-    // Vendor — try "Vendor Name" rich_text first, fall back to "vendoor" people
+    // Vendor
     let vendor = getProp(p, "Vendor Name") || "";
     if (!vendor) {
       const vendorPeople = p.properties?.["vendoor"]?.people || [];
