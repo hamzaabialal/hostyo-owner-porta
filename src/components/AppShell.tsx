@@ -32,7 +32,7 @@ export default function AppShell({ title, children }: { title: string; children:
         <Sidebar />
       </div>
 
-      <div className="flex-1 flex flex-col min-h-screen md:ml-[220px]">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0 md:ml-[220px]">
         {/* Mobile header - shown only on mobile */}
         <MobileHeader title={title} />
         {/* Desktop top bar - hidden on mobile */}
@@ -40,7 +40,7 @@ export default function AppShell({ title, children }: { title: string; children:
           <TopBar title={title} />
         </div>
 
-        <main className="flex-1 p-4 md:p-8 pb-20 md:pb-8">{children}</main>
+        <main className="flex-1 p-4 md:p-8 pb-20 md:pb-8 min-w-0 overflow-x-hidden">{children}</main>
       </div>
 
       {/* Mobile bottom nav - shown only on mobile */}
