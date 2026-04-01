@@ -41,7 +41,7 @@ async function fetchExpenses() {
       category: getProp(p, "Category ") || getProp(p, "Category") || "",
       vendor,
       amount,
-      status: getProp(p, "Status ") || getProp(p, "Status") || "Not started",
+      status: getProp(p, "Status ") || getProp(p, "Status") || "Scheduled",
       proof,
       description: getProp(p, "Description") || "",
       deducted: (getProp(p, "Deducted?") || "").toLowerCase() === "yes",

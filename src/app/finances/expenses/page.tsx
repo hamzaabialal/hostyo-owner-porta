@@ -515,6 +515,68 @@ export default function ExpensesPage() {
                 </div>
               )}
 
+              {/* Admin Actions */}
+              <div className="mb-7">
+                <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wider mb-3.5">Admin Actions</div>
+
+                {/* Change Status */}
+                <div className="mb-3">
+                  <label className="block text-[12px] font-medium text-[#888] mb-1.5">Update Status</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Scheduled", "In Review", "Approved", "Revision Requested", "Paid"].map((s) => (
+                      <button key={s} onClick={async () => {
+                        try {
+                          await fetch(`/api/expenses/${selectedExpense.id}`, {
+                            method: "PATCH", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ status: s }),
+                          });
+                          // Update local state
+                          selectedExpense.status = s;
+                          setDrawerOpen(true); // force re-render
+                        } catch { /* ignore */ }
+                      }} className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                        selectedExpense.status === s ? "bg-[#80020E] text-white" : "bg-[#f5f5f5] text-[#555] hover:bg-[#eee]"
+                      }`}>{s}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Change Category */}
+                <div className="mb-4">
+                  <label className="block text-[12px] font-medium text-[#888] mb-1.5">Update Category</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Maintenance", "Plumbing", "Electrical", "Cleaning", "Laundry", "Supplies", "Repair", "Other"].map((c) => (
+                      <button key={c} onClick={async () => {
+                        try {
+                          await fetch(`/api/expenses/${selectedExpense.id}`, {
+                            method: "PATCH", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ category: c }),
+                          });
+                          selectedExpense.category = c;
+                          setDrawerOpen(true);
+                        } catch { /* ignore */ }
+                      }} className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                        selectedExpense.category === c ? "bg-[#80020E] text-white" : "bg-[#f5f5f5] text-[#555] hover:bg-[#eee]"
+                      }`}>{c}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Delete */}
+                <button onClick={async () => {
+                  if (!confirm("Are you sure you want to delete this expense?")) return;
+                  try {
+                    await fetch(`/api/expenses/${selectedExpense.id}`, { method: "DELETE" });
+                    closeDrawer();
+                    // Refresh data
+                    window.location.reload();
+                  } catch { /* ignore */ }
+                }} className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-[#7A5252] hover:bg-[#F6EDED] rounded-lg transition-colors">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                  Delete expense
+                </button>
+              </div>
+
               {/* Financial Impact */}
               <div>
                 <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wider mb-3.5">Financial Impact</div>
