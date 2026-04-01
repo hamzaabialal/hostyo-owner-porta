@@ -209,8 +209,9 @@ function AccordionDetail({ r }: { r: Reservation }) {
               <p className="text-[11px] text-[#bbb] mt-1">Expenses submitted against this stay will appear here.</p>
             </div>
           )}
+          {/* Always show Generate Expense Link — even when expenses exist */}
           {r.notionId && (
-            <div className="mt-4">
+            <div className="mt-4 pt-4 border-t border-[#f0f0f0]">
               <ExpenseLinkButton notionId={r.notionId} />
             </div>
           )}

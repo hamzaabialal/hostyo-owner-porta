@@ -257,16 +257,16 @@ export default function ExpensesPage() {
       <div className="text-[13px] text-[#888] mb-5 -mt-1 hidden md:block">
         Expenses and deductions linked to your properties.
       </div>
-      {/* ── Group Tabs ── */}
-      <div className="flex gap-1.5 mb-5 overflow-x-auto pb-1 hide-scrollbar">
+      {/* ── Group Tabs — ghost style ── */}
+      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 hide-scrollbar">
         {groupTabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-[14px] md:px-[18px] py-2 rounded-lg border text-[12px] md:text-[13px] font-medium cursor-pointer transition-all whitespace-nowrap flex-shrink-0 ${
+            className={`px-3 md:px-4 py-1.5 rounded-lg border text-[11px] md:text-[12px] font-medium cursor-pointer transition-all whitespace-nowrap flex-shrink-0 ${
               activeTab === tab
-                ? "bg-[#80020E] text-white border-[#80020E] font-semibold"
-                : "bg-white text-[#555] border-[#ddd] hover:border-[#bbb] hover:text-[#111]"
+                ? "text-[#80020E] border-[#80020E] bg-[#80020E]/5"
+                : "text-[#888] border-transparent hover:text-[#555] hover:bg-[#f5f5f5]"
             }`}
           >
             {tab}
@@ -352,18 +352,18 @@ export default function ExpensesPage() {
           {filtered.length === 0 ? (
             <div className="text-center py-10 text-[#999] text-sm">No expenses match your filters.</div>
           ) : filtered.map((exp) => (
-            <div key={exp.id} onClick={() => openDrawer(exp)} className="bg-white border border-[#eaeaea] rounded-xl p-4 cursor-pointer hover:shadow-sm transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-mono text-[11px] font-semibold text-[#80020E]">{exp.expenseId}</span>
-                <span className={pillClass(exp.status)}>{exp.status}</span>
+            <div key={exp.id} onClick={() => openDrawer(exp)} className="bg-white border border-[#eaeaea] rounded-xl p-3.5 cursor-pointer hover:shadow-sm transition-all overflow-hidden">
+              <div className="flex items-center justify-between mb-1.5 gap-2">
+                <span className="font-mono text-[10px] font-semibold text-[#80020E] truncate">{exp.expenseId}</span>
+                <span className={`flex-shrink-0 ${pillClass(exp.status)}`}>{exp.status}</span>
               </div>
-              <div className="text-[14px] font-semibold text-[#111] mb-0.5">{exp.property || "—"}</div>
-              {exp.category && <span className="text-[11px] text-[#555] bg-[#f5f5f5] px-2 py-0.5 rounded-md inline-block mb-1">{exp.category}</span>}
-              <div className="text-[12px] text-[#888] mb-2">{exp.vendor ? `${exp.vendor} · ` : ""}{fmtDate(exp.date)}</div>
+              <div className="text-[13px] font-semibold text-[#111] mb-0.5 truncate">{exp.property || "—"}</div>
+              {exp.category && <span className="text-[10px] text-[#555] bg-[#f5f5f5] px-1.5 py-0.5 rounded inline-block mb-1">{exp.category}</span>}
+              <div className="text-[11px] text-[#888] mb-2 truncate">{exp.vendor ? `${exp.vendor} · ` : ""}{fmtDate(exp.date)}</div>
               <div className="flex items-center justify-between">
-                <span className="text-[15px] font-semibold text-[#111] tabular-nums">{exp.amount ? fmtMoney(exp.amount) : "—"}</span>
+                <span className="text-[14px] font-semibold text-[#111] tabular-nums">{exp.amount ? fmtMoney(exp.amount) : "—"}</span>
                 {exp.proof && exp.proof.length > 0 && (
-                  <span className="text-[10px] text-[#999] bg-[#f5f5f5] px-2 py-0.5 rounded">{exp.proof.length} file{exp.proof.length !== 1 ? "s" : ""}</span>
+                  <span className="text-[9px] text-[#999] bg-[#f5f5f5] px-1.5 py-0.5 rounded">{exp.proof.length} file{exp.proof.length !== 1 ? "s" : ""}</span>
                 )}
               </div>
             </div>
@@ -519,47 +519,55 @@ export default function ExpensesPage() {
               <div className="mb-7">
                 <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wider mb-3.5">Admin Actions</div>
 
-                {/* Change Status */}
-                <div className="mb-3">
+                {/* Change Status — dropdown */}
+                <div className="mb-4">
                   <label className="block text-[12px] font-medium text-[#888] mb-1.5">Update Status</label>
-                  <div className="flex flex-wrap gap-1.5">
+                  <select
+                    value={selectedExpense.status}
+                    onChange={async (e) => {
+                      const newStatus = e.target.value;
+                      try {
+                        await fetch(`/api/expenses/${selectedExpense.id}`, {
+                          method: "PATCH", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ status: newStatus }),
+                        });
+                        selectedExpense.status = newStatus;
+                        setDrawerOpen(true);
+                      } catch { /* ignore */ }
+                    }}
+                    className="w-full h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E] transition-colors appearance-none cursor-pointer"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}
+                  >
                     {["Scheduled", "In Review", "Approved", "Revision Requested", "Paid"].map((s) => (
-                      <button key={s} onClick={async () => {
-                        try {
-                          await fetch(`/api/expenses/${selectedExpense.id}`, {
-                            method: "PATCH", headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ status: s }),
-                          });
-                          // Update local state
-                          selectedExpense.status = s;
-                          setDrawerOpen(true); // force re-render
-                        } catch { /* ignore */ }
-                      }} className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                        selectedExpense.status === s ? "bg-[#80020E] text-white" : "bg-[#f5f5f5] text-[#555] hover:bg-[#eee]"
-                      }`}>{s}</button>
+                      <option key={s} value={s}>{s}</option>
                     ))}
-                  </div>
+                  </select>
                 </div>
 
-                {/* Change Category */}
+                {/* Change Category — dropdown */}
                 <div className="mb-4">
                   <label className="block text-[12px] font-medium text-[#888] mb-1.5">Update Category</label>
-                  <div className="flex flex-wrap gap-1.5">
+                  <select
+                    value={selectedExpense.category || ""}
+                    onChange={async (e) => {
+                      const newCat = e.target.value;
+                      try {
+                        await fetch(`/api/expenses/${selectedExpense.id}`, {
+                          method: "PATCH", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ category: newCat }),
+                        });
+                        selectedExpense.category = newCat;
+                        setDrawerOpen(true);
+                      } catch { /* ignore */ }
+                    }}
+                    className="w-full h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E] transition-colors appearance-none cursor-pointer"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}
+                  >
+                    <option value="">Select category</option>
                     {["Maintenance", "Plumbing", "Electrical", "Cleaning", "Laundry", "Supplies", "Repair", "Other"].map((c) => (
-                      <button key={c} onClick={async () => {
-                        try {
-                          await fetch(`/api/expenses/${selectedExpense.id}`, {
-                            method: "PATCH", headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ category: c }),
-                          });
-                          selectedExpense.category = c;
-                          setDrawerOpen(true);
-                        } catch { /* ignore */ }
-                      }} className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                        selectedExpense.category === c ? "bg-[#80020E] text-white" : "bg-[#f5f5f5] text-[#555] hover:bg-[#eee]"
-                      }`}>{c}</button>
+                      <option key={c} value={c}>{c}</option>
                     ))}
-                  </div>
+                  </select>
                 </div>
 
                 {/* Delete */}
