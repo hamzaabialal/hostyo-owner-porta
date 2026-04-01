@@ -33,10 +33,7 @@ const CATEGORIES = [
   "Other",
 ];
 
-const STATUSES = [
-  { value: "Scheduled", label: "Scheduled", desc: "Work is planned or assigned" },
-  { value: "In Review", label: "In Review", desc: "Work completed, awaiting review" },
-];
+// Statuses managed by admin, not vendor
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -220,7 +217,7 @@ export default function SubmitExpensePage() {
   const [expenseId, setExpenseId] = useState("");
 
   // Form state
-  const [workStatus, setWorkStatus] = useState("Scheduled");
+  const workStatus = "In Review"; // Auto-set on vendor submission
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [photos, setPhotos] = useState<UploadedFile[]>([]);
@@ -321,28 +318,6 @@ export default function SubmitExpensePage() {
 
         {/* Form */}
         <div className="space-y-5">
-          {/* Work Status */}
-          <div>
-            <label className="block text-[13px] font-semibold text-[#333] mb-2">Work Status</label>
-            <div className="grid grid-cols-2 gap-2">
-              {STATUSES.map((s) => (
-                <button
-                  key={s.value}
-                  type="button"
-                  onClick={() => setWorkStatus(s.value)}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    workStatus === s.value
-                      ? "border-[#80020E] bg-[#80020E]/5"
-                      : "border-[#e2e2e2] bg-white hover:border-[#ccc]"
-                  }`}
-                >
-                  <div className={`text-[13px] font-semibold ${workStatus === s.value ? "text-[#80020E]" : "text-[#333]"}`}>{s.label}</div>
-                  <div className="text-[11px] text-[#999] mt-0.5">{s.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Category */}
           <div>
             <label className="block text-[13px] font-semibold text-[#333] mb-2">Work Category</label>
