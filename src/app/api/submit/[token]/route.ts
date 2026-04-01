@@ -121,24 +121,41 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       properties["Vendor Name"] = { rich_text: [{ text: { content: vendorName.trim() } }] };
     }
 
-    // Description
+    // Description — save to both Description and Notes fields
     if (description?.trim()) {
       properties["Description"] = { rich_text: [{ text: { content: description.trim() } }] };
+      properties["Notes"] = { rich_text: [{ text: { content: description.trim() } }] };
     }
 
-    // Proof files
+    // Work category — save to work category rich_text field too
+    if (category) {
+      properties["work category"] = { rich_text: [{ text: { content: category } }] };
+    }
+
+    // Proof files — only include real URLs (not data: URLs which Notion rejects)
+    const realPhotoUrls = (photoUrls || []).filter((u: string) => u && !u.startsWith("data:"));
+    const realReceiptUrls = (receiptUrls || []).filter((u: string) => u && !u.startsWith("data:"));
     const allFiles = [
-      ...(photoUrls || []).map((url: string, i: number) => ({
+      ...realPhotoUrls.map((url: string, i: number) => ({
         type: "external" as const,
         name: `Photo ${i + 1}`,
         external: { url },
       })),
-      ...(receiptUrls || []).map((url: string, i: number) => ({
+      ...realReceiptUrls.map((url: string, i: number) => ({
         type: "external" as const,
         name: `Receipt ${i + 1}`,
         external: { url },
       })),
     ];
+
+    // Track file count in notes if data URLs were uploaded (can't store in Notion files)
+    const totalUploads = (photoUrls || []).length + (receiptUrls || []).length;
+    if (totalUploads > 0 && allFiles.length === 0) {
+      // All files were data URLs — note this
+      const existingNotes = description?.trim() || "";
+      const fileNote = `[${totalUploads} file(s) uploaded via portal]`;
+      properties["Notes"] = { rich_text: [{ text: { content: existingNotes ? `${existingNotes}\n${fileNote}` : fileNote } }] };
+    }
 
     if (allFiles.length > 0) {
       properties["Proof "] = { files: allFiles };

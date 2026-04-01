@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
-import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
-
-// Use /tmp on Vercel (writable), public/uploads locally
-const IS_VERCEL = !!process.env.VERCEL;
-const UPLOAD_DIR = IS_VERCEL
-  ? path.join("/tmp", "uploads")
-  : path.join(process.cwd(), "public", "uploads");
 
 export async function POST(req: Request) {
   try {
@@ -25,31 +16,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "File too large (max 10MB)" }, { status: 400 });
     }
 
-    // Ensure upload dir exists
-    await mkdir(UPLOAD_DIR, { recursive: true });
-
-    // Generate unique filename
-    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-    const filename = `${randomUUID()}.${ext}`;
-    const filepath = path.join(UPLOAD_DIR, filename);
-
-    // Write file
+    // Convert to base64 data URL — works everywhere, no file storage needed
     const bytes = await file.arrayBuffer();
-    await writeFile(filepath, Buffer.from(bytes));
+    const base64 = Buffer.from(bytes).toString("base64");
+    const mimeType = file.type || "application/octet-stream";
+    const dataUrl = `data:${mimeType};base64,${base64}`;
 
-    // Build URL
-    const host = req.headers.get("host") || "localhost:3000";
-    const protocol = host.includes("localhost") ? "http" : "https";
-
-    let url: string;
-    if (IS_VERCEL) {
-      // On Vercel, serve via API route since /tmp isn't publicly accessible
-      url = `${protocol}://${host}/api/submit/file/${filename}`;
-    } else {
-      url = `${protocol}://${host}/uploads/${filename}`;
-    }
-
-    return NextResponse.json({ ok: true, url, filename });
+    return NextResponse.json({ ok: true, url: dataUrl, filename: file.name });
   } catch (error) {
     console.error("Upload error:", error);
     return NextResponse.json({ ok: false, error: "Upload failed" }, { status: 500 });

@@ -548,6 +548,10 @@ export default function ExpensesPage() {
                   { label: "Property", value: selectedExpense.property || "\u2014" },
                   { label: "Reservation", value: selectedExpense.reservation || "\u2014" },
                   { label: "Status", value: <span className={pillClass(selectedExpense.status)}>{selectedExpense.status}</span> },
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  ...((selectedExpense as any).notes ? [{ label: "Notes", value: (selectedExpense as any).notes }] : []),
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  ...((selectedExpense as any).description ? [{ label: "Description", value: (selectedExpense as any).description }] : []),
                 ].map((row) => (
                   <div key={row.label} className="flex items-start justify-between py-2.5 border-b border-[#f3f3f3] last:border-b-0">
                     <span className="text-[13px] font-medium text-[#555]">{row.label}</span>
