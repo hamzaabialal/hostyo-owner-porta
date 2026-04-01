@@ -531,8 +531,7 @@ export default function ExpensesPage() {
                           method: "PATCH", headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ status: newStatus }),
                         });
-                        selectedExpense.status = newStatus;
-                        setDrawerOpen(true);
+                        setSelectedExpense({ ...selectedExpense, status: newStatus });
                       } catch { /* ignore */ }
                     }}
                     className="w-full h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E] transition-colors appearance-none cursor-pointer"
@@ -556,8 +555,7 @@ export default function ExpensesPage() {
                           method: "PATCH", headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ category: newCat }),
                         });
-                        selectedExpense.category = newCat;
-                        setDrawerOpen(true);
+                        setSelectedExpense({ ...selectedExpense, category: newCat });
                       } catch { /* ignore */ }
                     }}
                     className="w-full h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E] transition-colors appearance-none cursor-pointer"
