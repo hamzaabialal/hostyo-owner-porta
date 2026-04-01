@@ -234,7 +234,7 @@ export default function FinancesEarningsPage() {
       <div className="text-[13px] text-[#888] mb-6 -mt-1 hidden md:block">Detailed income from completed reservations and owner payouts.</div>
 
       {/* Mobile Filters */}
-      <div className="flex items-center gap-2 mb-4 overflow-x-auto md:hidden pb-1">
+      <div className="flex items-center gap-2 mb-4 md:hidden flex-wrap">
         <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="Properties" options={propertyOptions} searchable />
         <FilterDropdown value={filterPayoutStatus} onChange={setFilterPayoutStatus} placeholder="Status" options={payoutStatusOptions} />
       </div>
