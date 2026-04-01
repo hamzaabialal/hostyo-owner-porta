@@ -5,7 +5,11 @@ import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+// Use /tmp on Vercel (writable), public/uploads locally
+const IS_VERCEL = !!process.env.VERCEL;
+const UPLOAD_DIR = IS_VERCEL
+  ? path.join("/tmp", "uploads")
+  : path.join(process.cwd(), "public", "uploads");
 
 export async function POST(req: Request) {
   try {
@@ -14,12 +18,6 @@ export async function POST(req: Request) {
 
     if (!file) {
       return NextResponse.json({ ok: false, error: "No file provided" }, { status: 400 });
-    }
-
-    // Validate file type
-    const allowed = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
-    if (!allowed.some((t) => file.type.startsWith(t.split("/")[0]) || file.type === t)) {
-      return NextResponse.json({ ok: false, error: "File type not supported" }, { status: 400 });
     }
 
     // Validate size (10MB max)
@@ -39,10 +37,17 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     await writeFile(filepath, Buffer.from(bytes));
 
-    // Build public URL
+    // Build URL
     const host = req.headers.get("host") || "localhost:3000";
     const protocol = host.includes("localhost") ? "http" : "https";
-    const url = `${protocol}://${host}/uploads/${filename}`;
+
+    let url: string;
+    if (IS_VERCEL) {
+      // On Vercel, serve via API route since /tmp isn't publicly accessible
+      url = `${protocol}://${host}/api/submit/file/${filename}`;
+    } else {
+      url = `${protocol}://${host}/uploads/${filename}`;
+    }
 
     return NextResponse.json({ ok: true, url, filename });
   } catch (error) {

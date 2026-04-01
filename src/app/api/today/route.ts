@@ -111,45 +111,51 @@ async function fetchTodayData() {
   } while (paymentCursor);
 
   let paidThisMonth = 0;
-  let pending = 0;
-  let balance = 0;
+  let pendingPayment = 0; // Completed + Pending payout
+  let balance = 0; // In-House payout total
+  let forecast = 0; // Future reservations (Pending status)
   const thisMonth = new Date().toISOString().slice(0, 7);
+  const todayStr = today;
 
-  allPages.forEach((p: any) => {
-    const payoutStatus = prop(p, "Payout Status");
-    const ownerPayout = prop(p, "Owner Payout") || 0;
-    const checkout = (prop(p, "Check Out") || "").split("T")[0];
-
-    if (payoutStatus === "Paid") {
-      if (checkout.startsWith(thisMonth)) {
-        paidThisMonth += ownerPayout;
-      }
-    } else if (payoutStatus === "Pending") {
-      pending += ownerPayout;
-    } else if (payoutStatus === "On Hold") {
-      balance += ownerPayout;
-    }
-  });
-
-  let completedUnpaid = 0;
   allPages.forEach((p: any) => {
     const status = prop(p, "Status");
     const payoutStatus = prop(p, "Payout Status");
     const ownerPayout = prop(p, "Owner Payout") || 0;
+    const checkout = (prop(p, "Check Out") || "").split("T")[0];
+    const checkin = (prop(p, "Check In") || "").split("T")[0];
+
+    // Paid this month
+    if (payoutStatus === "Paid" && checkout.startsWith(thisMonth)) {
+      paidThisMonth += ownerPayout;
+    }
+
+    // Balance = In-House reservation payout total
+    if (status === "In-House") {
+      balance += ownerPayout;
+    }
+
+    // Pending Payment = Completed status + Pending payout status
     if (status === "Completed" && payoutStatus === "Pending") {
-      completedUnpaid += ownerPayout;
+      pendingPayment += ownerPayout;
+    }
+
+    // Forecast = future reservations not cancelled
+    if (checkin > todayStr && status !== "Cancelled" && payoutStatus !== "Paid") {
+      forecast += ownerPayout;
     }
   });
-  if (balance === 0) balance = completedUnpaid;
+
+  const fmt = (n: number) => `€${n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return {
     arrivals,
     departures,
     upcoming,
     payment: {
-      balance: `£${balance.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      paidThisMonth: `£${paidThisMonth.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      pending: `£${pending.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      balance: fmt(balance),
+      paidThisMonth: fmt(paidThisMonth),
+      pending: fmt(pendingPayment),
+      forecast: fmt(forecast),
     },
   };
 }

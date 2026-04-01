@@ -247,7 +247,7 @@ export default function SubmitExpensePage() {
     const errs: string[] = [];
     if (!description.trim()) errs.push("Please add a work description");
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) errs.push("Please enter a valid amount");
-    if (photos.length === 0 && receipts.length === 0) errs.push("Please upload at least one photo or receipt");
+    // Photos/receipts are optional — don't block submission
     return errs;
   };
 
@@ -281,7 +281,8 @@ export default function SubmitExpensePage() {
       } else {
         setValidationErrors([data.error || "Submission failed"]);
       }
-    } catch {
+    } catch (err) {
+      console.error("Submit error:", err);
       setValidationErrors(["Network error. Please try again."]);
     } finally {
       setSubmitting(false);

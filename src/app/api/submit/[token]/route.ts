@@ -57,13 +57,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const { token } = await params;
 
   if (!EXPENSES_DB) {
-    return NextResponse.json({ ok: false, error: "Expenses database not configured" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Expenses database not configured. Please add NOTION_EXPENSES_DB to environment variables." }, { status: 500 });
   }
 
   try {
-    const pageId = decodeToken(token);
+    let pageId: string;
+    try {
+      pageId = decodeToken(token);
+    } catch {
+      return NextResponse.json({ ok: false, error: "Invalid token format" }, { status: 400 });
+    }
+
     // Verify reservation exists
-    const page = await notion.pages.retrieve({ page_id: pageId }) as any;
+    let page: any;
+    try {
+      page = await notion.pages.retrieve({ page_id: pageId });
+    } catch (e: any) {
+      console.error("Reservation lookup failed:", e?.message);
+      return NextResponse.json({ ok: false, error: "Reservation not found: " + (e?.message || "unknown") }, { status: 404 });
+    }
     const reservationRef = prop(page, "Reservation Code") || prop(page, "Name") || "";
     const propertyName = prop(page, "Property") || "";
 
@@ -114,7 +126,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       properties["Description"] = { rich_text: [{ text: { content: description.trim() } }] };
     }
 
-    // Proof files (photos + receipts combined)
+    // Proof files
     const allFiles = [
       ...(photoUrls || []).map((url: string, i: number) => ({
         type: "external" as const,
