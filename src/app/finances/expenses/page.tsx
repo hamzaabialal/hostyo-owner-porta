@@ -548,10 +548,6 @@ export default function ExpensesPage() {
                   { label: "Property", value: selectedExpense.property || "\u2014" },
                   { label: "Reservation", value: selectedExpense.reservation || "\u2014" },
                   { label: "Status", value: <span className={pillClass(selectedExpense.status)}>{selectedExpense.status}</span> },
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  ...((selectedExpense as any).notes ? [{ label: "Notes", value: (selectedExpense as any).notes }] : []),
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  ...((selectedExpense as any).description ? [{ label: "Description", value: (selectedExpense as any).description }] : []),
                 ].map((row) => (
                   <div key={row.label} className="flex items-start justify-between py-2.5 border-b border-[#f3f3f3] last:border-b-0">
                     <span className="text-[13px] font-medium text-[#555]">{row.label}</span>
@@ -560,14 +556,45 @@ export default function ExpensesPage() {
                 ))}
               </div>
 
-              {/* Attachments */}
+              {/* Notes & Description */}
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {(((selectedExpense as any).notes) || ((selectedExpense as any).description)) && (
+                <div className="mb-7">
+                  <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wider mb-3.5">Notes & Description</div>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {(selectedExpense as any).description && (
+                    <div className="mb-2">
+                      <div className="text-[11px] font-medium text-[#888] mb-1">Description</div>
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      <div className="text-[13px] text-[#333] bg-[#fafafa] rounded-lg p-3 border border-[#f0f0f0]">{(selectedExpense as any).description}</div>
+                    </div>
+                  )}
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {(selectedExpense as any).notes && (selectedExpense as any).notes !== (selectedExpense as any).description && (
+                    <div>
+                      <div className="text-[11px] font-medium text-[#888] mb-1">Notes</div>
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      <div className="text-[13px] text-[#333] bg-[#fafafa] rounded-lg p-3 border border-[#f0f0f0] whitespace-pre-wrap">{(selectedExpense as any).notes}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Attachments / Proof */}
               {selectedExpense.proof && selectedExpense.proof.length > 0 && (
                 <div className="mb-7">
-                  <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wider mb-3.5">Attachments</div>
-                  <div className="flex flex-col gap-2.5">
+                  <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wider mb-3.5">Proof / Attachments ({selectedExpense.proof.length})</div>
+                  <div className="grid grid-cols-2 gap-2">
                     {selectedExpense.proof.map((url, i) => (
-                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
-                        <AttachmentItem type="file" name={`Attachment ${i + 1}`} size="" />
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-[#e2e2e2] hover:border-[#80020E] transition-colors">
+                        {url.startsWith("data:image") || url.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={url} alt={`Proof ${i + 1}`} className="w-full h-[80px] object-cover" />
+                        ) : (
+                          <div className="h-[80px] flex items-center justify-center bg-[#f5f5f5]">
+                            <AttachmentItem type="file" name={`File ${i + 1}`} size="" />
+                          </div>
+                        )}
                       </a>
                     ))}
                   </div>
