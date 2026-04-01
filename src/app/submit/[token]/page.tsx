@@ -34,9 +34,8 @@ const CATEGORIES = [
 ];
 
 const STATUSES = [
-  { value: "In progress", label: "In Progress", desc: "Work completed, awaiting review" },
-  { value: "Not started", label: "Scheduled", desc: "Work is planned but not yet done" },
-  { value: "Done", label: "Approved", desc: "Work reviewed and approved" },
+  { value: "Scheduled", label: "Scheduled", desc: "Work is planned or assigned" },
+  { value: "In Review", label: "In Review", desc: "Work completed, awaiting review" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -221,7 +220,7 @@ export default function SubmitExpensePage() {
   const [expenseId, setExpenseId] = useState("");
 
   // Form state
-  const [workStatus, setWorkStatus] = useState("In progress");
+  const [workStatus, setWorkStatus] = useState("Scheduled");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [photos, setPhotos] = useState<UploadedFile[]>([]);
