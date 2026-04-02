@@ -73,18 +73,6 @@ const CheckCircleIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const XCircleIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className ?? "w-4 h-4"}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-  </svg>
-);
-
-const WarningIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className ?? "w-[18px] h-[18px]"}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-  </svg>
-);
-
 const DashIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className ?? "w-[18px] h-[18px]"}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
@@ -275,28 +263,6 @@ export default function ExpensesPage() {
   );
 
   /* Impact indicator helper */
-  const ImpactValue = ({ value, type }: { value: boolean; type: "deduct" | "balance" | "hold" }) => {
-    if (type === "hold") {
-      return value ? (
-        <span className="flex items-center gap-1.5 text-[13px] font-semibold text-[#e65100]">
-          <WarningIcon className="w-4 h-4" /> Yes
-        </span>
-      ) : (
-        <span className="flex items-center gap-1.5 text-[13px] font-semibold text-[#999]">
-          <DashIcon className="w-4 h-4" /> No
-        </span>
-      );
-    }
-    return value ? (
-      <span className="flex items-center gap-1.5 text-[13px] font-semibold text-[#2e7d32]">
-        <CheckCircleIcon className="w-4 h-4" /> Yes
-      </span>
-    ) : (
-      <span className="flex items-center gap-1.5 text-[13px] font-semibold text-[#999]">
-        <XCircleIcon className="w-4 h-4" /> No
-      </span>
-    );
-  };
 
   if (loading) {
     return (
@@ -676,25 +642,25 @@ export default function ExpensesPage() {
                 </button>
               </div>
 
-              {/* Financial Impact */}
+              {/* Internal Notes (admin only) */}
               <div>
-                <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wider mb-3.5">Financial Impact</div>
-                <div className="bg-[#fafafa] border border-[#eaeaea] rounded-xl p-[18px]">
-                  {[
-                    { label: "Deducted from payout?", value: <ImpactValue value={selectedExpense.deducted} type="deduct" /> },
-                    { label: "Put payout on hold?", value: <ImpactValue value={selectedExpense.causedHold} type="hold" /> },
-                  ].map((row, i, arr) => (
-                    <div
-                      key={row.label}
-                      className={`flex items-center justify-between py-2.5 ${
-                        i === 0 ? "pt-0" : ""
-                      } ${i === arr.length - 1 ? "pb-0 border-b-0" : "border-b border-[#eee]"}`}
-                    >
-                      <span className="text-[13px] text-[#555] font-medium">{row.label}</span>
-                      {row.value}
-                    </div>
-                  ))}
-                </div>
+                <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wider mb-3.5">Internal Notes</div>
+                <textarea
+                  defaultValue={(selectedExpense as unknown as Record<string, string>).notes || ""}
+                  placeholder="Add internal notes (not visible to vendor)..."
+                  rows={3}
+                  onBlur={async (e) => {
+                    const val = e.target.value;
+                    try {
+                      await fetch(`/api/expenses/${selectedExpense.id}`, {
+                        method: "PATCH", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ notes: val }),
+                      });
+                    } catch { /* ignore */ }
+                  }}
+                  className="w-full px-3.5 py-3 border border-[#e2e2e2] rounded-xl text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors resize-none bg-white"
+                />
+                <p className="text-[10px] text-[#bbb] mt-1">Auto-saves when you click outside the field.</p>
               </div>
             </div>
           </>

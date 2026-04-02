@@ -150,19 +150,46 @@ function AccordionDetail({ r }: { r: Reservation }) {
         <div className="max-w-[440px]">
           <div className="bg-white border border-[#e8e8e8] rounded-xl overflow-hidden shadow-sm">
             <div className="px-5 py-3 bg-gradient-to-r from-[#fafafa] to-white border-b border-[#f0f0f0]">
-              <span className="text-[12px] font-semibold text-[#999] uppercase tracking-wide">Financial Breakdown</span>
+              <span className="text-[12px] font-semibold text-[#999] uppercase tracking-wide">Breakdown</span>
             </div>
             <div className="p-5">
-              <FinRow label="Gross Booking" value={fmtCurrency(r.gross)} />
-              {r.platformFee !== 0 && <FinRow label="Platform Fee" value={fmtCurrency(r.platformFee)} neg />}
-              {r.hostyoFee !== 0 && <FinRow label="Management Fee" value={fmtCurrency(r.hostyoFee)} neg />}
+              <FinRow label="Gross booking" value={fmtCurrency(r.gross)} />
+              {r.platformFee !== 0 && <FinRow label="Platform commission" value={fmtCurrency(r.platformFee)} neg />}
+              {r.hostyoFee !== 0 && <FinRow label="Management fee" value={fmtCurrency(r.hostyoFee)} neg />}
               {r.cleaningFee !== 0 && <FinRow label="Cleaning" value={fmtCurrency(r.cleaningFee)} neg />}
+              {(() => {
+                const totalDeductions = r.platformFee + r.hostyoFee + r.cleaningFee;
+                return <FinRow label="Total deductions" value={fmtCurrency(totalDeductions)} neg />;
+              })()}
+            </div>
+            {/* Payout section */}
+            <div className="px-5 py-4 border-t border-[#f0f0f0]">
+              <FinRow label="Net owner payout" value={fmtCurrency(r.ownerPayout || netEarnings)} />
               {r.expensesTotal !== 0 && <FinRow label="Expenses" value={fmtCurrency(r.expensesTotal)} neg />}
+              {/* VAT 19% */}
+              {(() => {
+                const payout = r.ownerPayout || netEarnings;
+                const vat = payout * 0.19;
+                return <FinRow label="VAT (19%)" value={fmtCurrency(-vat)} neg />;
+              })()}
             </div>
             <div className="px-5 py-4 bg-gradient-to-r from-[#80020E]/5 to-[#80020E]/[0.02] border-t border-[#80020E]/10">
-              <div className="flex justify-between items-center">
-                <span className="text-[13px] font-bold text-[#111]">Net Owner Payout</span>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[13px] font-bold text-[#111]">Total Payout</span>
                 <span className="text-[18px] font-bold text-[#80020E] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] text-[#999]">Payout status</span>
+                <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-[11px] text-[#999]">Expected by</span>
+                <span className="text-[12px] font-medium text-[#555]">{(() => {
+                  if (!r.checkOut) return "—";
+                  const co = new Date(r.checkOut + "T00:00:00");
+                  co.setDate(co.getDate() + 7);
+                  return co.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+                })()}</span>
               </div>
             </div>
           </div>
@@ -181,17 +208,21 @@ function AccordionDetail({ r }: { r: Reservation }) {
               <div className="divide-y divide-[#f3f3f3]">
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {linkedExpenses.map((exp: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between px-5 py-3">
+                  <a key={i} href={`/finances/expenses?open=${exp.id}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/finances/expenses`; }}
+                    className="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-[#f9f9f9] transition-colors">
                     <div>
                       <div className="text-[13px] font-medium text-[#111]">{exp.category || "Expense"}</div>
                       <div className="text-[11px] text-[#999]">{exp.vendor ? `${exp.vendor} · ` : ""}{exp.date || ""}</div>
-                      {exp.description && <div className="text-[11px] text-[#888] mt-0.5 italic">{exp.description}</div>}
+                      {exp.description && <div className="text-[11px] text-[#888] mt-0.5 italic truncate max-w-[200px]">{exp.description}</div>}
                     </div>
-                    <div className="text-right flex-shrink-0 ml-3">
-                      <div className="text-[13px] font-semibold text-[#111] tabular-nums">{exp.amount ? fmtCurrency(exp.amount) : "—"}</div>
-                      {exp.status && <div className="text-[10px] text-[#999]">{exp.status}</div>}
+                    <div className="text-right flex-shrink-0 ml-3 flex items-center gap-2">
+                      <div>
+                        <div className="text-[13px] font-semibold text-[#111] tabular-nums">{exp.amount ? fmtCurrency(exp.amount) : "—"}</div>
+                        {exp.status && <div className="text-[10px] text-[#999]">{exp.status}</div>}
+                      </div>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             </div>
@@ -486,27 +517,30 @@ function ReservationsContent() {
 
   return (
     <AppShell title="Reservations">
-      {/* ── Mobile Search ── */}
+      {/* ── Mobile Search (no shadow) ── */}
       <div className="mb-3 md:hidden">
         <div className="relative">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search reservations"
-            className="w-full h-[40px] pl-9 pr-3 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
+            className="w-full h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" style={{ boxShadow: "none" }} />
         </div>
       </div>
 
-      {/* ── Mobile Filters ── */}
-      <div className="flex items-center gap-2 mb-4 md:hidden flex-wrap">
+      {/* ── Mobile Filters + View Toggle (inline) ── */}
+      <div className="flex items-center gap-1.5 mb-4 md:hidden flex-wrap">
         <FilterDropdown placeholder="Properties" value={filterProperty} onChange={setFilterProperty} options={propertyOptions} searchable />
         <FilterDropdown placeholder="Status" value={filterStatus} onChange={setFilterStatus} options={statusOptions} />
-      </div>
-
-      {/* ── Mobile View Toggle (ghost style) ── */}
-      <div className="flex gap-2 mb-4 md:hidden">
-        <button onClick={() => setMobileView("list")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "list" ? "text-[#80020E] border border-[#80020E] bg-[#80020E]/5" : "text-[#888] border border-transparent hover:text-[#555]"}`}>List</button>
-        <button onClick={() => setMobileView("calendar")} className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-all ${mobileView === "calendar" ? "text-[#80020E] border border-[#80020E] bg-[#80020E]/5" : "text-[#888] border border-transparent hover:text-[#555]"}`}>Calendar</button>
+        {/* View toggle icons — inline with filters */}
+        <div className="flex items-center gap-1 ml-auto">
+          <button onClick={() => setMobileView("list")} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${mobileView === "list" ? "text-[#80020E] bg-[#80020E]/5" : "text-[#bbb] hover:text-[#888]"}`}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+          <button onClick={() => setMobileView("calendar")} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${mobileView === "calendar" ? "text-[#80020E] bg-[#80020E]/5" : "text-[#bbb] hover:text-[#888]"}`}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </button>
+        </div>
       </div>
 
       {/* ── Desktop Filters + View Toggle ── */}
@@ -564,14 +598,16 @@ function ReservationsContent() {
             return (
               <div key={r.id} className={`bg-white border rounded-xl overflow-hidden transition-all ${isOpen ? "border-[#d0d0d0] shadow-sm" : "border-[#eaeaea]"}`}>
                 {/* Card header */}
-                <div onClick={() => toggleRow(r.id)} className="p-4 cursor-pointer">
-                  {/* Status + Channel */}
-                  <div className="flex items-center gap-2 mb-2">
+                <div onClick={() => toggleRow(r.id)} className="p-3.5 cursor-pointer">
+                  {/* Status */}
+                  <div className="flex items-center justify-between mb-2">
                     <span className={statusPillClass(r.status)}>{r.status}</span>
-                    <ChannelBadge channel={r.channel} compact />
                   </div>
-                  {/* Guest name */}
-                  <div className="text-[16px] font-semibold text-[#111] mb-0.5">{r.guest}</div>
+                  {/* Guest name with OTA logo on left */}
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
+                    <span className="text-[15px] font-semibold text-[#111]">{r.guest}</span>
+                  </div>
                   {/* Property */}
                   <div className="text-[13px] text-[#888] mb-1.5 truncate">{r.property}</div>
                   {/* Dates + nights + guests */}

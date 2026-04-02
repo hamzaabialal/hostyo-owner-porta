@@ -96,7 +96,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     // Build Notion properties
     const properties: any = {
       "Expense ID": { title: [{ text: { content: expenseId } }] },
-      "Date": { date: { start: new Date().toISOString().split("T")[0] } },
+      "Created": { date: { start: new Date().toISOString().split("T")[0] } },
       "Amount": { rich_text: [{ text: { content: String(parseFloat(amount).toFixed(2)) } }] },
       "Reservation ID": { rich_text: [{ text: { content: reservationRef } }] },
     };
@@ -108,7 +108,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
     // Property (select) — use the reservation's property
     if (propertyName) {
-      properties["Propertyt"] = { select: { name: propertyName } };
+      properties["Property"] = { select: { name: propertyName } };
     }
 
     // Status

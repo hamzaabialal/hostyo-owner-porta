@@ -15,9 +15,9 @@ const INITIAL: WizardData = {
 };
 
 const PROPERTY_TYPES = [
-  { value: "Apartment", label: "Apartment", desc: "Multi-unit or city-style residence", img: "/property-icons/apartment.svg" },
-  { value: "Villa", label: "Villa", desc: "Standalone holiday home or luxury residence", img: "/property-icons/villa.svg" },
-  { value: "Studio", label: "Studio", desc: "Open, compact living space", img: "/property-icons/studio.svg" },
+  { value: "Apartment", label: "Apartment", desc: "Multi-unit or city-style residence", img: "/property-icons/apartment.png" },
+  { value: "Villa", label: "Villa", desc: "Standalone holiday home or luxury residence", img: "/property-icons/villa.png" },
+  { value: "Studio", label: "Studio", desc: "Open, compact living space", img: "/property-icons/studio.png" },
 ];
 
 const STEPS = [
@@ -231,10 +231,15 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
                 <input type="text" value={data.name} onChange={(e) => update({ name: e.target.value })} placeholder="e.g. Cosy Mountain Cabin"
                   className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[13px] font-medium text-[#333] mb-1.5">Street address</label>
+                <input type="text" value={data.address} onChange={(e) => update({ address: e.target.value })} placeholder="Start typing to search address..."
+                  className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[13px] font-medium text-[#333] mb-1.5">Street address</label>
-                  <input type="text" value={data.address} onChange={(e) => update({ address: e.target.value })} placeholder="Full street address"
+                  <label className="block text-[13px] font-medium text-[#333] mb-1.5">City</label>
+                  <input type="text" value={data.city} onChange={(e) => update({ city: e.target.value })} placeholder="City"
                     className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
                 </div>
                 <div>
@@ -242,14 +247,14 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
                   <input type="text" value={data.postcode} onChange={(e) => update({ postcode: e.target.value })} placeholder="Postcode"
                     className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
                 </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#333] mb-1.5">Country</label>
+                  <input type="text" value={data.country} onChange={(e) => update({ country: e.target.value })} placeholder="Country"
+                    className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
+                </div>
               </div>
-              <div>
-                <label className="block text-[13px] font-medium text-[#333] mb-1.5">Country</label>
-                <input type="text" value={data.country} onChange={(e) => update({ country: e.target.value })} placeholder="Country"
-                  className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
-              </div>
-              {/* Map — Google Maps embed (free, no API key needed for basic embed) */}
-              <div className="h-[200px] rounded-xl border border-[#e2e2e2] overflow-hidden bg-[#f0f0f0]">
+              {/* Map — Google Maps embed */}
+              <div className="rounded-xl border border-[#e2e2e2] overflow-hidden bg-[#f0f0f0]" style={{ height: "220px" }}>
                 {(data.address || data.city || data.country) ? (
                   <iframe
                     title="Map preview"
