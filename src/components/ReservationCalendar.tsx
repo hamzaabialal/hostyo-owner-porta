@@ -428,12 +428,12 @@ export default function ReservationCalendar({
 
   return (
     <div>
-      {/* Month nav */}
-      <div className="flex items-center gap-2 mb-3">
+      {/* Month nav — center aligned */}
+      <div className="flex items-center justify-center gap-3 mb-4">
         <button onClick={jumpPrev} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <span className="text-[14px] font-semibold text-[#111] min-w-[120px] text-center">{rangeLabel}</span>
+        <span className="text-[14px] font-semibold text-[#111] min-w-[140px] text-center">{rangeLabel}</span>
         <button onClick={jumpNext} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
         </button>

@@ -22,16 +22,7 @@ interface UploadedFile {
   preview?: string;
 }
 
-const CATEGORIES = [
-  "Maintenance",
-  "Plumbing",
-  "Electrical",
-  "Cleaning",
-  "Laundry",
-  "Supplies",
-  "Repair",
-  "Other",
-];
+// Categories managed by admin only — removed from vendor form
 
 // Statuses managed by admin, not vendor
 
@@ -218,12 +209,13 @@ export default function SubmitExpensePage() {
 
   // Form state
   const workStatus = "In Review"; // Auto-set on vendor submission
-  const [category, setCategory] = useState("");
+  const category = ""; // Category is set by admin, not vendor
   const [description, setDescription] = useState("");
   const [photos, setPhotos] = useState<UploadedFile[]>([]);
   const [receipts, setReceipts] = useState<UploadedFile[]>([]);
   const [amount, setAmount] = useState("");
   const [vendorName, setVendorName] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Fetch reservation context
@@ -241,9 +233,8 @@ export default function SubmitExpensePage() {
 
   const validate = (): string[] => {
     const errs: string[] = [];
-    if (!description.trim()) errs.push("Please add a work description");
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) errs.push("Please enter a valid amount");
-    // Photos/receipts are optional — don't block submission
+    if (!confirmed) errs.push("Please confirm the declaration above");
     return errs;
   };
 
@@ -299,8 +290,8 @@ export default function SubmitExpensePage() {
         <span className="text-[14px] font-semibold text-[#111]">Submit Expense</span>
       </header>
 
-      <div className="max-w-[480px] mx-auto px-4 py-5 pb-32">
-        {/* Reservation context card */}
+      <div className="max-w-[480px] mx-auto px-4 py-5 pb-8">
+        {/* 1. Reservation context card */}
         <div className="bg-white border border-[#eaeaea] rounded-xl p-4 mb-5">
           <div className="text-[11px] font-medium text-[#999] uppercase tracking-wide mb-2">Reservation</div>
           <div className="text-[15px] font-semibold text-[#111] mb-1">{reservation.property}</div>
@@ -316,63 +307,27 @@ export default function SubmitExpensePage() {
           </div>
         </div>
 
-        {/* Form */}
         <div className="space-y-5">
-          {/* Category */}
-          <div>
-            <label className="block text-[13px] font-semibold text-[#333] mb-2">Work Category</label>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCategory(c)}
-                  className={`px-3.5 py-2 rounded-lg border text-[12px] font-medium transition-all ${
-                    category === c
-                      ? "border-[#80020E] bg-[#80020E] text-white"
-                      : "border-[#e2e2e2] bg-white text-[#555] hover:border-[#ccc]"
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-[13px] font-semibold text-[#333] mb-2">Work Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the work completed, any issue found, and anything important we should know"
-              rows={4}
-              className="w-full px-3.5 py-3 border border-[#e2e2e2] rounded-xl text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors resize-none bg-white"
-            />
-          </div>
-
-          {/* Photo Upload */}
+          {/* 2. Photo Upload — priority, right after reservation card */}
           <UploadArea
             label="Photos"
-            hint="Take or upload photos"
+            hint="Upload photos to document the completed work"
             files={photos}
             onFiles={(f) => setPhotos((prev) => [...prev, f])}
-
             accept="image/*"
             capture="environment"
           />
 
-          {/* Receipt Upload */}
+          {/* 3. Receipt Upload */}
           <UploadArea
             label="Receipt or Invoice"
-            hint="Upload receipt or invoice"
+            hint="Upload receipt or invoice to HOSTYO LTD"
             files={receipts}
             onFiles={(f) => setReceipts((prev) => [...prev, f])}
-
             accept="image/*,.pdf"
           />
 
-          {/* Amount */}
+          {/* 4. Amount */}
           <div>
             <label className="block text-[13px] font-semibold text-[#333] mb-2">Amount</label>
             <div className="relative">
@@ -400,32 +355,58 @@ export default function SubmitExpensePage() {
               className="w-full h-[44px] px-3.5 border border-[#e2e2e2] rounded-xl text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white"
             />
           </div>
-        </div>
 
-        {/* Validation errors */}
-        {validationErrors.length > 0 && (
-          <div className="mt-5 p-3.5 bg-[#F6EDED] border border-[#E8D8D8] rounded-xl">
-            {validationErrors.map((err, i) => (
-              <div key={i} className="text-[12px] text-[#7A5252] font-medium flex items-center gap-2">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                {err}
-              </div>
-            ))}
+          {/* Work Description — optional */}
+          <div>
+            <label className="block text-[13px] font-semibold text-[#333] mb-1">Work Description <span className="text-[11px] font-normal text-[#999]">(optional)</span></label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the work completed, any issue found, and anything important we should know"
+              rows={3}
+              className="w-full px-3.5 py-3 border border-[#e2e2e2] rounded-xl text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors resize-none bg-white"
+            />
           </div>
-        )}
-      </div>
 
-      {/* Sticky submit button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#eaeaea] p-4 safe-area-bottom">
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="w-full max-w-[480px] mx-auto block h-[48px] bg-[#80020E] text-white rounded-xl text-[14px] font-semibold hover:bg-[#6b010c] transition-colors disabled:opacity-50"
-        >
-          {submitting ? "Submitting..." : "Submit Expense"}
-        </button>
+          {/* 5. Confirmation checkbox */}
+          <div>
+            <label className="block text-[13px] font-semibold text-[#333] mb-2">Confirmation</label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(e) => setConfirmed(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-[#d0d0d0] text-[#80020E] focus:ring-[#80020E] accent-[#80020E] flex-shrink-0"
+              />
+              <span className="text-[12px] text-[#666] leading-relaxed">
+                I confirm that the work has been completed to a proper standard and that the uploaded photos clearly show the result. I understand that blurry or insufficient photo documentation may result in longer review times and payment delays. All invoices must be made out to <strong>HOSTYO LTD</strong>.
+              </span>
+            </label>
+          </div>
+
+          {/* Validation errors */}
+          {validationErrors.length > 0 && (
+            <div className="p-3.5 bg-[#F6EDED] border border-[#E8D8D8] rounded-xl">
+              {validationErrors.map((err, i) => (
+                <div key={i} className="text-[12px] text-[#7A5252] font-medium flex items-center gap-2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  {err}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Submit button — ghost style */}
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !confirmed}
+            className="w-full h-[48px] border-2 border-[#80020E] text-[#80020E] bg-transparent rounded-xl text-[14px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-40"
+          >
+            {submitting ? "Submitting..." : "Submit Expense"}
+          </button>
+        </div>
       </div>
     </div>
   );

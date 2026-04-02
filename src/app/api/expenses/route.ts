@@ -9,7 +9,7 @@ async function fetchExpenses() {
   const pages = await queryDatabase(
     DB.expenses,
     undefined,
-    [{ property: "Date", direction: "descending" }]
+    [{ property: "Created", direction: "descending" }]
   );
 
   return pages.filter((p: any) => {
@@ -38,8 +38,8 @@ async function fetchExpenses() {
     return {
       id: (p as { id: string }).id,
       expenseId: getProp(p, "Expense ID") || "",
-      date: getProp(p, "Date") || "",
-      property: getProp(p, "Propertyt") || "",
+      date: getProp(p, "Created") || "",
+      property: getProp(p, "Property") || "",
       reservation: getProp(p, "Reservation ID") || "",
       category: getProp(p, "Category ") || getProp(p, "Category") || "",
       vendor,

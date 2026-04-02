@@ -303,8 +303,8 @@ function PropertiesPageInner() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [filterCity, setFilterCity] = useState("");
-  const [filterType, setFilterType] = useState("");
+  const filterCity = "";
+  const filterType = "";
   const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [topBarFilter, setTopBarFilter] = useState("All Properties");
@@ -356,13 +356,6 @@ function PropertiesPageInner() {
     Array.from(new Set(properties.map((p) => p.status))).filter(Boolean).sort().map((s) => ({ value: s, label: s })),
   [properties]);
 
-  const cityOptions = useMemo(() =>
-    Array.from(new Set(properties.map((p) => p.city))).filter(Boolean).sort().map((c) => ({ value: c, label: c })),
-  [properties]);
-
-  const typeOptions = useMemo(() =>
-    Array.from(new Set(properties.map((p) => p.propertyType))).filter(Boolean).sort().map((t) => ({ value: t, label: t })),
-  [properties]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -398,8 +391,6 @@ function PropertiesPageInner() {
             className="w-full h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
         </div>
         <FilterDropdown value={filterStatus} onChange={setFilterStatus} placeholder="All Statuses" options={statusOptions} />
-        <FilterDropdown value={filterType} onChange={setFilterType} placeholder="All Types" options={typeOptions} />
-        <FilterDropdown value={filterCity} onChange={setFilterCity} placeholder="All Cities" options={cityOptions} />
         {/* View toggle — ghost style */}
         <div className="hidden md:flex items-center gap-1 ml-auto">
           <button onClick={() => setView("grid")} className={`p-2 rounded-lg transition-all ${view === "grid" ? "text-[#80020E] border border-[#80020E] bg-[#80020E]/5" : "text-[#888] border border-transparent hover:text-[#555] hover:bg-[#f5f5f5]"}`}><GridIcon /></button>

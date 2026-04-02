@@ -42,13 +42,13 @@ export async function POST(req: Request) {
         const expenseId = `EXP-${Date.now()}`;
         const properties: any = {
           "Expense ID": { title: [{ text: { content: expenseId } }] },
-          "Date": { date: { start: new Date().toISOString().split("T")[0] } },
+          "Created": { date: { start: new Date().toISOString().split("T")[0] } },
           "Reservation ID": { rich_text: [{ text: { content: reservationRef } }] },
           "Status ": { status: { name: "Scheduled" } },
         };
 
         if (propertyName) {
-          properties["Propertyt"] = { select: { name: propertyName } };
+          properties["Property"] = { select: { name: propertyName } };
         }
         if (category) {
           properties["Category "] = { select: { name: category } };

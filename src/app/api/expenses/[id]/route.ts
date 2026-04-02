@@ -20,6 +20,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.category) {
       properties["Category "] = { select: { name: body.category } };
     }
+    if (body.notes !== undefined) {
+      properties["Notes"] = { rich_text: [{ text: { content: body.notes } }] };
+    }
 
     await notion.pages.update({ page_id: id, properties });
 
