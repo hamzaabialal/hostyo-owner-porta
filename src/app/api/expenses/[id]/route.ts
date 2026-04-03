@@ -23,6 +23,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.notes !== undefined) {
       properties["Notes"] = { rich_text: [{ text: { content: body.notes } }] };
     }
+    if (body.vendor !== undefined) {
+      properties["Vendor Name"] = { rich_text: [{ text: { content: body.vendor } }] };
+    }
     if (body.amount !== undefined) {
       const numVal = parseFloat(body.amount) || 0;
       // Try number type first; if Notion property is rich_text, this will be caught and retried

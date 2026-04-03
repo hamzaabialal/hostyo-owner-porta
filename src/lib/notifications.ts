@@ -60,3 +60,16 @@ export function markAllRead() {
 export function getUnreadCount(): number {
   return getNotifications().filter((n) => !n.read).length;
 }
+
+export function dismissNotification(id: string) {
+  if (typeof window === "undefined") return;
+  const notifications = getNotifications().filter((n) => n.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+  window.dispatchEvent(new CustomEvent("hostyo:notification"));
+}
+
+export function clearAllNotifications() {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+  window.dispatchEvent(new CustomEvent("hostyo:notification"));
+}

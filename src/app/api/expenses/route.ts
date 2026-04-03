@@ -55,6 +55,47 @@ async function fetchExpenses() {
   });
 }
 
+export async function POST(req: Request) {
+  if (!DB.expenses) {
+    return NextResponse.json({ ok: false, error: "Expenses database not configured" }, { status: 500 });
+  }
+  try {
+    const { Client } = await import("@notionhq/client");
+    const notion = new Client({ auth: process.env.NOTION_API_KEY });
+    const body = await req.json();
+    const { property, category, status, amount, vendor, notes } = body;
+
+    const expenseId = `EXP-${Date.now()}`;
+    const today = new Date().toISOString().split("T")[0];
+
+    const properties: any = {
+      "Expense ID": { title: [{ text: { content: expenseId } }] },
+      "Created": { date: { start: today } },
+    };
+
+    if (property) properties["Property"] = { rich_text: [{ text: { content: property } }] };
+    if (category) properties["Category "] = { select: { name: category } };
+    if (status) properties["Status "] = { status: { name: status } };
+    if (amount !== undefined) properties["Amount"] = { number: parseFloat(amount) || 0 };
+    if (vendor) properties["Vendor Name"] = { rich_text: [{ text: { content: vendor } }] };
+    if (notes) properties["Description"] = { rich_text: [{ text: { content: notes } }] };
+
+    await notion.pages.create({
+      parent: { database_id: DB.expenses },
+      properties,
+    });
+
+    // Invalidate cache
+    const { invalidate } = await import("@/lib/cache");
+    invalidate("expenses");
+
+    return NextResponse.json({ ok: true, expenseId });
+  } catch (error: any) {
+    console.error("Create expense error:", error?.message || error);
+    return NextResponse.json({ ok: false, error: error?.message || "Failed to create expense" }, { status: 500 });
+  }
+}
+
 export async function GET() {
   if (!DB.expenses) {
     return NextResponse.json({ source: "placeholder", data: [] });

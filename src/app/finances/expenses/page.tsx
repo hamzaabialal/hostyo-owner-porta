@@ -423,10 +423,10 @@ function ExpensesPageInner() {
         {/* ── Desktop Table View ── */}
         <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[1100px]">
+            <table className="w-full border-collapse min-w-[900px]">
               <thead>
                 <tr>
-                  {["Expense ID", "Date", "Property", "Reservation", "Category", "Vendor", "Amount", "Status", "Proof", "Deducted?"].map(
+                  {["Status", "Created", "Property", "Reservation", "Vendor", "Category", "Proof", "Amount"].map(
                     (h) => (
                       <th
                         key={h}
@@ -441,7 +441,7 @@ function ExpensesPageInner() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-10 text-[#999] text-sm">
+                    <td colSpan={8} className="text-center py-10 text-[#999] text-sm">
                       No expenses match your filters.
                     </td>
                   </tr>
@@ -452,23 +452,19 @@ function ExpensesPageInner() {
                       onClick={() => openDrawer(exp)}
                       className="cursor-pointer transition-colors hover:bg-[#fafafa] border-b border-[#f3f3f3] last:border-b-0"
                     >
-                      <td className="px-3.5 py-3 text-[13px]">
-                        <span className="font-semibold text-[#80020E] text-xs font-mono">{exp.expenseId}</span>
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        <span className={pillClass(exp.status)}>{exp.status}</span>
                       </td>
                       <td className="px-3.5 py-3 text-[13px] text-[#555] whitespace-nowrap">{fmtDate(exp.date)}</td>
                       <td className="px-3.5 py-3 text-[13px] font-medium text-[#111] whitespace-nowrap">{exp.property}</td>
                       <td className="px-3.5 py-3 text-xs text-[#555] whitespace-nowrap">{exp.reservation || "\u2014"}</td>
+                      <td className="px-3.5 py-3 text-[13px] font-medium text-[#111] whitespace-nowrap">{exp.vendor || "\u2014"}</td>
                       <td className="px-3.5 py-3 text-[13px] whitespace-nowrap">
-                        {exp.category && (
+                        {exp.category ? (
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-[#555] bg-[#f5f5f5] px-2.5 py-0.5 rounded-md">
                             {exp.category}
                           </span>
-                        )}
-                      </td>
-                      <td className="px-3.5 py-3 text-[13px] font-medium text-[#111] whitespace-nowrap">{exp.vendor || "\u2014"}</td>
-                      <td className="px-3.5 py-3 text-[13px] font-semibold text-[#111] whitespace-nowrap tabular-nums">{exp.amount ? fmtMoney(exp.amount) : "\u2014"}</td>
-                      <td className="px-3.5 py-3 whitespace-nowrap">
-                        <span className={pillClass(exp.status)}>{exp.status}</span>
+                        ) : "\u2014"}
                       </td>
                       <td className="px-3.5 py-3">
                         {exp.proof && exp.proof.length > 0 ? (
@@ -483,11 +479,7 @@ function ExpensesPageInner() {
                           <span className="text-[#ccc]"><DashIcon /></span>
                         )}
                       </td>
-                      <td className="px-3.5 py-3">
-                        <span className={`flex items-center justify-center ${exp.deducted ? "text-[#2e7d32]" : "text-[#ccc]"}`}>
-                          {exp.deducted ? <CheckCircleIcon /> : <DashIcon />}
-                        </span>
-                      </td>
+                      <td className="px-3.5 py-3 text-[13px] font-semibold text-[#111] whitespace-nowrap tabular-nums">{exp.amount ? fmtMoney(exp.amount) : "\u2014"}</td>
                     </tr>
                   ))
                 )}
@@ -676,6 +668,29 @@ function ExpensesPageInner() {
                   <p className="text-[10px] text-[#bbb] mt-1">Auto-saves when you click outside the field.</p>
                 </div>
 
+                {/* Update Vendor Name */}
+                <div className="mb-4">
+                  <label className="block text-[12px] font-medium text-[#888] mb-1.5">Update Vendor</label>
+                  <input
+                    type="text"
+                    defaultValue={selectedExpense.vendor || ""}
+                    placeholder="Vendor name"
+                    onBlur={async (e) => {
+                      const val = e.target.value.trim();
+                      if (val === (selectedExpense.vendor || "")) return;
+                      try {
+                        await fetch(`/api/expenses/${selectedExpense.id}`, {
+                          method: "PATCH", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ vendor: val }),
+                        });
+                        setSelectedExpense({ ...selectedExpense, vendor: val });
+                      } catch { /* ignore */ }
+                    }}
+                    className="w-full h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E] transition-colors"
+                  />
+                  <p className="text-[10px] text-[#bbb] mt-1">Auto-saves when you click outside the field.</p>
+                </div>
+
                 {/* Shareable Vendor Link */}
                 {selectedExpense.reservation && (
                   <div className="mb-4">
@@ -736,11 +751,62 @@ function ExpensesPageInner() {
             exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`);
           } else {
             const fmt = (n: number) => options.currency ? `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : n.toFixed(2);
-            const headerRow = options.headers ? `<tr>${["Expense ID","Date","Property","Reservation","Category","Vendor","Amount","Status"].map(h => `<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;font-size:11px;color:#666">${h}</th>`).join("")}</tr>` : "";
-            const bodyRows = filtered.map(r =>
-              `<tr>${[r.expenseId, r.date, r.property, r.reservation, r.category, r.vendor, fmt(r.amount), r.status].map(v => `<td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${v}</td>`).join("")}</tr>`
-            ).join("");
-            const html = `<!DOCTYPE html><html><head><title>Expenses Report</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#111}h1{font-size:18px;margin-bottom:4px}p{font-size:12px;color:#888;margin-bottom:20px}table{width:100%;border-collapse:collapse}@media print{body{padding:20px}}</style></head><body><h1>Expenses Report</h1><p>Generated ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} — ${filtered.length} records</p><table>${headerRow}${bodyRows}</table></body></html>`;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const expenseCards = filtered.map((r: any) => {
+              const proofHtml = (r.proof && r.proof.length > 0)
+                ? r.proof.map((url: string, i: number) => {
+                    const isPdf = url.match(/\.pdf/i);
+                    if (isPdf) {
+                      const fname = url.split("/").pop() || `File ${i + 1}`;
+                      return `<div style="border:1px solid #e5e5e5;border-radius:8px;padding:16px;margin-bottom:8px;background:#fafafa;display:flex;align-items:center;gap:8px">
+                        <span style="font-size:11px;font-weight:600;color:#80020E;background:#F6EDED;padding:3px 8px;border-radius:4px">PDF</span>
+                        <span style="font-size:11px;color:#555;word-break:break-all">${fname}</span>
+                      </div>`;
+                    }
+                    return `<img src="${url}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e5;margin-bottom:8px" />`;
+                  }).join("")
+                : '<div style="color:#bbb;font-size:11px;font-style:italic">No receipts attached</div>';
+
+              const desc = r.description || "";
+              const statusDot = r.status === "Approved" || r.status === "Paid" ? "#2F6B57" : r.status === "In Review" ? "#8A6A2E" : "#999";
+
+              return `<div style="display:flex;gap:32px;padding:28px 0;border-bottom:1px solid #eee">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:2px">${r.category || "Expense"} ${desc ? "— " + desc : ""}</div>
+                  <div style="font-size:11px;color:#999;margin-bottom:12px">${r.date || ""}</div>
+                  <div style="font-size:28px;font-weight:700;color:#111;margin-bottom:4px">${fmt(r.amount)}</div>
+                  <div style="font-size:10px;color:#aaa;margin-bottom:16px">incl. VAT</div>
+                  <table style="width:100%;font-size:12px;border-collapse:collapse">
+                    <tr><td style="color:#999;padding:4px 0;width:90px">CATEGORY</td><td style="color:#111;font-weight:500;padding:4px 0">${r.category || "—"}</td></tr>
+                    <tr><td style="color:#999;padding:4px 0">VENDOR</td><td style="color:#111;font-weight:500;padding:4px 0">${r.vendor || "—"}</td></tr>
+                    <tr><td style="color:#999;padding:4px 0">STATUS</td><td style="padding:4px 0"><span style="color:${statusDot};font-weight:600">● ${r.status || "—"}</span></td></tr>
+                    <tr><td style="color:#999;padding:4px 0">PROPERTY</td><td style="color:#111;font-weight:500;padding:4px 0">${r.property || "—"}</td></tr>
+                  </table>
+                  ${desc ? `<div style="margin-top:12px;font-size:11px;color:#666;font-style:italic;line-height:1.5">${desc}</div>` : ""}
+                </div>
+                <div style="width:240px;flex-shrink:0">
+                  <div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Receipt / Invoice</div>
+                  ${proofHtml}
+                </div>
+              </div>`;
+            }).join("");
+
+            const html = `<!DOCTYPE html><html><head><title>Expense Report</title>
+              <style>
+                body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px 48px;color:#111;max-width:900px;margin:0 auto}
+                @media print{body{padding:24px 32px}img{max-height:180px!important}}
+              </style></head><body>
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #eee">
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#80020E;letter-spacing:0.5px">HOSTYO</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:20px;font-weight:700;color:#111">Expense Report</div>
+                  <div style="font-size:11px;color:#999;margin-top:4px">Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · ${filtered.length} expenses</div>
+                </div>
+              </div>
+              ${expenseCards}
+            </body></html>`;
             const w = window.open("", "_blank");
             if (w) { w.document.write(html); w.document.close(); w.print(); }
           }
