@@ -37,6 +37,34 @@ function fmtDate(d: string) {
 /* ------------------------------------------------------------------ */
 /*  File Upload Hook                                                   */
 /* ------------------------------------------------------------------ */
+// Compress image on client side to avoid Vercel body size limit
+async function compressImage(file: File, maxSizeMB = 2): Promise<File> {
+  if (!file.type.startsWith("image/") || file.size <= maxSizeMB * 1024 * 1024) return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let { width, height } = img;
+      const maxDim = 1600;
+      if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        if (blob) resolve(new File([blob], file.name, { type: "image/jpeg" }));
+        else resolve(file);
+      }, "image/jpeg", 0.8);
+    };
+    img.onerror = () => resolve(file);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 function useFileUpload() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -45,10 +73,19 @@ function useFileUpload() {
     setUploading(true);
     setUploadError("");
     try {
+      // Compress images to stay under Vercel 4.5MB body limit
+      const processedFile = await compressImage(file);
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", processedFile);
       const res = await fetch("/api/submit/upload", { method: "POST", body: formData });
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setUploadError(`Server error: ${text.slice(0, 120)}`);
+        return null;
+      }
       if (!data.ok) {
         setUploadError(data.error || "Upload failed");
         return null;

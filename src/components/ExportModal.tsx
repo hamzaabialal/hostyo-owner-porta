@@ -17,7 +17,6 @@ export default function ExportModal({ open, onClose, filters, recordCount, onExp
   const [format, setFormat] = useState<"csv" | "pdf">("csv");
   const [headers, setHeaders] = useState(true);
   const [currency, setCurrency] = useState(true);
-  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -34,12 +33,9 @@ export default function ExportModal({ open, onClose, filters, recordCount, onExp
     : `~${Math.max(1, Math.round(recordCount * 0.5))} KB`;
 
   const handleExport = () => {
-    setExporting(true);
-    setTimeout(() => {
-      onExport(format, { headers, currency });
-      setExporting(false);
-      onClose();
-    }, 400);
+    // Call onExport synchronously — important for PDF (window.open gets blocked in setTimeout)
+    onExport(format, { headers, currency });
+    onClose();
   };
 
   return (
@@ -160,10 +156,10 @@ export default function ExportModal({ open, onClose, filters, recordCount, onExp
             <button onClick={onClose} className="text-[13px] font-medium text-[#999] hover:text-[#555] transition-colors">
               Cancel
             </button>
-            <button onClick={handleExport} disabled={exporting}
-              className="flex items-center gap-2 h-[42px] px-5 rounded-xl bg-[#111] text-white text-[13px] font-semibold hover:bg-[#222] transition-colors disabled:opacity-60">
+            <button onClick={handleExport}
+              className="flex items-center gap-2 h-[42px] px-5 rounded-xl bg-[#111] text-white text-[13px] font-semibold hover:bg-[#222] transition-colors">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              {exporting ? "Exporting..." : `Export ${recordCount} records`}
+              Export {recordCount} records
             </button>
           </div>
         </div>

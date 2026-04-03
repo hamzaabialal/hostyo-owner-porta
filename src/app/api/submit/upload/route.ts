@@ -1,10 +1,27 @@
 import { NextResponse } from "next/server";
+import { put } from "@vercel/blob";
 import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
 
+// Increase body size limit for file uploads
+export const maxDuration = 30;
+
 export async function POST(req: Request) {
   try {
+    const contentType = req.headers.get("content-type") || "";
+
+    // Handle direct file upload (content-type is not multipart)
+    if (!contentType.includes("multipart/form-data")) {
+      const filename = req.headers.get("x-filename") || `${randomUUID()}.jpg`;
+      const blob = await put(`expenses/${filename}`, req.body!, {
+        access: "public",
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+      return NextResponse.json({ ok: true, url: blob.url, filename });
+    }
+
+    // Handle multipart form data
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 
@@ -19,10 +36,8 @@ export async function POST(req: Request) {
     const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
     const filename = `${randomUUID()}.${ext}`;
 
-    // Try Vercel Blob first (production), fall back to local /public/uploads/
     if (process.env.BLOB_READ_WRITE_TOKEN) {
       try {
-        const { put } = await import("@vercel/blob");
         const blob = await put(`expenses/${filename}`, file, {
           access: "public",
           token: process.env.BLOB_READ_WRITE_TOKEN,
@@ -35,19 +50,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // Local fallback — save to public/uploads/
-    const { writeFile, mkdir } = await import("fs/promises");
-    const path = await import("path");
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    await mkdir(uploadDir, { recursive: true });
-    const bytes = await file.arrayBuffer();
-    await writeFile(path.join(uploadDir, filename), Buffer.from(bytes));
-
-    const host = req.headers.get("host") || "localhost:3000";
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const url = `${protocol}://${host}/uploads/${filename}`;
-
-    return NextResponse.json({ ok: true, url, filename });
+    // No blob token — return error in production
+    return NextResponse.json({ ok: false, error: "File storage not configured" }, { status: 500 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("Upload error:", msg);
