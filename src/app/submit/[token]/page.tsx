@@ -213,8 +213,8 @@ export default function SubmitExpensePage() {
   const [description, setDescription] = useState("");
   const [photos, setPhotos] = useState<UploadedFile[]>([]);
   const [receipts, setReceipts] = useState<UploadedFile[]>([]);
-  const [amount, setAmount] = useState("");
-  const [vendorName, setVendorName] = useState("");
+  const amount = "";
+  const vendorName = "";
   const [confirmed, setConfirmed] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
