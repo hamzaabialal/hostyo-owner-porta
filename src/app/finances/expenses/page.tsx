@@ -334,35 +334,24 @@ function ExpensesPageInner() {
         </button>
       </div>
       {/* ── Desktop Filter Bar ── */}
-      <div className="hidden md:flex items-center gap-3 mb-5 flex-wrap">
+      <div className="hidden md:flex items-center gap-3 mb-5">
         <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="All Properties" options={propertyList.map((p) => ({ value: p, label: p }))} searchable />
         <FilterDropdown value={filterStatus} onChange={setFilterStatus} placeholder="All Statuses" options={statusList.map((s) => ({ value: s, label: s }))} />
         <DateRangePicker from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
-
-        <div className="relative">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#999] pointer-events-none"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search expenses..."
-            className="h-9 pl-9 pr-3 border border-[#ddd] rounded-lg text-[13px] text-[#333] bg-white min-w-[240px] outline-none transition-colors focus:border-[#80020E] placeholder:text-[#999]"
-          />
+        <div className="flex items-center gap-2 ml-auto">
+          <div className="relative">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search expenses..."
+              className="h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white min-w-[180px] outline-none transition-colors focus:border-[#80020E] placeholder:text-[#999]" />
+          </div>
+          <button onClick={() => exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`)}
+            className="flex items-center gap-1.5 h-[38px] px-3.5 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] hover:bg-[#80020E]/5 transition-all flex-shrink-0">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
         </div>
-        <button onClick={() => exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`)}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] hover:bg-[#80020E]/5 transition-all">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export
-        </button>
       </div>
 
       {/* ── Grouped View ── */}

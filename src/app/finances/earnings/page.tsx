@@ -277,23 +277,25 @@ export default function FinancesEarningsPage() {
         </button>
       </div>
       {/* Desktop Filters */}
-      <div className="hidden md:flex items-center gap-3 mb-6 flex-wrap">
+      <div className="hidden md:flex items-center gap-3 mb-6">
         <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="All Properties" options={propertyOptions} searchable />
         <FilterDropdown value={filterPayoutStatus} onChange={setFilterPayoutStatus} placeholder="All Statuses" options={payoutStatusOptions} />
         <FilterDropdown value={filterChannel} onChange={setFilterChannel} placeholder="All Channels" options={channelOptions} />
         <DateRangePicker from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
-        <div className="relative ml-auto">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input type="text" placeholder="Search guest or ref..." value={search} onChange={(e) => setSearch(e.target.value)}
-            className="h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white min-w-[220px]" />
+        <div className="flex items-center gap-2 ml-auto">
+          <div className="relative">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" placeholder="Search guest or ref..." value={search} onChange={(e) => setSearch(e.target.value)}
+              className="h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white min-w-[180px]" />
+          </div>
+          <button onClick={() => exportCSV(filtered, `earnings-${new Date().toISOString().slice(0, 10)}.csv`)}
+            className="flex items-center gap-1.5 h-[38px] px-3.5 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] hover:bg-[#80020E]/5 transition-all flex-shrink-0">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
         </div>
-        <button onClick={() => exportCSV(filtered, `earnings-${new Date().toISOString().slice(0, 10)}.csv`)}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] hover:bg-[#80020E]/5 transition-all">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export
-        </button>
       </div>
 
       {/* Mobile Card List */}
