@@ -35,6 +35,24 @@ interface Expense {
 /* ================================================================
    Helpers
    ================================================================ */
+function exportExpensesCSV(rows: Expense[], filename: string) {
+  const headers = ["Expense ID", "Date", "Property", "Reservation", "Category", "Vendor", "Amount", "Status"];
+  const csvRows = [headers.join(",")];
+  for (const r of rows) {
+    csvRows.push([
+      r.expenseId, r.date, `"${r.property}"`, r.reservation, r.category, `"${r.vendor}"`,
+      r.amount.toFixed(2), r.status,
+    ].join(","));
+  }
+  const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const fmtDate = (d: string) => {
   if (!d) return "";
   const dt = new Date(d + "T00:00:00");
@@ -310,6 +328,10 @@ function ExpensesPageInner() {
       <div className="flex items-center gap-2 mb-4 md:hidden flex-wrap">
         <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="Properties" options={propertyList.map((p) => ({ value: p, label: p }))} searchable />
         <FilterDropdown value={filterStatus} onChange={setFilterStatus} placeholder="Status" options={statusList.map((s) => ({ value: s, label: s }))} />
+        <button onClick={() => exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`)}
+          className="ml-auto p-2 rounded-lg border border-transparent text-[#888] hover:text-[#555] hover:bg-[#f5f5f5] transition-all">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
       </div>
       {/* ── Desktop Filter Bar ── */}
       <div className="hidden md:flex items-center gap-3 mb-5 flex-wrap">
@@ -336,6 +358,11 @@ function ExpensesPageInner() {
             className="h-9 pl-9 pr-3 border border-[#ddd] rounded-lg text-[13px] text-[#333] bg-white min-w-[240px] outline-none transition-colors focus:border-[#80020E] placeholder:text-[#999]"
           />
         </div>
+        <button onClick={() => exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`)}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-transparent text-[12px] font-medium text-[#888] hover:text-[#555] hover:bg-[#f5f5f5] transition-all">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export
+        </button>
       </div>
 
       {/* ── Grouped View ── */}

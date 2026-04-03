@@ -27,9 +27,21 @@ function getProp(page: any, name: string): any {
   }
 }
 
-async function getEmailFromToken(req: NextRequest): Promise<string | null> {
-  const token = await getToken({ req, secret: SECRET });
-  return token?.email as string || null;
+async function getEmailFromRequest(req: NextRequest): Promise<string | null> {
+  // Try JWT token first
+  try {
+    const token = await getToken({ req, secret: SECRET });
+    if (token?.email) return token.email as string;
+  } catch (e) {
+    console.log("[profile] getToken failed, trying fallback:", e);
+  }
+
+  // Fallback: read email from query param (for GET) or body (for PATCH)
+  const url = new URL(req.url);
+  const emailParam = url.searchParams.get("email");
+  if (emailParam) return emailParam;
+
+  return null;
 }
 
 async function findUserPage(email: string) {
@@ -45,14 +57,15 @@ async function findUserPage(email: string) {
 /* ── GET: Fetch profile ── */
 export async function GET(req: NextRequest) {
   try {
-    const email = await getEmailFromToken(req);
+    const email = await getEmailFromRequest(req);
+    console.log("[profile GET] email:", email, "| USERS_DB set:", !!USERS_DB);
     if (!email) {
-      return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ ok: false, error: "Not authenticated - no email found" }, { status: 401 });
     }
 
     const page = await findUserPage(email);
     if (!page) {
-      return NextResponse.json({ ok: false, error: "User not found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: `User not found for ${email}` }, { status: 404 });
     }
 
     return NextResponse.json({
@@ -70,26 +83,40 @@ export async function GET(req: NextRequest) {
         billingAddress: getProp(page, "Billing Address") || "",
       },
     });
-  } catch (error) {
-    console.error("Profile fetch error:", error);
-    return NextResponse.json({ ok: false, error: "Failed to fetch profile" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Profile fetch error:", error?.body || error?.message || error);
+    const msg = error?.body?.message || error?.message || "Failed to fetch profile";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
 
 /* ── PATCH: Update profile ── */
 export async function PATCH(req: NextRequest) {
   try {
-    const email = await getEmailFromToken(req);
-    if (!email) {
+    // Clone request for token check before reading body
+    const email = await (async () => {
+      try {
+        const token = await getToken({ req, secret: SECRET });
+        if (token?.email) return token.email as string;
+      } catch { /* fallback below */ }
+      return null;
+    })();
+
+    const body = await req.json();
+
+    // Use email from token, or from body as fallback
+    const userEmail = email || body.email;
+    console.log("[profile PATCH] email:", userEmail);
+
+    if (!userEmail) {
       return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
     }
 
-    const page = await findUserPage(email);
+    const page = await findUserPage(userEmail);
     if (!page) {
       return NextResponse.json({ ok: false, error: "User not found" }, { status: 404 });
     }
 
-    const body = await req.json();
     const properties: Record<string, any> = {};
 
     // Profile fields
@@ -97,7 +124,7 @@ export async function PATCH(req: NextRequest) {
       properties["Full Name"] = { title: [{ text: { content: body.fullName.trim() } }] };
     }
     if (body.phone !== undefined) {
-      properties["Phone"] = { rich_text: [{ text: { content: body.phone.trim() } }] };
+      properties["Phone"] = { phone_number: body.phone.trim() || null };
     }
 
     // Payout fields
@@ -143,8 +170,9 @@ export async function PATCH(req: NextRequest) {
     await notion.pages.update({ page_id: page.id, properties });
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error("Profile update error:", error);
-    return NextResponse.json({ ok: false, error: "Failed to update profile" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Profile update error:", error?.body || error?.message || error);
+    const msg = error?.body?.message || error?.message || "Failed to update profile";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
