@@ -28,8 +28,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     if (body.amount !== undefined) {
       const numVal = parseFloat(body.amount) || 0;
-      // Try number type first; if Notion property is rich_text, this will be caught and retried
-      properties["Amount"] = { number: numVal };
+      properties["Amount"] = { rich_text: [{ text: { content: String(numVal) } }] };
     }
 
     await notion.pages.update({ page_id: id, properties });
