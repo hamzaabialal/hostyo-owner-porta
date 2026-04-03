@@ -73,10 +73,10 @@ export async function POST(req: Request) {
       "Created": { date: { start: today } },
     };
 
-    if (property) properties["Property"] = { rich_text: [{ text: { content: property } }] };
+    if (property) properties["Property"] = { select: { name: property } };
     if (category) properties["Category "] = { select: { name: category } };
     if (status) properties["Status "] = { status: { name: status } };
-    if (amount !== undefined) properties["Amount"] = { number: parseFloat(amount) || 0 };
+    if (amount !== undefined) properties["Amount"] = { rich_text: [{ text: { content: String(parseFloat(amount) || 0) } }] };
     if (vendor) properties["Vendor Name"] = { rich_text: [{ text: { content: vendor } }] };
     if (notes) properties["Description"] = { rich_text: [{ text: { content: notes } }] };
 
