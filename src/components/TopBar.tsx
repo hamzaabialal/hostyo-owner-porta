@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getNotifications, markAllRead, getUnreadCount, type AppNotification } from "@/lib/notifications";
+import { getNotifications, markAllRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
 
 /* ── Time helpers ── */
 function timeAgo(iso: string): string {
@@ -124,44 +124,82 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
 
 /* ── Notifications Drawer ── */
 function NotificationsDrawer({ onClose }: { onClose: () => void }) {
-  const notifications = getNotifications();
+  const [items, setItems] = useState<AppNotification[]>([]);
 
   useEffect(() => {
-    markAllRead();
+    setItems(getNotifications());
+    const handler = () => setItems(getNotifications());
+    window.addEventListener("hostyo:notification", handler);
+    return () => window.removeEventListener("hostyo:notification", handler);
   }, []);
+
+  const unread = items.filter((n) => !n.read).length;
+
+  const handleMarkAllRead = () => {
+    markAllRead();
+    setItems(getNotifications());
+  };
+
+  const handleClearAll = () => {
+    clearAllNotifications();
+    setItems([]);
+  };
+
+  const handleDismiss = (id: string) => {
+    dismissNotification(id);
+    setItems(getNotifications());
+  };
 
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-[9998]" onClick={onClose} />
       <div className="fixed inset-y-0 right-0 w-full max-w-[420px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-[9999] flex flex-col">
-        <div className="flex items-center justify-between px-6 h-[56px] border-b border-[#eaeaea] flex-shrink-0">
-          <span className="text-[15px] font-semibold text-[#111]">Notifications</span>
-          <button onClick={onClose} className="p-2 text-[#999] hover:text-[#555] transition-colors">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-[#eaeaea] flex-shrink-0">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[16px] font-bold text-[#111]">Notifications</span>
+            <div className="flex items-center gap-3 text-[12px] font-medium">
+              <button onClick={handleMarkAllRead} className="text-[#888] hover:text-[#555] transition-colors">Mark all read</button>
+              <span className="text-[#ddd]">|</span>
+              <button onClick={handleClearAll} className="text-[#888] hover:text-[#555] transition-colors">Clear All</button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-[12px]">
+            {unread > 0 && <span className="text-[#80020E] font-semibold">{unread} Unread</span>}
+            {unread > 0 && items.length > 0 && <span className="text-[#ccc]">&bull;</span>}
+            <span className="text-[#999]">{items.length} Total</span>
+          </div>
         </div>
+
+        {/* List */}
         <div className="flex-1 overflow-y-auto">
-          {notifications.length === 0 ? (
+          {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
               <div className="w-14 h-14 rounded-full bg-[#f5f5f5] flex items-center justify-center mb-4">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
                 </svg>
               </div>
-              <div className="text-[15px] font-semibold text-[#111] mb-1">No notifications yet</div>
-              <div className="text-[13px] text-[#888]">Activity like new reservations, payouts, and expenses will appear here.</div>
+              <div className="text-[15px] font-semibold text-[#111] mb-1">No notifications</div>
+              <div className="text-[13px] text-[#888]">You&apos;re all caught up. New activity will appear here.</div>
             </div>
           ) : (
-            <div className="divide-y divide-[#f3f3f3]">
-              {notifications.map((n) => (
-                <div key={n.id} className={`flex items-start gap-3 px-5 py-3.5 transition-colors ${!n.read ? "bg-[#fafafa]" : ""}`}>
+            <div>
+              {items.map((n) => (
+                <div key={n.id}
+                  className={`flex items-start gap-3 px-5 py-4 border-b border-[#f3f3f3] transition-colors group ${
+                    !n.read ? "bg-[#80020E]/[0.02] border-l-[3px] border-l-[#80020E]" : "border-l-[3px] border-l-transparent"
+                  }`}>
                   {notifIcon(n.type)}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-medium text-[#111]">{n.title}</div>
-                    <div className="text-[12px] text-[#888] mt-0.5 leading-relaxed">{n.description}</div>
-                    <div className="text-[10px] text-[#bbb] mt-1">{timeAgo(n.timestamp)}</div>
+                    <div className="text-[13px] font-semibold text-[#111]">{n.title}</div>
+                    <div className="text-[12px] text-[#777] mt-0.5 leading-relaxed">{n.description}</div>
+                    <div className="text-[10px] text-[#bbb] mt-1.5">{timeAgo(n.timestamp)}</div>
                   </div>
-                  {!n.read && <span className="w-2 h-2 rounded-full bg-[#80020E] flex-shrink-0 mt-1.5" />}
+                  <button onClick={() => handleDismiss(n.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-[#ccc] hover:text-[#888] transition-all flex-shrink-0 mt-0.5">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
                 </div>
               ))}
             </div>

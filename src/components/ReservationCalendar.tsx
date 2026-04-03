@@ -71,12 +71,14 @@ function MonthGrid({ year, month, reservations, onTap, showNav, onPrev, onNext }
         if (cur >= ci && cur < co) {
           if (!map[d]) map[d] = [];
           const isStart = cur.getTime() === ci.getTime();
+          const isMonthStart = d === 1 && cur > ci; // Reservation spans from previous month
           const dayOfWeek = cur.getDay();
           const daysLeft = 7 - dayOfWeek;
           const daysUntilEnd = daysBetween(toStr(cur), r.checkOut);
           const daysUntilMonthEnd = daysInMonth - d + 1;
-          const span = isStart || dayOfWeek === 0 ? Math.min(daysUntilEnd, daysLeft, daysUntilMonthEnd) : 0;
-          map[d].push({ r, isStart, span });
+          const shouldRenderBar = isStart || dayOfWeek === 0 || isMonthStart;
+          const span = shouldRenderBar ? Math.min(daysUntilEnd, daysLeft, daysUntilMonthEnd) : 0;
+          map[d].push({ r, isStart: shouldRenderBar, span });
         }
       }
     }

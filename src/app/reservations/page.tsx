@@ -137,10 +137,6 @@ function AccordionDetail({ r }: { r: Reservation }) {
               <span className="text-[10px] font-semibold text-[#bbb] uppercase tracking-wider block mb-1.5">Status</span>
               <span className={statusPillClass(r.status)}>{r.status}</span>
             </div>
-            <div>
-              <span className="text-[10px] font-semibold text-[#bbb] uppercase tracking-wider block mb-1.5">Payout Status</span>
-              <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
-            </div>
           </div>
         </div>
       )}
@@ -155,33 +151,25 @@ function AccordionDetail({ r }: { r: Reservation }) {
             <div className="p-5">
               <FinRow label="Gross booking" value={fmtCurrency(r.gross)} />
               {r.platformFee !== 0 && <FinRow label="Platform commission" value={fmtCurrency(r.platformFee)} neg />}
-              {r.hostyoFee !== 0 && <FinRow label="Management fee" value={fmtCurrency(r.hostyoFee)} neg />}
               {r.cleaningFee !== 0 && <FinRow label="Cleaning" value={fmtCurrency(r.cleaningFee)} neg />}
-              {(() => {
-                const totalDeductions = r.platformFee + r.hostyoFee + r.cleaningFee;
-                return <FinRow label="Total deductions" value={fmtCurrency(totalDeductions)} neg />;
-              })()}
-            </div>
-            {/* Payout section */}
-            <div className="px-5 py-4 border-t border-[#f0f0f0]">
-              <FinRow label="Net owner payout" value={fmtCurrency(r.ownerPayout || netEarnings)} />
-              {r.expensesTotal !== 0 && <FinRow label="Expenses" value={fmtCurrency(r.expensesTotal)} neg />}
-              {/* Service VAT 19% on management fee */}
+              {r.hostyoFee !== 0 && <FinRow label="Management fee" value={fmtCurrency(r.hostyoFee)} neg />}
+              {/* VAT 19% on management fee */}
               {(() => {
                 const vat = (r.hostyoFee || 0) * 0.19;
-                return vat !== 0 ? <FinRow label="Service VAT (19%)" value={fmtCurrency(-vat)} neg /> : null;
+                return vat !== 0 ? <FinRow label="VAT 19%" value={fmtCurrency(-vat)} neg /> : null;
               })()}
+              {r.expensesTotal !== 0 && <FinRow label="Expenses" value={fmtCurrency(r.expensesTotal)} neg />}
             </div>
             <div className="px-5 py-4 bg-gradient-to-r from-[#80020E]/5 to-[#80020E]/[0.02] border-t border-[#80020E]/10">
               <div className="flex justify-between items-center py-2.5">
                 <span className="text-[13px] font-bold text-[#111]">Total Payout</span>
                 <span className="text-[18px] font-bold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
               </div>
-              <div className="flex justify-between items-center py-2.5 border-t border-[#80020E]/10">
+              <div className="flex justify-between items-center py-2.5">
                 <span className="text-[11px] text-[#999]">Payout status</span>
                 <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
               </div>
-              <div className="flex justify-between items-center py-2.5 border-t border-[#80020E]/10">
+              <div className="flex justify-between items-center py-2.5">
                 <span className="text-[11px] text-[#999]">Expected by</span>
                 <span className="text-[12px] font-medium text-[#555]">{(() => {
                   if (!r.checkOut) return "—";
@@ -201,8 +189,11 @@ function AccordionDetail({ r }: { r: Reservation }) {
           {/* Linked expenses from Notion */}
           {linkedExpenses.length > 0 ? (
             <div className="bg-white border border-[#e8e8e8] rounded-xl shadow-sm overflow-hidden mb-4">
-              <div className="px-5 py-3 bg-[#fafafa] border-b border-[#f0f0f0]">
+              <div className="flex items-center justify-between px-5 py-3 bg-[#fafafa] border-b border-[#f0f0f0]">
                 <span className="text-[12px] font-semibold text-[#999] uppercase tracking-wide">Linked Expenses ({linkedExpenses.length})</span>
+                {linkedExpenses.length > 3 && (
+                  <a href="/finances/expenses" className="text-[11px] font-medium text-black hover:text-black transition-colors">View all →</a>
+                )}
               </div>
               <div className="divide-y divide-[#f3f3f3]">
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
