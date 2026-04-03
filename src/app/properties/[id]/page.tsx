@@ -551,7 +551,7 @@ export default function PropertyDetailPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setExpenses(allExp.filter((e: any) => e.property?.trim() === property.name?.trim()));
         }).catch(() => {});
-      }} />
+      }} />}
 
       {/* ═══ Documents Tab ═══ */}
       {tab === "documents" && (
