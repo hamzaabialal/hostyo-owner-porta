@@ -540,6 +540,7 @@ function ExpensesPageInner() {
                   { label: "Category", value: selectedExpense.category || "\u2014" },
                   { label: "Created", value: fmtDate(selectedExpense.date) },
                   { label: "Vendor", value: selectedExpense.vendor || "\u2014" },
+                  { label: "Price", value: <span className="font-semibold">{fmtMoney(selectedExpense.amount)}</span> },
                   { label: "Property", value: selectedExpense.property || "\u2014" },
                   { label: "Reservation", value: selectedExpense.reservation || "\u2014" },
                   { label: "Status", value: <span className={pillClass(selectedExpense.status)}>{selectedExpense.status}</span> },
