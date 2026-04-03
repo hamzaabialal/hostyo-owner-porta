@@ -244,8 +244,8 @@ export default function PropertyDetailPage() {
   ), [reservations, today]);
 
   // Next arrival
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nextArrival = useMemo(() => reservations
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter((r: any) => r.checkin > today && r.status !== "Cancelled")
     .sort((a, b) => a.checkin.localeCompare(b.checkin))[0] || null,
   [reservations, today]);
