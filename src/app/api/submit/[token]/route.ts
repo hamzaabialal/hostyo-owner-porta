@@ -82,13 +82,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     const body = await req.json();
     const { category, description, amount, vendorName, status: workStatus, photoUrls, receiptUrls } = body;
 
-    // Validation
-    if (!description?.trim()) {
-      return NextResponse.json({ ok: false, error: "Work description is required" }, { status: 400 });
-    }
-    if (!amount || isNaN(parseFloat(amount))) {
-      return NextResponse.json({ ok: false, error: "Valid amount is required" }, { status: 400 });
-    }
+    // Validation — description is optional, amount is set by admin
 
     // Build expense ID
     const expenseId = `VEXP-${Date.now()}`;
