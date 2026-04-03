@@ -103,7 +103,7 @@ function MonthGrid({ year, month, reservations, onTap }: {
           const isT = dateStr === todayStr;
           const entries = dayRes[day] || [];
           return (
-            <div key={day} className={`h-[60px] md:h-[70px] border-r border-b border-[#f0f0f0] relative overflow-hidden md:overflow-visible ${isT ? "bg-[#80020E]/[0.03]" : ""}`}>
+            <div key={day} className={`h-[60px] md:h-[70px] border-r border-b border-[#f0f0f0] relative overflow-visible ${isT ? "bg-[#80020E]/[0.03]" : ""}`}>
               <div className={`text-[9px] md:text-[10px] font-medium px-0.5 md:px-1 pt-0.5 ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>
                 {isT ? <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#80020E] text-white text-[8px]">{day}</span> : day}
               </div>

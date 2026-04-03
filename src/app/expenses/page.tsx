@@ -546,7 +546,7 @@ export default function ExpensesPage() {
                   { label: "Expense ID", value: <span className="font-mono text-[#80020E] font-semibold">{selectedExpense.id}</span> },
                   { label: "Category", value: selectedExpense.category },
                   { label: "Description", value: selectedExpense.description },
-                  { label: "Date", value: fmtDate(selectedExpense.date) },
+                  { label: "Created", value: fmtDate(selectedExpense.date) },
                   { label: "Vendor", value: selectedExpense.vendor },
                   { label: "Property", value: selectedExpense.property },
                   { label: "Reservation", value: selectedExpense.reservation ?? "\u2014" },

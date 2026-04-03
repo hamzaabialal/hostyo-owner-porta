@@ -28,11 +28,13 @@ interface EarningRow {
   gross: number;
   platformFee: number;
   hostyoFee: number;
+  vat: number;
   cleaning: number;
   expenses: number;
   net: number;
   payoutStatus: string;
   payoutDate: string;
+  checkoutDate: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -54,6 +56,13 @@ function fmtDateShort(d: string): string {
   if (!d) return "";
   const dt = new Date(d + "T00:00:00");
   return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function expectedByDate(checkout: string): string {
+  if (!checkout) return "";
+  const dt = new Date(checkout + "T00:00:00");
+  dt.setDate(dt.getDate() + 7);
+  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function statusPillFinance(s: string): string {
@@ -79,7 +88,7 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
     );
   }
 
-  const deductions = row.platformFee + row.hostyoFee + row.cleaning + row.expenses;
+  const deductions = row.platformFee + row.hostyoFee + row.vat + row.cleaning + row.expenses;
 
   return (
     <>
@@ -110,8 +119,9 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
             <InfoItem label="Gross booking" value={fmtCurrency(row.gross)} />
             {row.platformFee !== 0 && <InfoItem label="Platform commission" value={fmtCurrency(row.platformFee)} />}
             {row.hostyoFee !== 0 && <InfoItem label="Management fee" value={fmtCurrency(row.hostyoFee)} />}
+            {row.vat !== 0 && <InfoItem label="VAT (19%)" value={fmtCurrency(row.vat)} />}
             {row.cleaning !== 0 && <InfoItem label="Cleaning" value={fmtCurrency(row.cleaning)} />}
-            {row.expenses !== 0 && <InfoItem label="Linked expenses" value={fmtCurrency(row.expenses)} />}
+            {row.expenses !== 0 && <InfoItem label="Expenses" value={fmtCurrency(row.expenses)} />}
             <div className="flex items-center justify-between py-2.5 border-b border-[#f3f3f3]">
               <span className="text-[12px] text-[#999]">Total deductions</span>
               <span className="text-[13px] font-medium text-[#7A5252]">{fmtCurrency(deductions)}</span>
@@ -119,12 +129,12 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
           </div>
           <div>
             <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wide mb-3">Payout</div>
-            <InfoItem label="Net owner payout" value={fmtCurrency(row.net)} accent />
+            <InfoItem label="Total Payout" value={fmtCurrency(row.net)} accent />
             <div className="flex items-center justify-between py-2.5 border-b border-[#f3f3f3]">
               <span className="text-[12px] text-[#999]">Payout status</span>
               <span className={statusPillFinance(row.payoutStatus)}>{row.payoutStatus}</span>
             </div>
-            {row.payoutDate && <InfoItem label="Date" value={row.payoutDate} />}
+            {row.checkoutDate && <InfoItem label="Expected by" value={expectedByDate(row.checkoutDate)} />}
           </div>
         </div>
       </div>
@@ -164,11 +174,13 @@ export default function FinancesEarningsPage() {
             gross: r.grossAmount || 0,
             platformFee: -(r.platformFee || 0),
             hostyoFee: -(r.managementFee || 0),
+            vat: -((r.managementFee || 0) * 0.19),
             cleaning: -(r.cleaning || 0),
             expenses: -(r.expenses || 0),
             net: r.ownerPayout || 0,
             payoutStatus: r.payoutStatus || "Pending",
             payoutDate: r.checkout || "",
+            checkoutDate: (r.checkout || "").split("T")[0],
           }));
           setData(mapped);
         }
