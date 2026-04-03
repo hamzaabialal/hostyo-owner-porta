@@ -704,8 +704,19 @@ function ExpensesPageInner() {
           ...(filterStatus ? [{ label: filterStatus }] : [{ label: "All statuses" }]),
           ...(dateFrom && dateTo ? [{ label: `${dateFrom} – ${dateTo}` }] : []),
         ]}
-        onExport={() => {
-          exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`);
+        onExport={(format, options) => {
+          if (format === "csv") {
+            exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`);
+          } else {
+            const fmt = (n: number) => options.currency ? `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : n.toFixed(2);
+            const headerRow = options.headers ? `<tr>${["Expense ID","Date","Property","Reservation","Category","Vendor","Amount","Status"].map(h => `<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;font-size:11px;color:#666">${h}</th>`).join("")}</tr>` : "";
+            const bodyRows = filtered.map(r =>
+              `<tr>${[r.expenseId, r.date, r.property, r.reservation, r.category, r.vendor, fmt(r.amount), r.status].map(v => `<td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${v}</td>`).join("")}</tr>`
+            ).join("");
+            const html = `<!DOCTYPE html><html><head><title>Expenses Report</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#111}h1{font-size:18px;margin-bottom:4px}p{font-size:12px;color:#888;margin-bottom:20px}table{width:100%;border-collapse:collapse}@media print{body{padding:20px}}</style></head><body><h1>Expenses Report</h1><p>Generated ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} — ${filtered.length} records</p><table>${headerRow}${bodyRows}</table></body></html>`;
+            const w = window.open("", "_blank");
+            if (w) { w.document.write(html); w.document.close(); w.print(); }
+          }
         }}
       />
     </AppShell>

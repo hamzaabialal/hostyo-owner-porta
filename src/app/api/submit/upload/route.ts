@@ -21,13 +21,18 @@ export async function POST(req: Request) {
 
     // Try Vercel Blob first (production), fall back to local /public/uploads/
     if (process.env.BLOB_READ_WRITE_TOKEN) {
-      // Vercel Blob — permanent cloud storage
-      const { put } = await import("@vercel/blob");
-      const blob = await put(`expenses/${filename}`, file, {
-        access: "public",
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
-      return NextResponse.json({ ok: true, url: blob.url, filename });
+      try {
+        const { put } = await import("@vercel/blob");
+        const blob = await put(`expenses/${filename}`, file, {
+          access: "public",
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+        });
+        return NextResponse.json({ ok: true, url: blob.url, filename });
+      } catch (blobErr: unknown) {
+        const msg = blobErr instanceof Error ? blobErr.message : String(blobErr);
+        console.error("Vercel Blob upload error:", msg);
+        return NextResponse.json({ ok: false, error: `Blob upload failed: ${msg}` }, { status: 500 });
+      }
     }
 
     // Local fallback — save to public/uploads/
@@ -43,8 +48,9 @@ export async function POST(req: Request) {
     const url = `${protocol}://${host}/uploads/${filename}`;
 
     return NextResponse.json({ ok: true, url, filename });
-  } catch (error) {
-    console.error("Upload error:", error);
-    return NextResponse.json({ ok: false, error: "Upload failed" }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Upload error:", msg);
+    return NextResponse.json({ ok: false, error: `Upload failed: ${msg}` }, { status: 500 });
   }
 }

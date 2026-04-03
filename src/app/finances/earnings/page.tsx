@@ -399,19 +399,19 @@ export default function FinancesEarningsPage() {
           ...(dateFrom && dateTo ? [{ label: `${dateFrom} – ${dateTo}` }] : []),
         ]}
         onExport={(format, options) => {
+          const fmt = (n: number) => options.currency ? `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : n.toFixed(2);
           if (format === "csv") {
             exportCSV(filtered, `earnings-${new Date().toISOString().slice(0, 10)}.csv`);
           } else {
-            // PDF: generate a printable view
-            const headers = options.headers ? "Date,Property,Guest,Reference,Channel,Gross,Deductions,Net Payout,Status\n" : "";
-            const rows = filtered.map((r) =>
-              `${r.date},"${r.property}","${r.guest}",${r.ref},${r.channel},${options.currency ? `€${r.gross.toFixed(2)}` : r.gross.toFixed(2)},${options.currency ? `€${(r.platformFee + r.hostyoFee + r.vat + r.cleaning + r.expenses).toFixed(2)}` : (r.platformFee + r.hostyoFee + r.vat + r.cleaning + r.expenses).toFixed(2)},${options.currency ? `€${r.net.toFixed(2)}` : r.net.toFixed(2)},${r.payoutStatus}`
-            ).join("\n");
-            const blob = new Blob([headers + rows], { type: "text/csv" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url; a.download = `earnings-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
-            URL.revokeObjectURL(url);
+            // PDF: open printable HTML
+            const headerRow = options.headers ? `<tr>${["Date","Property","Guest","Ref","Channel","Gross","Deductions","Net Payout","Status"].map(h => `<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;font-size:11px;color:#666">${h}</th>`).join("")}</tr>` : "";
+            const bodyRows = filtered.map(r => {
+              const ded = r.platformFee + r.hostyoFee + r.vat + r.cleaning + r.expenses;
+              return `<tr>${[r.date, r.property, r.guest, r.ref, r.channel, fmt(r.gross), fmt(ded), fmt(r.net), r.payoutStatus].map(v => `<td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${v}</td>`).join("")}</tr>`;
+            }).join("");
+            const html = `<!DOCTYPE html><html><head><title>Earnings Report</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#111}h1{font-size:18px;margin-bottom:4px}p{font-size:12px;color:#888;margin-bottom:20px}table{width:100%;border-collapse:collapse}@media print{body{padding:20px}}</style></head><body><h1>Earnings Report</h1><p>Generated ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} — ${filtered.length} records</p><table>${headerRow}${bodyRows}</table></body></html>`;
+            const w = window.open("", "_blank");
+            if (w) { w.document.write(html); w.document.close(); w.print(); }
           }
         }}
       />
