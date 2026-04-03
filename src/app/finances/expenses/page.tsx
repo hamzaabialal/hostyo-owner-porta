@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import MobileTabs from "@/components/MobileTabs";
@@ -144,7 +144,7 @@ function ShareableExpenseLink({ reservation }: { reservation: string }) {
   );
 }
 
-export default function ExpensesPage() {
+function ExpensesPageInner() {
   const { fetchData } = useData();
   const searchParams = useSearchParams();
   const [apiExpenses, setApiExpenses] = useState<Expense[]>([]);
@@ -678,5 +678,13 @@ export default function ExpensesPage() {
         )}
       </div>
     </AppShell>
+  );
+}
+
+export default function ExpensesPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64 text-sm text-[#999]">Loading...</div>}>
+      <ExpensesPageInner />
+    </Suspense>
   );
 }
