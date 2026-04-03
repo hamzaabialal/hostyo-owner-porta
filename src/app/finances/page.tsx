@@ -306,7 +306,7 @@ export default function FinancesOverviewPage() {
   }, []);
 
   // Compute financial summaries from real data
-  const now = new Date();
+  const now = useMemo(() => new Date(), []);
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const ownerBalance = useMemo(() =>
