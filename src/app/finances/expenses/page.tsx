@@ -540,7 +540,6 @@ function ExpensesPageInner() {
                   { label: "Category", value: selectedExpense.category || "\u2014" },
                   { label: "Created", value: fmtDate(selectedExpense.date) },
                   { label: "Vendor", value: selectedExpense.vendor || "\u2014" },
-                  { label: "Price", value: <span className="font-semibold">{fmtMoney(selectedExpense.amount)}</span> },
                   { label: "Property", value: selectedExpense.property || "\u2014" },
                   { label: "Reservation", value: selectedExpense.reservation || "\u2014" },
                   { label: "Status", value: <span className={pillClass(selectedExpense.status)}>{selectedExpense.status}</span> },
@@ -648,6 +647,33 @@ function ExpensesPageInner() {
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
+                </div>
+
+                {/* Update Price */}
+                <div className="mb-4">
+                  <label className="block text-[12px] font-medium text-[#888] mb-1.5">Update Price</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-[#999]">€</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      defaultValue={selectedExpense.amount || 0}
+                      onBlur={async (e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        if (val === selectedExpense.amount) return;
+                        try {
+                          await fetch(`/api/expenses/${selectedExpense.id}`, {
+                            method: "PATCH", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ amount: val }),
+                          });
+                          setSelectedExpense({ ...selectedExpense, amount: val });
+                        } catch { /* ignore */ }
+                      }}
+                      className="w-full h-[38px] pl-7 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] font-semibold text-[#111] bg-white outline-none focus:border-[#80020E] transition-colors"
+                    />
+                  </div>
+                  <p className="text-[10px] text-[#bbb] mt-1">Auto-saves when you click outside the field.</p>
                 </div>
 
                 {/* Shareable Vendor Link */}
