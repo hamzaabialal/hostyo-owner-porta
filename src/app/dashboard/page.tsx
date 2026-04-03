@@ -96,7 +96,7 @@ export default function DashboardPage() {
               <h3 className="text-[13px] font-semibold text-[#111]">Upcoming</h3>
               <p className="text-[11px] text-[#999]">Next 3 reservations</p>
             </div>
-            <Link href="/reservations" className="text-[11px] font-medium text-[#333] hover:text-[#111] transition-colors">View all →</Link>
+            <Link href="/reservations" className="text-[11px] font-medium text-black hover:text-black transition-colors">View all →</Link>
           </div>
           {upcoming.length > 0 ? upcoming.map((r, i) => (
             <Link key={i} href={`/reservations?guest=${encodeURIComponent(r.guest)}`} className="flex items-center gap-2 py-2.5 border-t border-[#f3f3f3] hover:bg-[#f9f9f9] rounded-lg px-2 -mx-2 transition-colors">

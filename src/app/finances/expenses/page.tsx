@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import MobileTabs from "@/components/MobileTabs";
 import FilterDropdown from "@/components/FilterDropdown";
@@ -145,6 +146,7 @@ function ShareableExpenseLink({ reservation }: { reservation: string }) {
 
 export default function ExpensesPage() {
   const { fetchData } = useData();
+  const searchParams = useSearchParams();
   const [apiExpenses, setApiExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("All Expenses");
@@ -162,6 +164,15 @@ export default function ExpensesPage() {
         const d = res as { data?: Expense[] };
         if (d.data) {
           setApiExpenses(d.data);
+          // Auto-open drawer if ?open= param is present
+          const openId = searchParams.get("open");
+          if (openId) {
+            const match = d.data.find((e) => e.id === openId);
+            if (match) {
+              setSelectedExpense(match);
+              setDrawerOpen(true);
+            }
+          }
         }
       })
       .catch(console.error)
@@ -509,7 +520,7 @@ export default function ExpensesPage() {
                 {[
                   { label: "Expense ID", value: <span className="font-mono text-[#80020E] font-semibold">{selectedExpense.expenseId}</span> },
                   { label: "Category", value: selectedExpense.category || "\u2014" },
-                  { label: "Date", value: fmtDate(selectedExpense.date) },
+                  { label: "Created", value: fmtDate(selectedExpense.date) },
                   { label: "Vendor", value: selectedExpense.vendor || "\u2014" },
                   { label: "Property", value: selectedExpense.property || "\u2014" },
                   { label: "Reservation", value: selectedExpense.reservation || "\u2014" },

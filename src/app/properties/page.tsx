@@ -300,7 +300,9 @@ function PropertiesPageInner() {
   const router = useRouter();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"grid" | "list">("grid");
+  const [view, setView] = useState<"grid" | "list">(() =>
+    typeof window !== "undefined" && window.innerWidth < 768 ? "list" : "grid"
+  );
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const filterCity = "";
@@ -392,7 +394,7 @@ function PropertiesPageInner() {
         </div>
         <FilterDropdown value={filterStatus} onChange={setFilterStatus} placeholder="All Statuses" options={statusOptions} />
         {/* View toggle — ghost style */}
-        <div className="hidden md:flex items-center gap-1 ml-auto">
+        <div className="flex items-center gap-1 ml-auto">
           <button onClick={() => setView("grid")} className={`p-2 rounded-lg transition-all ${view === "grid" ? "text-[#80020E] border border-[#80020E] bg-[#80020E]/5" : "text-[#888] border border-transparent hover:text-[#555] hover:bg-[#f5f5f5]"}`}><GridIcon /></button>
           <button onClick={() => setView("list")} className={`p-2 rounded-lg transition-all ${view === "list" ? "text-[#80020E] border border-[#80020E] bg-[#80020E]/5" : "text-[#888] border border-transparent hover:text-[#555] hover:bg-[#f5f5f5]"}`}><ListIcon /></button>
         </div>
