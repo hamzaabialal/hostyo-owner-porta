@@ -166,23 +166,22 @@ function AccordionDetail({ r }: { r: Reservation }) {
             <div className="px-5 py-4 border-t border-[#f0f0f0]">
               <FinRow label="Net owner payout" value={fmtCurrency(r.ownerPayout || netEarnings)} />
               {r.expensesTotal !== 0 && <FinRow label="Expenses" value={fmtCurrency(r.expensesTotal)} neg />}
-              {/* VAT 19% */}
+              {/* Service VAT 19% on management fee */}
               {(() => {
-                const payout = r.ownerPayout || netEarnings;
-                const vat = payout * 0.19;
-                return <FinRow label="VAT (19%)" value={fmtCurrency(-vat)} neg />;
+                const vat = (r.hostyoFee || 0) * 0.19;
+                return vat !== 0 ? <FinRow label="Service VAT (19%)" value={fmtCurrency(-vat)} neg /> : null;
               })()}
             </div>
             <div className="px-5 py-4 bg-gradient-to-r from-[#80020E]/5 to-[#80020E]/[0.02] border-t border-[#80020E]/10">
-              <div className="flex justify-between items-center mb-2">
+              <div className="flex justify-between items-center py-2.5">
                 <span className="text-[13px] font-bold text-[#111]">Total Payout</span>
-                <span className="text-[18px] font-bold text-[#80020E] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
+                <span className="text-[18px] font-bold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center py-2.5 border-t border-[#80020E]/10">
                 <span className="text-[11px] text-[#999]">Payout status</span>
                 <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
               </div>
-              <div className="flex justify-between items-center mt-1">
+              <div className="flex justify-between items-center py-2.5 border-t border-[#80020E]/10">
                 <span className="text-[11px] text-[#999]">Expected by</span>
                 <span className="text-[12px] font-medium text-[#555]">{(() => {
                   if (!r.checkOut) return "—";

@@ -231,19 +231,36 @@ function BalanceSummarySection({ paid, pending, upcoming }: { paid: number; pend
 /* ------------------------------------------------------------------ */
 /*  Trend Chart                                                        */
 /* ------------------------------------------------------------------ */
-function TrendChart({ data }: { data: { month: string; earnings: number; expenses: number }[] }) {
-  const maxVal = Math.max(...data.map((d) => d.earnings), 1);
+function PayoutBarChart({ data }: { data: { month: string; payout: number }[] }) {
+  const maxVal = Math.max(...data.map((d) => d.payout), 1);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
   return (
-    <div className="flex items-end gap-1.5 md:gap-3 h-[100px] md:h-[140px]">
-      {data.map((d) => (
-        <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-          <div className="flex gap-[1px] md:gap-[2px] items-end w-full justify-center h-[75px] md:h-[110px]">
-            <div className="w-[8px] md:w-[14px] rounded-t bg-accent/20" style={{ height: `${(d.earnings / maxVal) * 100}%` }} title={`Earnings: ${fmtCurrency(d.earnings)}`} />
-            <div className="w-[8px] md:w-[14px] rounded-t bg-[#e8d8d8]" style={{ height: `${(d.expenses / maxVal) * 100}%` }} title={`Expenses: ${fmtCurrency(d.expenses)}`} />
-          </div>
-          <span className="text-[8px] md:text-[10px] text-[#999] font-medium">{d.month}</span>
-        </div>
-      ))}
+    <div className="relative">
+      {/* Y-axis labels */}
+      <div className="flex items-end gap-1.5 md:gap-2 h-[120px] md:h-[160px]">
+        {data.map((d, i) => {
+          const pct = maxVal > 0 ? (d.payout / maxVal) * 100 : 0;
+          return (
+            <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0 relative"
+              onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(null)}>
+              {/* Tooltip */}
+              {hoveredIdx === i && d.payout > 0 && (
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-[#111] text-white text-[10px] font-medium px-2 py-1 rounded-md whitespace-nowrap z-10">
+                  {d.month}: {fmtCurrency(d.payout)}
+                </div>
+              )}
+              <div className="w-full flex justify-center h-[95px] md:h-[130px] items-end">
+                <div
+                  className="w-full max-w-[32px] md:max-w-[40px] rounded-t-md bg-[#80020E] hover:bg-[#6b010c] transition-colors cursor-pointer"
+                  style={{ height: `${Math.max(pct, d.payout > 0 ? 3 : 0)}%` }}
+                />
+              </div>
+              <span className="text-[9px] md:text-[10px] text-[#999] font-medium">{d.month}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -274,22 +291,14 @@ export default function FinancesOverviewPage() {
   const { fetchData } = useData();
   const router = useRouter();
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [expensesData, setExpensesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetchData("reservations", "/api/reservations"),
-      fetchData("expenses", "/api/expenses"),
-    ])
-      .then(([resResult, expResult]: unknown[]) => {
-        const rr = resResult as { data?: Reservation[] };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const er = expResult as { data?: any[] };
+    fetchData("reservations", "/api/reservations")
+      .then((res: unknown) => {
+        const rr = res as { data?: Reservation[] };
         if (rr.data) setReservations(rr.data);
-        if (er.data) setExpensesData(er.data);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -342,23 +351,20 @@ export default function FinancesOverviewPage() {
       .slice(0, 6);
   }, [reservations, now]);
 
-  // Monthly trend (last 6 months)
-  const monthlyTrend = useMemo(() => {
-    const months: { month: string; earnings: number; expenses: number }[] = [];
+  // Monthly owner payouts (last 6 months)
+  const monthlyPayouts = useMemo(() => {
+    const months: { month: string; payout: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = d.toLocaleDateString("en-GB", { month: "short" });
-      const earnings = reservations
+      const payout = reservations
         .filter((r) => (r.checkout || "").startsWith(key))
         .reduce((s, r) => s + (r.ownerPayout || 0), 0);
-      const exp = expensesData
-        .filter((e) => (e.date || "").startsWith(key))
-        .reduce((s, e) => s + (e.amount || 0), 0);
-      months.push({ month: label, earnings, expenses: exp });
+      months.push({ month: label, payout });
     }
     return months;
-  }, [reservations, expensesData, now]);
+  }, [reservations, now]);
 
   if (loading) {
     return (
@@ -394,60 +400,58 @@ export default function FinancesOverviewPage() {
         <BalanceSummarySection paid={paidThisMonth} pending={pendingPayment} upcoming={upcomingPayouts} />
         <div className="bg-white border border-[#eaeaea] rounded-xl p-4 md:p-6">
           <div className="flex items-center justify-between mb-3 md:mb-4">
-            <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Earnings vs Expenses</div>
-            <div className="flex items-center gap-3 text-[10px] md:text-[11px] text-[#999]">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-accent/20" />Earnings</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#e8d8d8]" />Expenses</span>
+            <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Owner Payouts</div>
+            <div className="text-[10px] md:text-[11px] text-[#999]">Hover a bar for details</div>
+          </div>
+          <PayoutBarChart data={monthlyPayouts} />
+        </div>
+      </div>
+
+      {/* ── C. Recent Payouts + Upcoming Payouts side by side ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
+        <div className="bg-white border border-[#eaeaea] rounded-xl">
+          <div className="px-4 md:px-5 py-3 md:py-4 border-b border-[#f0f0f0]">
+            <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Recent Payouts</div>
+          </div>
+          {recentPayouts.length === 0 ? (
+            <div className="px-5 py-8 text-center text-[13px] text-[#aaa]">No recent payouts to show.</div>
+          ) : (
+            <div className="divide-y divide-[#f3f3f3]">
+              {recentPayouts.map((r, i) => (
+                <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-2 md:gap-3 px-4 md:px-5 py-3 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
+                  <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-[#111] truncate text-[12px] md:text-[13px]">{r.property}</div>
+                    <div className="text-[11px] text-[#999] mt-0.5 truncate">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
+                  </div>
+                  <div className="text-right font-medium text-[#111] flex-shrink-0 text-[12px] md:text-[13px]">{fmtCurrency(r.ownerPayout || 0)}</div>
+                </div>
+              ))}
             </div>
-          </div>
-          <TrendChart data={monthlyTrend} />
+          )}
         </div>
-      </div>
 
-      {/* ── C. Recent Payouts ── */}
-      <div className="bg-white border border-[#eaeaea] rounded-xl mb-4 md:mb-6">
-        <div className="px-4 md:px-5 py-3 md:py-4 border-b border-[#f0f0f0]">
-          <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Recent Payouts</div>
-        </div>
-        {recentPayouts.length === 0 ? (
-          <div className="px-5 py-8 text-center text-[13px] text-[#aaa]">No recent payouts to show.</div>
-        ) : (
-          <div className="divide-y divide-[#f3f3f3]">
-            {recentPayouts.map((r, i) => (
-              <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-2 md:gap-3 px-4 md:px-5 py-3 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
-                <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-[#111] truncate text-[12px] md:text-[13px]">{r.property}</div>
-                  <div className="text-[11px] text-[#999] mt-0.5 truncate">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
-                </div>
-                <div className="text-right font-medium text-[#111] flex-shrink-0 text-[12px] md:text-[13px]">{fmtCurrency(r.ownerPayout || 0)}</div>
-              </div>
-            ))}
+        <div className="bg-white border border-[#eaeaea] rounded-xl">
+          <div className="px-4 md:px-5 py-3 md:py-4 border-b border-[#f0f0f0]">
+            <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Upcoming Payouts (Forecast)</div>
           </div>
-        )}
-      </div>
-
-      {/* ── C. Upcoming Payouts / Forecast ── */}
-      <div className="bg-white border border-[#eaeaea] rounded-xl">
-        <div className="px-4 md:px-5 py-3 md:py-4 border-b border-[#f0f0f0]">
-          <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Upcoming Payouts (Forecast)</div>
-        </div>
-        {upcomingRows.length === 0 ? (
-          <div className="px-4 py-8 text-center text-[12px] text-[#aaa]">No upcoming payouts forecasted.</div>
-        ) : (
-          <div className="divide-y divide-[#f3f3f3]">
-            {upcomingRows.map((r, i) => (
-              <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-2 md:gap-3 px-4 md:px-5 py-3 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
-                <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-[#111] truncate text-[12px] md:text-[13px]">{r.property}</div>
-                  <div className="text-[11px] text-[#999] mt-0.5 truncate">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
+          {upcomingRows.length === 0 ? (
+            <div className="px-4 py-8 text-center text-[12px] text-[#aaa]">No upcoming payouts forecasted.</div>
+          ) : (
+            <div className="divide-y divide-[#f3f3f3]">
+              {upcomingRows.map((r, i) => (
+                <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-2 md:gap-3 px-4 md:px-5 py-3 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
+                  <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-[#111] truncate text-[12px] md:text-[13px]">{r.property}</div>
+                    <div className="text-[11px] text-[#999] mt-0.5 truncate">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
+                  </div>
+                  <div className="text-right font-medium text-[#111] flex-shrink-0 text-[12px] md:text-[13px]">{fmtCurrency(r.ownerPayout || 0)}</div>
                 </div>
-                <div className="text-right font-medium text-[#111] flex-shrink-0 text-[12px] md:text-[13px]">{fmtCurrency(r.ownerPayout || 0)}</div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Reservation Detail Drawer */}

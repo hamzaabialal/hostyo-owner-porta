@@ -41,10 +41,13 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 /* ================================================================ */
 /*  MONTHLY GRID (single property) — responsive month count          */
 /* ================================================================ */
-function MonthGrid({ year, month, reservations, onTap }: {
+function MonthGrid({ year, month, reservations, onTap, showNav, onPrev, onNext }: {
   year: number; month: number;
   reservations: CalendarReservation[];
   onTap: (r: CalendarReservation) => void;
+  showNav?: boolean;
+  onPrev?: () => void;
+  onNext?: () => void;
 }) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDow = new Date(year, month, 1).getDay();
@@ -88,8 +91,18 @@ function MonthGrid({ year, month, reservations, onTap }: {
 
   return (
     <div className="border border-[#eaeaea] rounded-xl bg-white overflow-hidden">
-      <div className="text-center py-2 text-[13px] font-semibold text-[#111] border-b border-[#eaeaea] bg-[#fafafa]">
-        {MONTHS[month]} {year}
+      <div className="flex items-center justify-center py-2 border-b border-[#eaeaea] bg-[#fafafa] relative">
+        {showNav && (
+          <button onClick={onPrev} className="absolute left-2 p-1 rounded-lg text-[#999] hover:text-[#333] transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+        )}
+        <span className="text-[13px] font-semibold text-[#111]">{MONTHS[month]} {year}</span>
+        {showNav && (
+          <button onClick={onNext} className="absolute right-2 p-1 rounded-lg text-[#999] hover:text-[#333] transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
+          </button>
+        )}
       </div>
       <div className="grid grid-cols-7 border-b border-[#eaeaea]">
         {DOW.map((d, i) => (
@@ -428,21 +441,24 @@ export default function ReservationCalendar({
 
   return (
     <div>
-      {/* Month nav — center aligned */}
-      <div className="flex items-center justify-center gap-3 mb-4">
-        <button onClick={jumpPrev} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <span className="text-[14px] font-semibold text-[#111] min-w-[140px] text-center">{rangeLabel}</span>
-        <button onClick={jumpNext} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
-        </button>
-      </div>
+      {/* Month nav — only on desktop (mobile nav is inside the MonthGrid header) */}
+      {!isMobile && (
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <button onClick={jumpPrev} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span className="text-[14px] font-semibold text-[#111] min-w-[140px] text-center">{rangeLabel}</span>
+          <button onClick={jumpNext} className="p-1.5 rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#333] transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 6 15 12 9 18"/></svg>
+          </button>
+        </div>
+      )}
 
       {/* Month grids — responsive: 1 mobile, 3 tablet, 3 desktop (2 rows) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {monthGrids.map(({ y, m }) => (
-          <MonthGrid key={`${y}-${m}`} year={y} month={m} reservations={reservations} onTap={handleTap} />
+          <MonthGrid key={`${y}-${m}`} year={y} month={m} reservations={reservations} onTap={handleTap}
+            showNav={isMobile} onPrev={jumpPrev} onNext={jumpNext} />
         ))}
       </div>
     </div>

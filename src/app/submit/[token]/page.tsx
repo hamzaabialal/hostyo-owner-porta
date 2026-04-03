@@ -233,7 +233,8 @@ export default function SubmitExpensePage() {
 
   const validate = (): string[] => {
     const errs: string[] = [];
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) errs.push("Please enter a valid amount");
+    if (photos.length === 0) errs.push("Please upload at least one photo");
+    if (receipts.length === 0) errs.push("Please upload a receipt or invoice");
     if (!confirmed) errs.push("Please confirm the declaration above");
     return errs;
   };
@@ -326,35 +327,6 @@ export default function SubmitExpensePage() {
             onFiles={(f) => setReceipts((prev) => [...prev, f])}
             accept="image/*,.pdf"
           />
-
-          {/* 4. Amount */}
-          <div>
-            <label className="block text-[13px] font-semibold text-[#333] mb-2">Amount</label>
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-semibold text-[#999]">€</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full h-[48px] pl-8 pr-4 border border-[#e2e2e2] rounded-xl text-[16px] font-semibold text-[#111] placeholder:text-[#ccc] outline-none focus:border-[#80020E] transition-colors bg-white"
-              />
-            </div>
-          </div>
-
-          {/* Vendor Name */}
-          <div>
-            <label className="block text-[13px] font-semibold text-[#333] mb-2">Vendor Name</label>
-            <input
-              type="text"
-              value={vendorName}
-              onChange={(e) => setVendorName(e.target.value)}
-              placeholder="Your name or company"
-              className="w-full h-[44px] px-3.5 border border-[#e2e2e2] rounded-xl text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white"
-            />
-          </div>
 
           {/* Work Description — optional */}
           <div>

@@ -66,7 +66,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
 /* ------------------------------------------------------------------ */
 /*  Password Change Panel                                              */
 /* ------------------------------------------------------------------ */
-function PasswordPanel({ onClose, showToast }: { onClose: () => void; showToast: (msg: string) => void }) {
+function PasswordPanel({ onClose, showToast, email }: { onClose: () => void; showToast: (msg: string) => void; email: string }) {
   const [currentPass, setCurrentPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
@@ -89,7 +89,7 @@ function PasswordPanel({ onClose, showToast }: { onClose: () => void; showToast:
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass }),
+        body: JSON.stringify({ email, currentPassword: currentPass, newPassword: newPass }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -237,9 +237,15 @@ export default function SettingsPage() {
   const [billingAddress, setBillingAddress] = useState("");
   const [savingPayout, setSavingPayout] = useState(false);
 
-  // Fetch profile from Notion on mount
+  // Fetch profile from Notion once session is available
+  const [profileFetched, setProfileFetched] = useState(false);
   useEffect(() => {
-    fetch("/api/profile")
+    if (profileFetched) return;
+    const sessionEmail = session?.user?.email;
+    if (!sessionEmail) return; // Wait for session to load
+    setProfileFetched(true);
+
+    fetch(`/api/profile?email=${encodeURIComponent(sessionEmail)}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.ok && data.profile) {
@@ -253,22 +259,17 @@ export default function SettingsPage() {
           setPayoutMethod(p.payoutMethod || "Bank Transfer");
           setLegalName(p.legalName || "");
           setBillingAddress(p.billingAddress || "");
-        } else if (session?.user) {
-          // Fallback to session data
-          setFullName(session.user.name || "");
-          setEmail(session.user.email || "");
+        } else {
+          setFullName(session.user?.name || "");
+          setEmail(sessionEmail);
         }
       })
       .catch(() => {
-        // Fallback to session
-        if (session?.user) {
-          setFullName(session.user.name || "");
-          setEmail(session.user.email || "");
-        }
+        setFullName(session.user?.name || "");
+        setEmail(sessionEmail);
       })
       .finally(() => setProfileLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [session, profileFetched]);
 
   const saveProfile = async () => {
     setSavingProfile(true);
@@ -276,7 +277,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, phone }),
+        body: JSON.stringify({ email, fullName, phone }),
       });
       const data = await res.json();
       showToast(data.ok ? "Profile saved." : (data.error || "Failed to save."));
@@ -293,7 +294,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ iban, bic, beneficiary, payoutMethod, legalName, billingAddress }),
+        body: JSON.stringify({ email, iban, bic, beneficiary, payoutMethod, legalName, billingAddress }),
       });
       const data = await res.json();
       showToast(data.ok ? "Payout details saved." : (data.error || "Failed to save."));
@@ -538,6 +539,7 @@ export default function SettingsPage() {
         <PasswordPanel
           onClose={() => setPasswordPanelOpen(false)}
           showToast={showToast}
+          email={email}
         />
       )}
 
