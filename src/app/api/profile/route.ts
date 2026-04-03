@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { Client } from "@notionhq/client";
 import { createHash } from "crypto";
 
@@ -27,6 +27,11 @@ function getProp(page: any, name: string): any {
   }
 }
 
+async function getEmailFromToken(req: NextRequest): Promise<string | null> {
+  const token = await getToken({ req, secret: SECRET });
+  return token?.email as string || null;
+}
+
 async function findUserPage(email: string) {
   if (!USERS_DB || !email) return null;
   const res = await notion.databases.query({
@@ -38,14 +43,14 @@ async function findUserPage(email: string) {
 }
 
 /* ── GET: Fetch profile ── */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.email) {
+    const email = await getEmailFromToken(req);
+    if (!email) {
       return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
     }
 
-    const page = await findUserPage(session.user.email);
+    const page = await findUserPage(email);
     if (!page) {
       return NextResponse.json({ ok: false, error: "User not found" }, { status: 404 });
     }
@@ -72,14 +77,14 @@ export async function GET() {
 }
 
 /* ── PATCH: Update profile ── */
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.email) {
+    const email = await getEmailFromToken(req);
+    if (!email) {
       return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
     }
 
-    const page = await findUserPage(session.user.email);
+    const page = await findUserPage(email);
     if (!page) {
       return NextResponse.json({ ok: false, error: "User not found" }, { status: 404 });
     }
