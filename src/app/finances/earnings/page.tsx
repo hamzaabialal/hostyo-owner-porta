@@ -6,6 +6,7 @@ import MobileTabs from "@/components/MobileTabs";
 import FilterDropdown from "@/components/FilterDropdown";
 import DateRangePicker from "@/components/DateRangePicker";
 import ChannelBadge, { getChannelIcon, normalizeChannel } from "@/components/ChannelBadge";
+import ExportModal from "@/components/ExportModal";
 import { useData } from "@/lib/DataContext";
 
 const FINANCE_TABS = [
@@ -178,6 +179,7 @@ export default function FinancesEarningsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedRow, setSelectedRow] = useState<EarningRow | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     fetchData("reservations", "/api/reservations")
@@ -271,7 +273,7 @@ export default function FinancesEarningsPage() {
       <div className="flex items-center gap-2 mb-4 md:hidden flex-wrap">
         <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="Properties" options={propertyOptions} searchable />
         <FilterDropdown value={filterPayoutStatus} onChange={setFilterPayoutStatus} placeholder="Status" options={payoutStatusOptions} />
-        <button onClick={() => exportCSV(filtered, `earnings-${new Date().toISOString().slice(0, 10)}.csv`)}
+        <button onClick={() => setExportOpen(true)}
           className="ml-auto p-2 rounded-lg border border-[#e2e2e2] text-[#555] hover:border-[#80020E] hover:text-[#80020E] hover:bg-[#80020E]/5 transition-all">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
@@ -290,7 +292,7 @@ export default function FinancesEarningsPage() {
             <input type="text" placeholder="Search guest or ref..." value={search} onChange={(e) => setSearch(e.target.value)}
               className="h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white min-w-[180px]" />
           </div>
-          <button onClick={() => exportCSV(filtered, `earnings-${new Date().toISOString().slice(0, 10)}.csv`)}
+          <button onClick={() => setExportOpen(true)}
             className="flex items-center gap-1.5 h-[38px] px-3.5 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] hover:bg-[#80020E]/5 transition-all flex-shrink-0">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export
@@ -386,6 +388,33 @@ export default function FinancesEarningsPage() {
       )}
 
       {selectedRow && <EarningDrawer row={selectedRow} onClose={closeDrawer} />}
+
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        recordCount={filtered.length}
+        filters={[
+          ...(filterProperty ? [{ label: filterProperty }] : [{ label: "All properties" }]),
+          ...(filterPayoutStatus ? [{ label: filterPayoutStatus }] : [{ label: "All statuses" }]),
+          ...(dateFrom && dateTo ? [{ label: `${dateFrom} – ${dateTo}` }] : []),
+        ]}
+        onExport={(format, options) => {
+          if (format === "csv") {
+            exportCSV(filtered, `earnings-${new Date().toISOString().slice(0, 10)}.csv`);
+          } else {
+            // PDF: generate a printable view
+            const headers = options.headers ? "Date,Property,Guest,Reference,Channel,Gross,Deductions,Net Payout,Status\n" : "";
+            const rows = filtered.map((r) =>
+              `${r.date},"${r.property}","${r.guest}",${r.ref},${r.channel},${options.currency ? `€${r.gross.toFixed(2)}` : r.gross.toFixed(2)},${options.currency ? `€${(r.platformFee + r.hostyoFee + r.vat + r.cleaning + r.expenses).toFixed(2)}` : (r.platformFee + r.hostyoFee + r.vat + r.cleaning + r.expenses).toFixed(2)},${options.currency ? `€${r.net.toFixed(2)}` : r.net.toFixed(2)},${r.payoutStatus}`
+            ).join("\n");
+            const blob = new Blob([headers + rows], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = `earnings-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+            URL.revokeObjectURL(url);
+          }
+        }}
+      />
     </AppShell>
   );
 }

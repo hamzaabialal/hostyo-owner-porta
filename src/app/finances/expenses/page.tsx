@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import MobileTabs from "@/components/MobileTabs";
 import FilterDropdown from "@/components/FilterDropdown";
 import DateRangePicker from "@/components/DateRangePicker";
+import ExportModal from "@/components/ExportModal";
 import { useData } from "@/lib/DataContext";
 
 const FINANCE_TABS = [
@@ -175,6 +176,7 @@ function ExpensesPageInner() {
   const [dateTo, setDateTo] = useState("");
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     fetchData("expenses", "/api/expenses")
@@ -328,7 +330,7 @@ function ExpensesPageInner() {
       <div className="flex items-center gap-2 mb-4 md:hidden flex-wrap">
         <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="Properties" options={propertyList.map((p) => ({ value: p, label: p }))} searchable />
         <FilterDropdown value={filterStatus} onChange={setFilterStatus} placeholder="Status" options={statusList.map((s) => ({ value: s, label: s }))} />
-        <button onClick={() => exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`)}
+        <button onClick={() => setExportOpen(true)}
           className="ml-auto p-2 rounded-lg border border-[#e2e2e2] text-[#555] hover:border-[#80020E] hover:text-[#80020E] hover:bg-[#80020E]/5 transition-all">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
@@ -346,7 +348,7 @@ function ExpensesPageInner() {
             <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search expenses..."
               className="h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white min-w-[180px] outline-none transition-colors focus:border-[#80020E] placeholder:text-[#999]" />
           </div>
-          <button onClick={() => exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`)}
+          <button onClick={() => setExportOpen(true)}
             className="flex items-center gap-1.5 h-[38px] px-3.5 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] hover:bg-[#80020E]/5 transition-all flex-shrink-0">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export
@@ -693,6 +695,19 @@ function ExpensesPageInner() {
           </>
         )}
       </div>
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        recordCount={filtered.length}
+        filters={[
+          ...(filterProperty ? [{ label: filterProperty }] : [{ label: "All properties" }]),
+          ...(filterStatus ? [{ label: filterStatus }] : [{ label: "All statuses" }]),
+          ...(dateFrom && dateTo ? [{ label: `${dateFrom} – ${dateTo}` }] : []),
+        ]}
+        onExport={() => {
+          exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`);
+        }}
+      />
     </AppShell>
   );
 }
