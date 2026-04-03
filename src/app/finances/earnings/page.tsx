@@ -272,7 +272,7 @@ export default function FinancesEarningsPage() {
         <FilterDropdown value={filterProperty} onChange={setFilterProperty} placeholder="Properties" options={propertyOptions} searchable />
         <FilterDropdown value={filterPayoutStatus} onChange={setFilterPayoutStatus} placeholder="Status" options={payoutStatusOptions} />
         <button onClick={() => exportCSV(filtered, `earnings-${new Date().toISOString().slice(0, 10)}.csv`)}
-          className="ml-auto p-2 rounded-lg border border-transparent text-[#888] hover:text-[#555] hover:bg-[#f5f5f5] transition-all">
+          className="ml-auto p-2 rounded-lg border border-[#e2e2e2] text-[#555] hover:border-[#80020E] hover:text-[#80020E] hover:bg-[#80020E]/5 transition-all">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
       </div>
@@ -290,7 +290,7 @@ export default function FinancesEarningsPage() {
             className="h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white min-w-[220px]" />
         </div>
         <button onClick={() => exportCSV(filtered, `earnings-${new Date().toISOString().slice(0, 10)}.csv`)}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-transparent text-[12px] font-medium text-[#888] hover:text-[#555] hover:bg-[#f5f5f5] transition-all">
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] hover:bg-[#80020E]/5 transition-all">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export
         </button>
