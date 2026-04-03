@@ -80,16 +80,29 @@ function PasswordPanel({ onClose, showToast }: { onClose: () => void; showToast:
   const eyeBtnCls =
     "absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center p-0.5 text-[#999] hover:text-[#555] bg-transparent border-none cursor-pointer";
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!currentPass) { showToast("Please enter your current password."); return; }
     if (newPass.length < 6) { showToast("New password must be at least 6 characters."); return; }
     if (newPass !== confirmPass) { showToast("Passwords do not match."); return; }
     setSaving(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        showToast("Password updated successfully.");
+        onClose();
+      } else {
+        showToast(data.error || "Failed to update password.");
+      }
+    } catch {
+      showToast("Network error. Please try again.");
+    } finally {
       setSaving(false);
-      showToast("Password updated successfully.");
-      onClose();
-    }, 600);
+    }
   };
 
   useEffect(() => {
@@ -208,18 +221,88 @@ export default function SettingsPage() {
     return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, []);
 
-  /* ---- Profile (from session) ---- */
+  /* ---- Profile ---- */
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
 
-  // Populate from session when it loads
+  // Payout fields
+  const [iban, setIban] = useState("");
+  const [bic, setBic] = useState("");
+  const [beneficiary, setBeneficiary] = useState("");
+  const [payoutMethod, setPayoutMethod] = useState("Bank Transfer");
+  const [legalName, setLegalName] = useState("");
+  const [billingAddress, setBillingAddress] = useState("");
+  const [savingPayout, setSavingPayout] = useState(false);
+
+  // Fetch profile from Notion on mount
   useEffect(() => {
-    if (session?.user) {
-      setFullName(session.user.name || "");
-      setEmail(session.user.email || "");
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok && data.profile) {
+          const p = data.profile;
+          setFullName(p.fullName || "");
+          setEmail(p.email || "");
+          setPhone(p.phone || "");
+          setIban(p.iban || "");
+          setBic(p.bic || "");
+          setBeneficiary(p.beneficiary || "");
+          setPayoutMethod(p.payoutMethod || "Bank Transfer");
+          setLegalName(p.legalName || "");
+          setBillingAddress(p.billingAddress || "");
+        } else if (session?.user) {
+          // Fallback to session data
+          setFullName(session.user.name || "");
+          setEmail(session.user.email || "");
+        }
+      })
+      .catch(() => {
+        // Fallback to session
+        if (session?.user) {
+          setFullName(session.user.name || "");
+          setEmail(session.user.email || "");
+        }
+      })
+      .finally(() => setProfileLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, phone }),
+      });
+      const data = await res.json();
+      showToast(data.ok ? "Profile saved." : (data.error || "Failed to save."));
+    } catch {
+      showToast("Network error. Please try again.");
+    } finally {
+      setSavingProfile(false);
     }
-  }, [session]);
+  };
+
+  const savePayout = async () => {
+    setSavingPayout(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ iban, bic, beneficiary, payoutMethod, legalName, billingAddress }),
+      });
+      const data = await res.json();
+      showToast(data.ok ? "Payout details saved." : (data.error || "Failed to save."));
+    } catch {
+      showToast("Network error. Please try again.");
+    } finally {
+      setSavingPayout(false);
+    }
+  };
 
   /* ---- Notifications ---- */
   const [notifs, setNotifs] = useState([
@@ -258,6 +341,9 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-[640px] flex flex-col gap-6">
+        {profileLoading && (
+          <div className="flex items-center justify-center py-10 text-sm text-[#999]">Loading profile...</div>
+        )}
         {/* ── 1. Profile ── */}
         <div className={cardCls}>
           <h2 className="mb-6 text-[15px] font-bold text-[#111]">Profile</h2>
@@ -305,10 +391,11 @@ export default function SettingsPage() {
 
           <button
             type="button"
-            className="mt-6 rounded-lg bg-[#80020E] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6b010c]"
-            onClick={() => showToast("Profile saved.")}
+            disabled={savingProfile}
+            className="mt-6 rounded-lg bg-[#80020E] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6b010c] disabled:opacity-60"
+            onClick={saveProfile}
           >
-            Save changes
+            {savingProfile ? "Saving..." : "Save changes"}
           </button>
         </div>
 
@@ -355,37 +442,38 @@ export default function SettingsPage() {
 
           <div className="mb-5">
             <label className={labelCls}>IBAN</label>
-            <input type="text" defaultValue="" placeholder="e.g. CY17 0020 0128 0000 0012 0052 7600" className={inputCls} />
+            <input type="text" value={iban} onChange={(e) => setIban(e.target.value)} placeholder="e.g. CY17 0020 0128 0000 0012 0052 7600" className={inputCls} />
           </div>
           <div className="mb-5">
             <label className={labelCls}>BIC / SWIFT</label>
-            <input type="text" defaultValue="" placeholder="e.g. BCYPCY2N" className={inputCls} />
+            <input type="text" value={bic} onChange={(e) => setBic(e.target.value)} placeholder="e.g. BCYPCY2N" className={inputCls} />
           </div>
           <div className="grid grid-cols-2 gap-4 mb-5">
             <div>
               <label className={labelCls}>Beneficiary Name</label>
-              <input type="text" defaultValue="" placeholder="Account holder name" className={inputCls} />
+              <input type="text" value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder="Account holder name" className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Payout Method</label>
-              <input type="text" defaultValue="Bank Transfer" placeholder="Bank Transfer" className={inputCls} />
+              <input type="text" value={payoutMethod} onChange={(e) => setPayoutMethod(e.target.value)} placeholder="Bank Transfer" className={inputCls} />
             </div>
           </div>
           <div className="mb-5">
             <label className={labelCls}>Invoice / Legal Display Name</label>
-            <input type="text" defaultValue="" placeholder="Business or legal name for invoices" className={inputCls} />
+            <input type="text" value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="Business or legal name for invoices" className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>Billing Address</label>
-            <input type="text" defaultValue="" placeholder="Full billing address" className={inputCls} />
+            <input type="text" value={billingAddress} onChange={(e) => setBillingAddress(e.target.value)} placeholder="Full billing address" className={inputCls} />
           </div>
 
           <button
             type="button"
-            className="mt-6 rounded-lg bg-[#80020E] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6b010c]"
-            onClick={() => showToast("Payout details saved.")}
+            disabled={savingPayout}
+            className="mt-6 rounded-lg bg-[#80020E] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6b010c] disabled:opacity-60"
+            onClick={savePayout}
           >
-            Save payout details
+            {savingPayout ? "Saving..." : "Save payout details"}
           </button>
         </div>
 
