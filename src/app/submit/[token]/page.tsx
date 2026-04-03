@@ -39,25 +39,32 @@ function fmtDate(d: string) {
 /* ------------------------------------------------------------------ */
 function useFileUpload() {
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const upload = useCallback(async (file: File): Promise<UploadedFile | null> => {
     setUploading(true);
+    setUploadError("");
     try {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/submit/upload", { method: "POST", body: formData });
       const data = await res.json();
-      if (!data.ok) throw new Error(data.error);
+      if (!data.ok) {
+        setUploadError(data.error || "Upload failed");
+        return null;
+      }
       return { url: data.url, name: file.name, preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined };
     } catch (e) {
-      console.error("Upload failed:", e);
+      const msg = e instanceof Error ? e.message : "Upload failed";
+      console.error("Upload failed:", msg);
+      setUploadError(msg);
       return null;
     } finally {
       setUploading(false);
     }
   }, []);
 
-  return { upload, uploading };
+  return { upload, uploading, uploadError };
 }
 
 /* ------------------------------------------------------------------ */
@@ -133,7 +140,7 @@ function UploadArea({
   capture?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { upload, uploading } = useFileUpload();
+  const { upload, uploading, uploadError } = useFileUpload();
 
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList) return;
@@ -162,6 +169,13 @@ function UploadArea({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Upload error */}
+      {uploadError && (
+        <div className="mb-2 px-3 py-2 bg-[#F6EDED] border border-[#E8D8D8] rounded-lg text-[12px] text-[#7A5252] font-medium">
+          Upload failed: {uploadError}
         </div>
       )}
 
