@@ -667,6 +667,7 @@ export default function PropertyDetailPage() {
           const fmt = (n: number) => `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           const fmtD = (d: string) => { if (!d) return ""; return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
 
+          /* eslint-disable @typescript-eslint/no-explicit-any */
           const totalGross = monthRes.reduce((s: number, r: any) => s + (r.grossAmount || 0), 0);
           const totalPlatformFee = monthRes.reduce((s: number, r: any) => s + (r.platformFee || 0), 0);
           const totalMgmtFee = monthRes.reduce((s: number, r: any) => s + (r.managementFee || 0), 0);

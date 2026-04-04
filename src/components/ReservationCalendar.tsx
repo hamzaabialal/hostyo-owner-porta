@@ -128,7 +128,6 @@ function MonthGrid({ year, month, reservations, onTap, showNav, onPrev, onNext }
                   const { bg, text } = getColor(entry.r.channel);
                   const nights = daysBetween(entry.r.checkIn, entry.r.checkOut);
                   const span = Math.max(1, entry.span);
-                  const pct = 100 / 7;
                   return (
                     <button key={entry.r.id} onClick={() => onTap(entry.r)}
                       className="block text-left rounded-[3px] h-[16px] md:h-[18px] px-1 text-[8px] md:text-[9px] font-semibold leading-[16px] md:leading-[18px] truncate cursor-pointer hover:brightness-110 relative z-[1]"
