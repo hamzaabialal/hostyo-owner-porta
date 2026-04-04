@@ -29,3 +29,18 @@ export function decodePropertyToken(token: string): string {
 export function isPropertyToken(token: string): boolean {
   return token.startsWith("prop_");
 }
+
+/** Encode an expense Notion page ID into a URL-safe token (prefixed with "exp_") */
+export function encodeExpenseToken(expensePageId: string): string {
+  return "exp_" + Buffer.from(expensePageId, "utf-8").toString("base64url");
+}
+
+/** Decode an expense token back to a Notion page ID */
+export function decodeExpenseToken(token: string): string {
+  return Buffer.from(token.slice(4), "base64url").toString("utf-8");
+}
+
+/** Check if a token is an expense token */
+export function isExpenseToken(token: string): boolean {
+  return token.startsWith("exp_");
+}

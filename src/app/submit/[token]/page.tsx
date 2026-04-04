@@ -253,6 +253,7 @@ export default function SubmitExpensePage() {
   const { token } = useParams<{ token: string }>();
   const [reservation, setReservation] = useState<ReservationContext | null>(null);
   const [isPropertyOnly, setIsPropertyOnly] = useState(false);
+  const [isExpenseUpdate, setIsExpenseUpdate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -279,6 +280,7 @@ export default function SubmitExpensePage() {
         if (data.ok) {
           setReservation(data.reservation);
           if (data.isPropertyOnly) setIsPropertyOnly(true);
+          if (data.isExpenseUpdate) setIsExpenseUpdate(true);
         } else setError(data.error || "Invalid link");
       })
       .catch(() => setError("Could not load reservation"))
@@ -364,7 +366,9 @@ export default function SubmitExpensePage() {
             </>
           )}
           <div className="mt-3 px-3 py-2 bg-[#f8f8f8] rounded-lg text-[11px] text-[#888] leading-relaxed">
-            {isPropertyOnly
+            {isExpenseUpdate
+              ? "You are uploading proof of work for this expense. Your photos and receipts will be attached to the existing record."
+              : isPropertyOnly
               ? "You are submitting work completed for this property."
               : "You are submitting work completed for this reservation."}
           </div>

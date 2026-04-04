@@ -159,19 +159,19 @@ function ShareableExpenseLink({ reservation }: { reservation: string }) {
   );
 }
 
-function PropertyExpenseLink({ property }: { property: string }) {
+function PropertyExpenseLink({ expenseId }: { expenseId: string }) {
   const [link, setLink] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const generateLink = async () => {
-    if (!property) return;
+    if (!expenseId) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/submit/generate-property", {
+      const res = await fetch("/api/submit/generate-expense", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ propertyName: property }),
+        body: JSON.stringify({ expenseId }),
       });
       const data = await res.json();
       if (data.ok) setLink(data.url);
@@ -225,10 +225,11 @@ function ExpensesPageInner() {
   const openId = searchParams.get("open");
 
   useEffect(() => {
-    // If ?open= is present, invalidate cache to get fresh data
+    // If ?open= is present, invalidate client cache and force fresh server fetch
     if (openId) invalidate("expenses");
+    const expUrl = openId ? "/api/expenses?fresh=1" : "/api/expenses";
 
-    fetchData("expenses", "/api/expenses")
+    fetchData(openId ? "expenses_fresh" : "expenses", expUrl)
       .then((res: unknown) => {
         const d = res as { data?: Expense[] };
         if (d.data) {
@@ -781,7 +782,7 @@ function ExpensesPageInner() {
                   {selectedExpense.reservation ? (
                     <ShareableExpenseLink reservation={selectedExpense.reservation} />
                   ) : (
-                    <PropertyExpenseLink property={selectedExpense.property} />
+                    <PropertyExpenseLink expenseId={selectedExpense.id} />
                   )}
                 </div>
 
