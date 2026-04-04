@@ -232,6 +232,7 @@ export default function PropertyDetailPage() {
       if (found) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const propName = found.name?.trim().toLowerCase() || "";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setReservations(allRes.filter((r: any) => {
           const rp = (r.property || "").trim().toLowerCase();
           return rp === propName || rp.startsWith(propName) || propName.startsWith(rp);
@@ -565,8 +566,8 @@ export default function PropertyDetailPage() {
         fetchData("expenses", "/api/expenses").then((res: unknown) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const allExp = (res as any)?.data || [];
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const pn = (property.name || "").trim().toLowerCase();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setExpenses(allExp.filter((e: any) => {
             const ep = (e.property || "").trim().toLowerCase();
             return ep === pn || ep.startsWith(pn) || pn.startsWith(ep);
