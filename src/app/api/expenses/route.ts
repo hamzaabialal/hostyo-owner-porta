@@ -96,12 +96,17 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!DB.expenses) {
     return NextResponse.json({ source: "placeholder", data: [] });
   }
 
   try {
+    // If ?fresh=1 is passed, bypass cache completely
+    const url = new URL(req.url);
+    if (url.searchParams.get("fresh") === "1") {
+      invalidate("expenses");
+    }
     const expenses = await cached("expenses", fetchExpenses);
     return NextResponse.json({ source: "notion", data: expenses });
   } catch (error) {

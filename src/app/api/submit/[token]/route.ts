@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { decodeToken, isPropertyToken, decodePropertyToken } from "@/lib/token";
+import { decodeToken, isPropertyToken, decodePropertyToken, isExpenseToken, decodeExpenseToken } from "@/lib/token";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +28,33 @@ function prop(page: any, name: string): any {
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   try {
+    // Expense-based submission (update existing expense with proof)
+    if (isExpenseToken(token)) {
+      const expenseId = decodeExpenseToken(token);
+      try {
+        const page = await notion.pages.retrieve({ page_id: expenseId }) as any;
+        const propertyName = prop(page, "Property") || "";
+        const expId = prop(page, "Expense ID") || "";
+        return NextResponse.json({
+          ok: true,
+          isPropertyOnly: true,
+          isExpenseUpdate: true,
+          expensePageId: expenseId,
+          reservation: {
+            id: "",
+            ref: expId,
+            property: propertyName,
+            guest: "",
+            checkin: "",
+            checkout: "",
+            channel: "",
+          },
+        });
+      } catch {
+        return NextResponse.json({ ok: false, error: "Expense not found" }, { status: 404 });
+      }
+    }
+
     // Property-only submission (not tied to a reservation)
     if (isPropertyToken(token)) {
       const propertyName = decodePropertyToken(token);
@@ -82,8 +109,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   try {
     let reservationRef = "";
     let propertyName = "";
+    let existingExpenseId = ""; // For updating existing expense
 
-    if (isPropertyToken(token)) {
+    if (isExpenseToken(token)) {
+      // Updating an existing expense with proof
+      existingExpenseId = decodeExpenseToken(token);
+      try {
+        const page = await notion.pages.retrieve({ page_id: existingExpenseId }) as any;
+        propertyName = prop(page, "Property") || "";
+      } catch { /* ignore */ }
+    } else if (isPropertyToken(token)) {
       // Property-only submission
       propertyName = decodePropertyToken(token);
     } else {
@@ -173,13 +208,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       properties["Proof "] = { files: allFiles };
     }
 
-    // Create the page
-    await notion.pages.create({
-      parent: { database_id: EXPENSES_DB },
-      properties,
-    });
+    if (existingExpenseId) {
+      // UPDATE existing expense — add proof, description, status
+      const updateProps: any = {};
+      if (allFiles.length > 0) updateProps["Proof "] = { files: allFiles };
+      if (description?.trim()) updateProps["Description"] = { rich_text: [{ text: { content: description.trim() } }] };
+      if (workStatus) updateProps["Status "] = { status: { name: workStatus } };
+      if (vendorName?.trim()) updateProps["Vendor Name"] = { rich_text: [{ text: { content: vendorName.trim() } }] };
 
-    // Invalidate expenses cache so the new expense shows immediately
+      await notion.pages.update({ page_id: existingExpenseId, properties: updateProps });
+    } else {
+      // CREATE new expense
+      await notion.pages.create({
+        parent: { database_id: EXPENSES_DB },
+        properties,
+      });
+    }
+
+    // Invalidate expenses cache so changes show immediately
     try {
       const { invalidate } = await import("@/lib/cache");
       invalidate("expenses");
