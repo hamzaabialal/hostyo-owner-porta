@@ -686,8 +686,13 @@ export default function PropertyDetailPage() {
           const totalCleaning = monthRes.reduce((s: number, r: any) => s + (r.cleaning || 0), 0);
           const totalExpenses = monthRes.reduce((s: number, r: any) => s + (r.expenses || 0), 0);
           const totalPayout = monthRes.reduce((s: number, r: any) => s + (r.ownerPayout || 0), 0);
-          const totalDeductions = totalPlatformFee + totalMgmtFee + totalCleaning + totalExpenses;
           const totalNights = monthRes.reduce((s: number, r: any) => s + (r.nights || 0), 0);
+          // Also include linked expenses from expenses DB for this month
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const monthLinkedExpenses = (expenses as any[]).filter((e: any) => (e.date || "").startsWith(monthKey));
+          const monthLinkedExpensesTotal = monthLinkedExpenses.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0);
+          const allExpensesTotal = Math.max(totalExpenses, monthLinkedExpensesTotal);
+          const totalDeductions = totalPlatformFee + totalMgmtFee + totalCleaning + allExpensesTotal;
 
           const resRows = monthRes.map((r: any) => {
             const ded = (r.platformFee || 0) + (r.managementFee || 0) + (r.cleaning || 0);
@@ -748,7 +753,7 @@ export default function PropertyDetailPage() {
                 <tr><td style="padding:6px 0;font-size:13px;color:#555">Platform commissions</td><td style="padding:6px 0;font-size:13px;color:#7A5252;text-align:right">-${fmt(totalPlatformFee)}</td></tr>
                 <tr><td style="padding:6px 0;font-size:13px;color:#555">Cleaning fees</td><td style="padding:6px 0;font-size:13px;color:#7A5252;text-align:right">-${fmt(totalCleaning)}</td></tr>
                 <tr><td style="padding:6px 0;font-size:13px;color:#555">Management fees</td><td style="padding:6px 0;font-size:13px;color:#7A5252;text-align:right">-${fmt(totalMgmtFee)}</td></tr>
-                ${totalExpenses > 0 ? `<tr><td style="padding:6px 0;font-size:13px;color:#555">Expenses</td><td style="padding:6px 0;font-size:13px;color:#7A5252;text-align:right">-${fmt(totalExpenses)}</td></tr>` : ""}
+                ${allExpensesTotal > 0 ? `<tr><td style="padding:6px 0;font-size:13px;color:#555">Expenses</td><td style="padding:6px 0;font-size:13px;color:#7A5252;text-align:right">-${fmt(allExpensesTotal)}</td></tr>` : ""}
                 <tr style="border-top:2px solid #ddd"><td style="padding:10px 0;font-size:14px;font-weight:700;color:#111">Net Owner Payout</td><td style="padding:10px 0;font-size:16px;font-weight:700;color:#2F6B57;text-align:right">${fmt(totalPayout)}</td></tr>
               </table>
             </div>
@@ -772,6 +777,38 @@ export default function PropertyDetailPage() {
                 </tr>
               </tfoot>
             </table>
+
+            ${monthLinkedExpenses.length > 0 ? `
+            <!-- Expenses Section -->
+            <div style="margin-top:8px;font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Expenses</div>
+            <table>
+              <thead>
+                <tr>
+                  ${["Date", "Category", "Vendor", "Description", "Amount", "Status"].map(h => `<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.3px">${h}</th>`).join("")}
+                </tr>
+              </thead>
+              <tbody>
+                ${monthLinkedExpenses.map((e: any) => {
+                  const sc = e.status === "Paid" || e.status === "Approved" ? "#2F6B57" : e.status === "In Review" ? "#8A6A2E" : "#999";
+                  return `<tr>
+                    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#666">${e.date || "—"}</td>
+                    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${e.category || "—"}</td>
+                    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${e.vendor || "—"}</td>
+                    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#666">${e.description || "—"}</td>
+                    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:600;color:#7A5252">-${fmt(e.amount || 0)}</td>
+                    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:11px"><span style="color:${sc};font-weight:600">● ${e.status || "—"}</span></td>
+                  </tr>`;
+                }).join("")}
+              </tbody>
+              <tfoot>
+                <tr style="background:#fafafa">
+                  <td colspan="4" style="padding:10px 12px;font-size:12px;font-weight:700">Total Expenses</td>
+                  <td style="padding:10px 12px;font-size:12px;font-weight:700;color:#7A5252">-${fmt(monthLinkedExpensesTotal)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+            ` : ""}
 
             <!-- Footer -->
             <div style="margin-top:32px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#bbb;text-align:center">
