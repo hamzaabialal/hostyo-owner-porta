@@ -14,10 +14,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const body = await req.json();
     const properties: any = {};
 
-    if (body.status) {
+    if (body.status !== undefined && body.status !== "") {
       properties["Status "] = { status: { name: body.status } };
     }
-    if (body.category) {
+    if (body.category !== undefined && body.category !== "") {
       properties["Category "] = { select: { name: body.category } };
     }
     if (body.notes !== undefined) {
@@ -31,15 +31,41 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       properties["Amount"] = { rich_text: [{ text: { content: String(numVal) } }] };
     }
 
-    await notion.pages.update({ page_id: id, properties });
+    console.log("[expense PATCH]", id, "properties:", JSON.stringify(properties));
+
+    try {
+      await notion.pages.update({ page_id: id, properties });
+    } catch (firstErr: any) {
+      // If Amount type mismatch, retry with number type
+      if (firstErr?.message?.includes("Amount") && properties["Amount"]) {
+        console.log("[expense PATCH] Retrying Amount as number type");
+        const numVal = parseFloat(properties["Amount"].rich_text?.[0]?.text?.content || "0");
+        properties["Amount"] = { number: numVal };
+        await notion.pages.update({ page_id: id, properties });
+      } else if (firstErr?.message?.includes("Category") && properties["Category "]) {
+        // Try without trailing space
+        console.log("[expense PATCH] Retrying Category without trailing space");
+        properties["Category"] = properties["Category "];
+        delete properties["Category "];
+        await notion.pages.update({ page_id: id, properties });
+      } else if (firstErr?.message?.includes("Status") && properties["Status "]) {
+        console.log("[expense PATCH] Retrying Status without trailing space");
+        properties["Status"] = properties["Status "];
+        delete properties["Status "];
+        await notion.pages.update({ page_id: id, properties });
+      } else {
+        throw firstErr;
+      }
+    }
 
     // Invalidate cache so next fetch gets fresh data
     invalidate("expenses");
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    console.error("Update expense error:", error?.message);
-    return NextResponse.json({ ok: false, error: error?.message || "Update failed" }, { status: 500 });
+    console.error("Update expense error:", error?.body || error?.message || error);
+    const msg = error?.body?.message || error?.message || "Update failed";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
 

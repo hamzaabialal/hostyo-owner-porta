@@ -232,32 +232,30 @@ export default function TopBar({ title }: { title: string }) {
       <header className="sticky top-0 z-40 bg-white border-b border-[#eaeaea] px-6 md:px-8 h-[56px] flex items-center justify-between">
         <h1 className="text-[15px] font-semibold text-[#111]">{title}</h1>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2.5">
           {/* Help */}
           <button onClick={() => setHelpOpen(true)}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-[#888] hover:bg-[#f5f5f5] hover:text-[#555] transition-colors">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            className="w-8 h-8 flex items-center justify-center text-[#888] hover:text-[#555] transition-colors">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/>
             </svg>
           </button>
 
           {/* Notifications */}
           <button onClick={() => { setNotifOpen(true); }}
-            className="relative w-9 h-9 rounded-full flex items-center justify-center text-[#888] hover:bg-[#f5f5f5] hover:text-[#555] transition-colors">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            className="relative w-8 h-8 flex items-center justify-center text-[#888] hover:text-[#555] transition-colors">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
             </svg>
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 min-w-[16px] h-[16px] bg-[#FF5A5F] rounded-full ring-2 ring-white flex items-center justify-center text-[9px] font-bold text-white px-0.5">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
+              <span className="absolute top-0.5 right-0 w-2.5 h-2.5 bg-[#80020E] rounded-full ring-[1.5px] ring-white" />
             )}
           </button>
 
           {/* Add Property */}
           <button onClick={() => router.push("/properties?add=1")}
-            className="w-9 h-9 rounded-full bg-[#80020E] flex items-center justify-center text-white hover:bg-[#6b010c] transition-colors ml-0.5">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            className="w-8 h-8 rounded-full bg-[#80020E] flex items-center justify-center text-white hover:bg-[#6b010c] transition-colors">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
           </button>

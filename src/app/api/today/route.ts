@@ -111,11 +111,16 @@ async function fetchTodayData() {
   } while (paymentCursor);
 
   let paidThisMonth = 0;
-  let pendingPayment = 0; // Completed + Pending payout
-  let balance = 0; // In-House payout total
-  let forecast = 0; // Future reservations (Pending status)
+  let pendingPayment = 0;
+  let balance = 0;
+  let forecast = 0;
   const thisMonth = new Date().toISOString().slice(0, 7);
   const todayStr = today;
+
+  // In-house guests (checked in, not checked out yet)
+  const inHouse: any[] = [];
+  // Next arrivals (checkin > today)
+  const nextArrivals: any[] = [];
 
   allPages.forEach((p: any) => {
     const status = prop(p, "Status");
@@ -123,34 +128,42 @@ async function fetchTodayData() {
     const ownerPayout = prop(p, "Owner Payout") || 0;
     const checkout = (prop(p, "Check Out") || "").split("T")[0];
     const checkin = (prop(p, "Check In") || "").split("T")[0];
+    const channel = prop(p, "Channel") || "Direct";
+    const guest = prop(p, "Guest") || "";
+    const property = prop(p, "Property") || "";
+    const nights = prop(p, "Nights") || 0;
 
-    // Paid this month
-    if (payoutStatus === "Paid" && checkout.startsWith(thisMonth)) {
-      paidThisMonth += ownerPayout;
+    if (payoutStatus === "Paid" && checkout.startsWith(thisMonth)) paidThisMonth += ownerPayout;
+    if (status === "In-House") balance += ownerPayout;
+    if (status === "Completed" && payoutStatus === "Pending") pendingPayment += ownerPayout;
+    if (checkin > todayStr && status !== "Cancelled" && payoutStatus !== "Paid") forecast += ownerPayout;
+
+    // In-house: checked in <= today && checkout > today && not cancelled
+    if (checkin <= todayStr && checkout > todayStr && status !== "Cancelled") {
+      const daysLeft = Math.ceil((new Date(checkout + "T00:00:00").getTime() - new Date(todayStr + "T00:00:00").getTime()) / 86400000);
+      inHouse.push({ guest, property, channel, checkout, daysLeft, nights });
     }
 
-    // Balance = In-House reservation payout total
-    if (status === "In-House") {
-      balance += ownerPayout;
-    }
-
-    // Pending Payment = Completed status + Pending payout status
-    if (status === "Completed" && payoutStatus === "Pending") {
-      pendingPayment += ownerPayout;
-    }
-
-    // Forecast = future reservations not cancelled
-    if (checkin > todayStr && status !== "Cancelled" && payoutStatus !== "Paid") {
-      forecast += ownerPayout;
+    // Next arrivals: checkin > today && not cancelled
+    if (checkin > todayStr && status !== "Cancelled") {
+      const daysAway = Math.ceil((new Date(checkin + "T00:00:00").getTime() - new Date(todayStr + "T00:00:00").getTime()) / 86400000);
+      const formatDate = (d: string) => { if (!d) return ""; return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
+      nextArrivals.push({ guest, property, channel, checkin, daysAway, date: formatDate(checkin) });
     }
   });
 
-  const fmt = (n: number) => `€${n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // Sort in-house by days left ascending, next arrivals by days away ascending
+  inHouse.sort((a: any, b: any) => a.daysLeft - b.daysLeft);
+  nextArrivals.sort((a: any, b: any) => a.daysAway - b.daysAway);
+
+  const fmt = (n: number) => `€${n.toLocaleString("en-IE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   return {
     arrivals,
     departures,
     upcoming,
+    inHouse: inHouse.slice(0, 6),
+    nextArrivals: nextArrivals.slice(0, 6),
     payment: {
       balance: fmt(balance),
       paidThisMonth: fmt(paidThisMonth),
