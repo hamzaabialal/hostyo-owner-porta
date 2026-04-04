@@ -222,7 +222,7 @@ function PropertyExpenseLink({ property }: { property: string }) {
 }
 
 function ExpensesPageInner() {
-  const { fetchData } = useData();
+  const { fetchData, invalidate } = useData();
   const searchParams = useSearchParams();
   const [apiExpenses, setApiExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -310,6 +310,16 @@ function ExpensesPageInner() {
     setSelectedExpense(exp);
     setDrawerOpen(true);
   };
+
+  // Refresh expenses list after an update
+  const refreshAfterUpdate = useCallback(() => {
+    invalidate("expenses");
+    fetchData("expenses", "/api/expenses").then((res: unknown) => {
+      const d = res as { data?: Expense[] };
+      if (d.data) setApiExpenses(d.data);
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const closeDrawer = useCallback(() => {
     setDrawerOpen(false);
@@ -663,6 +673,7 @@ function ExpensesPageInner() {
                           body: JSON.stringify({ status: newStatus }),
                         });
                         setSelectedExpense({ ...selectedExpense, status: newStatus });
+                        refreshAfterUpdate();
                       } catch { /* ignore */ }
                     }}
                     className="w-full h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E] transition-colors appearance-none cursor-pointer"
@@ -689,6 +700,7 @@ function ExpensesPageInner() {
                         const data = await res.json();
                         if (data.ok) {
                           setSelectedExpense({ ...selectedExpense, category: newCat });
+                          refreshAfterUpdate();
                         } else {
                           console.error("Category update failed:", data.error);
                           alert("Category update failed: " + data.error);
@@ -726,6 +738,7 @@ function ExpensesPageInner() {
                           const data = await res.json();
                           if (data.ok) {
                             setSelectedExpense({ ...selectedExpense, amount: val });
+                            refreshAfterUpdate();
                             e.target.style.borderColor = "#2F6B57";
                             setTimeout(() => { e.target.style.borderColor = ""; }, 1500);
                           } else {
@@ -758,6 +771,7 @@ function ExpensesPageInner() {
                         const data = await res.json();
                         if (data.ok) {
                           setSelectedExpense({ ...selectedExpense, vendor: val });
+                          refreshAfterUpdate();
                           e.target.style.borderColor = "#2F6B57";
                           setTimeout(() => { e.target.style.borderColor = ""; }, 1500);
                         } else {
