@@ -478,6 +478,16 @@ function ReservationsContent() {
     });
   }, [data, filterProperty, filterStatus, filterChannel, search, dateFrom, dateTo]);
 
+  // Calendar gets all reservations without date range filter (calendar has its own month navigation)
+  const calendarFiltered = useMemo(() => {
+    return data.filter((r) => {
+      if (filterProperty && r.property !== filterProperty) return false;
+      if (filterStatus && r.status !== filterStatus) return false;
+      if (filterChannel && r.channel !== filterChannel) return false;
+      return true;
+    });
+  }, [data, filterProperty, filterStatus, filterChannel]);
+
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -567,8 +577,8 @@ function ReservationsContent() {
         // On mobile, show only one property at a time — use the selected filter or default to first property
         const mobileProperty = filterProperty || (propertyOptions.length > 0 ? propertyOptions[0].value : "");
         const mobileFiltered = mobileProperty
-          ? filtered.filter((r) => r.property === mobileProperty)
-          : filtered;
+          ? calendarFiltered.filter((r) => r.property === mobileProperty)
+          : calendarFiltered;
         return (
           <div className="md:hidden">
             {!filterProperty && propertyOptions.length > 1 && (
@@ -639,8 +649,8 @@ function ReservationsContent() {
       {mobileView === "calendar" && (
         <div className={`hidden md:block ${showPropertyCol ? "" : "bg-white border border-[#eaeaea] rounded-xl p-6"}`}>
           <ReservationCalendar
-            reservations={filtered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
-            onReservationTap={(res) => { const match = filtered.find((rr) => rr.id === res.id); if (match) setDrawerRes(match); }}
+            reservations={calendarFiltered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
+            onReservationTap={(res) => { const match = calendarFiltered.find((rr) => rr.id === res.id); if (match) setDrawerRes(match); }}
             onPropertyTap={(name) => setPropertyDrawerName(name)}
             propertyImages={propertyImages}
             showAllProperties={showPropertyCol}
