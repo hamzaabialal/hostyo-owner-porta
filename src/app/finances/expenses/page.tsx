@@ -779,11 +779,7 @@ function ExpensesPageInner() {
                 {/* Shareable Vendor Link */}
                 <div className="mb-4">
                   <label className="block text-[12px] font-medium text-[#888] mb-1.5">Vendor Submission Link</label>
-                  {selectedExpense.reservation ? (
-                    <ShareableExpenseLink reservation={selectedExpense.reservation} />
-                  ) : (
-                    <PropertyExpenseLink expenseId={selectedExpense.id} />
-                  )}
+                  <PropertyExpenseLink expenseId={selectedExpense.id} />
                 </div>
 
                 {/* Delete */}

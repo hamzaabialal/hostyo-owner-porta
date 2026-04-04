@@ -285,13 +285,27 @@ function ExpenseLinkButton({ notionId }: { notionId: string }) {
   const generate = async () => {
     setGenerating(true);
     try {
-      const res = await fetch("/api/submit/generate", {
+      // Step 1: Create expense in Notion first (tied to reservation)
+      const createRes = await fetch("/api/submit/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reservationId: notionId, category: adminCategory, internalNote: adminNote }),
       });
-      const data = await res.json();
-      if (data.ok) setLink(data.url);
+      const createData = await createRes.json();
+      if (!createData.ok || !createData.expensePageId) {
+        // Fallback: just use the reservation token link
+        if (createData.ok) setLink(createData.url);
+        return;
+      }
+
+      // Step 2: Generate expense token link (so vendor updates existing expense, not creates new)
+      const linkRes = await fetch("/api/submit/generate-expense", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expenseId: createData.expensePageId }),
+      });
+      const linkData = await linkRes.json();
+      if (linkData.ok) setLink(linkData.url);
     } catch (e) {
       console.error("Failed to generate link:", e);
     } finally {
