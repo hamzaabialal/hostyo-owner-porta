@@ -113,28 +113,30 @@ function MonthGrid({ year, month, reservations, onTap, showNav, onPrev, onNext }
       </div>
       <div className="grid grid-cols-7">
         {cells.map((day, idx) => {
-          if (day === null) return <div key={`e${idx}`} className="h-[60px] md:h-[70px] border-r border-b border-[#f0f0f0] bg-[#fafafa]/50" />;
+          if (day === null) return <div key={`e${idx}`} className="h-[56px] md:h-[68px] border-r border-b border-[#f0f0f0] bg-[#fafafa]/50" />;
           const dateStr = `${monthStr}-${pad(day)}`;
           const isT = dateStr === todayStr;
           const entries = dayRes[day] || [];
           return (
-            <div key={day} className={`h-[60px] md:h-[70px] border-r border-b border-[#f0f0f0] relative overflow-visible ${isT ? "bg-[#80020E]/[0.03]" : ""}`}>
-              <div className={`text-[9px] md:text-[10px] font-medium px-0.5 md:px-1 pt-0.5 ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>
-                {isT ? <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#80020E] text-white text-[8px]">{day}</span> : day}
+            <div key={day} className="h-[56px] md:h-[68px] border-r border-b border-[#f0f0f0] relative overflow-visible">
+              <div className="flex items-center gap-0.5 px-0.5 md:px-1 pt-0.5">
+                <span className={`text-[9px] md:text-[10px] font-medium leading-none ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>{day}</span>
+                {isT && <span className="w-1 h-1 rounded-full bg-[#80020E] flex-shrink-0" />}
               </div>
-              <div className="mt-0.5 space-y-0.5 px-0.5">
+              <div className="mt-1 space-y-[2px] px-[1px]">
                 {entries.filter((e) => e.isStart || new Date(year, month, day).getDay() === 0).slice(0, 2).map((entry) => {
                   const { bg, text } = getColor(entry.r.channel);
                   const nights = daysBetween(entry.r.checkIn, entry.r.checkOut);
                   const span = Math.max(1, entry.span);
+                  const pct = 100 / 7;
                   return (
                     <button key={entry.r.id} onClick={() => onTap(entry.r)}
-                      className="block text-left rounded px-0.5 md:px-1 py-0.5 text-[7px] md:text-[9px] font-semibold leading-tight truncate cursor-pointer hover:brightness-110 relative z-[1]"
-                      style={{ backgroundColor: bg, color: text, width: `calc(${span * 100}% + ${(span - 1) * 1}px)` }}
+                      className="block text-left rounded-[3px] h-[16px] md:h-[18px] px-1 text-[8px] md:text-[9px] font-semibold leading-[16px] md:leading-[18px] truncate cursor-pointer hover:brightness-110 relative z-[1]"
+                      style={{ backgroundColor: bg, color: text, width: span === 1 ? "calc(100% - 2px)" : `calc(${span} * (100% + 1px) - 2px)` }}
                       title={`${entry.r.guest} · ${nights}N`}>
-                      <span className="flex items-center gap-0.5 truncate">
-                        <span className="hidden md:inline-flex flex-shrink-0 [&_img]:w-[10px] [&_img]:h-[10px] [&_svg]:w-[10px] [&_svg]:h-[10px]">{getChannelIcon(entry.r.channel)}</span>
-                        {entry.r.guest.split(" ")[0]} · {nights}N
+                      <span className="flex items-center gap-[3px] truncate">
+                        <span className="flex-shrink-0 [&_img]:w-[10px] [&_img]:h-[10px] [&_svg]:w-[10px] [&_svg]:h-[10px]">{getChannelIcon(entry.r.channel)}</span>
+                        <span className="truncate">{entry.r.guest.split(" ")[0]} · {nights}N</span>
                       </span>
                     </button>
                   );

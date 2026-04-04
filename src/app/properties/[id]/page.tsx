@@ -595,9 +595,67 @@ export default function PropertyDetailPage() {
           const monthName = new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
           const total = monthExpenses.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0);
           const fmt = (n: number) => `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const rows = monthExpenses.map((exp: any) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${exp.date}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${exp.category || "—"}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${exp.vendor || "—"}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:600">${fmt(exp.amount || 0)}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${exp.status || "—"}</td></tr>`).join("");
-          const html = `<!DOCTYPE html><html><head><title>Expense Report — ${monthName}</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#111;max-width:900px;margin:0 auto}table{width:100%;border-collapse:collapse}@media print{body{padding:20px}}</style></head><body><div style="display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #eee"><div style="font-size:13px;font-weight:700;color:#80020E">HOSTYO</div><div style="text-align:right"><div style="font-size:18px;font-weight:700">Expense Report</div><div style="font-size:11px;color:#999;margin-top:3px">${property.name} · ${monthName}</div></div></div><table><thead><tr>${["Date","Category","Vendor","Amount","Status"].map((h: string) => `<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;font-size:11px;color:#666">${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="3" style="padding:8px 12px;font-size:12px;font-weight:700">Total</td><td style="padding:8px 12px;font-size:14px;font-weight:700">${fmt(total)}</td><td></td></tr></tfoot></table></body></html>`;
+          const cards = monthExpenses.map((exp: any) => {
+            const proofHtml = (exp.proof && exp.proof.length > 0)
+              ? exp.proof.map((url: string, i: number) => {
+                  const isPdf = url.match(/\.pdf/i);
+                  if (isPdf) {
+                    const fname = url.split("/").pop() || `File ${i + 1}`;
+                    return `<div style="border:1px solid #e5e5e5;border-radius:8px;padding:14px;margin-bottom:8px;background:#fafafa;display:flex;align-items:center;gap:8px">
+                      <span style="font-size:10px;font-weight:700;color:#80020E;background:#F6EDED;padding:2px 6px;border-radius:4px">PDF</span>
+                      <span style="font-size:10px;color:#555;word-break:break-all">${fname}</span>
+                    </div>`;
+                  }
+                  return `<img src="${url}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e5;margin-bottom:8px" />`;
+                }).join("")
+              : '<div style="color:#bbb;font-size:10px;font-style:italic">No receipt attached</div>';
+
+            const statusDot = exp.status === "Approved" || exp.status === "Paid" ? "#2F6B57" : exp.status === "In Review" ? "#8A6A2E" : "#999";
+
+            return `<div style="display:flex;gap:28px;padding:24px 0;border-bottom:1px solid #eee">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:2px">${exp.category || "Expense"} ${exp.description ? "— " + exp.description : ""}</div>
+                <div style="font-size:11px;color:#999;margin-bottom:12px">${exp.date || ""}</div>
+                <div style="font-size:26px;font-weight:700;color:#111;margin-bottom:3px">${fmt(exp.amount || 0)}</div>
+                <div style="font-size:10px;color:#aaa;margin-bottom:14px">incl. VAT</div>
+                <table style="width:100%;font-size:11px;border-collapse:collapse">
+                  <tr><td style="color:#999;padding:3px 0;width:80px">CATEGORY</td><td style="color:#111;font-weight:500;padding:3px 0">${exp.category || "—"}</td></tr>
+                  <tr><td style="color:#999;padding:3px 0">VENDOR</td><td style="color:#111;font-weight:500;padding:3px 0">${exp.vendor || "—"}</td></tr>
+                  <tr><td style="color:#999;padding:3px 0">STATUS</td><td style="padding:3px 0"><span style="color:${statusDot};font-weight:600">● ${exp.status || "—"}</span></td></tr>
+                  <tr><td style="color:#999;padding:3px 0">PROPERTY</td><td style="color:#111;font-weight:500;padding:3px 0">${exp.property || property.name || "—"}</td></tr>
+                </table>
+                ${exp.description ? `<div style="margin-top:10px;font-size:11px;color:#666;font-style:italic;line-height:1.5">${exp.description}</div>` : ""}
+              </div>
+              <div style="width:220px;flex-shrink:0">
+                <div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Receipt / Invoice</div>
+                ${proofHtml}
+              </div>
+            </div>`;
+          }).join("");
+
+          const html = `<!DOCTYPE html><html><head><title>Expense Report — ${monthName}</title>
+            <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px 48px;color:#111;max-width:900px;margin:0 auto}@media print{body{padding:20px 30px}img{max-height:160px!important}}</style>
+          </head><body>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #eee">
+              <div style="font-size:13px;font-weight:700;color:#80020E;letter-spacing:0.5px">HOSTYO</div>
+              <div style="text-align:right">
+                <div style="font-size:20px;font-weight:700;color:#111">Expense Report</div>
+                <div style="font-size:11px;color:#999;margin-top:3px">Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:24px;padding:14px 0;margin-bottom:10px;border-bottom:1px solid #eee">
+              <div><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">Property</div><div style="font-size:13px;font-weight:600">${property.name}</div></div>
+              <div><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">Period</div><div style="font-size:13px;font-weight:600">${monthName}</div></div>
+              <div><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">Total</div><div style="font-size:13px;font-weight:600">${fmt(total)}</div></div>
+              <div><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">Expenses</div><div style="font-size:13px;font-weight:600">${monthExpenses.length}</div></div>
+            </div>
+            <div style="display:flex;gap:20px;font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;padding:8px 0;border-bottom:1px solid #eee">
+              <div style="flex:1">Details</div><div style="width:220px;flex-shrink:0">Receipt / Invoice</div>
+            </div>
+            ${cards}
+          </body></html>`;
           const w = window.open("", "_blank");
           if (w) { w.document.write(html); w.document.close(); w.print(); }
         };
@@ -606,12 +664,107 @@ export default function PropertyDetailPage() {
         const openEarningsStatement = (monthKey: string, monthRes: any[]) => {
           const [y, m] = monthKey.split("-");
           const monthName = new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-          const totalGross = monthRes.reduce((s: number, r: { grossAmount?: number }) => s + (r.grossAmount || 0), 0);
-          const totalPayout = monthRes.reduce((s: number, r: { ownerPayout?: number }) => s + (r.ownerPayout || 0), 0);
           const fmt = (n: number) => `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const rows = monthRes.map((r: any) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${r.guest}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${r.checkout || r.checkin || ""}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${r.channel || ""}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${fmt(r.grossAmount || 0)}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:600">${fmt(r.ownerPayout || 0)}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${r.payoutStatus || ""}</td></tr>`).join("");
-          const html = `<!DOCTYPE html><html><head><title>Earnings Statement — ${monthName}</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#111;max-width:900px;margin:0 auto}table{width:100%;border-collapse:collapse}@media print{body{padding:20px}}</style></head><body><div style="display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #eee"><div style="font-size:13px;font-weight:700;color:#80020E">HOSTYO</div><div style="text-align:right"><div style="font-size:18px;font-weight:700">Earnings Statement</div><div style="font-size:11px;color:#999;margin-top:3px">${property.name} · ${monthName}</div></div></div><table><thead><tr>${["Guest","Date","Channel","Gross","Owner Payout","Status"].map((h: string) => `<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;font-size:11px;color:#666">${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="3" style="padding:8px 12px;font-size:12px;font-weight:700">Total</td><td style="padding:8px 12px;font-size:12px;font-weight:700">${fmt(totalGross)}</td><td style="padding:8px 12px;font-size:14px;font-weight:700">${fmt(totalPayout)}</td><td></td></tr></tfoot></table></body></html>`;
+          const fmtD = (d: string) => { if (!d) return ""; return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
+
+          const totalGross = monthRes.reduce((s: number, r: any) => s + (r.grossAmount || 0), 0);
+          const totalPlatformFee = monthRes.reduce((s: number, r: any) => s + (r.platformFee || 0), 0);
+          const totalMgmtFee = monthRes.reduce((s: number, r: any) => s + (r.managementFee || 0), 0);
+          const totalCleaning = monthRes.reduce((s: number, r: any) => s + (r.cleaning || 0), 0);
+          const totalExpenses = monthRes.reduce((s: number, r: any) => s + (r.expenses || 0), 0);
+          const totalPayout = monthRes.reduce((s: number, r: any) => s + (r.ownerPayout || 0), 0);
+          const totalDeductions = totalPlatformFee + totalMgmtFee + totalCleaning + totalExpenses;
+          const totalNights = monthRes.reduce((s: number, r: any) => s + (r.nights || 0), 0);
+
+          const resRows = monthRes.map((r: any) => {
+            const ded = (r.platformFee || 0) + (r.managementFee || 0) + (r.cleaning || 0);
+            const statusColor = r.payoutStatus === "Paid" ? "#2F6B57" : r.payoutStatus === "Pending" ? "#8A6A2E" : "#999";
+            return `<tr>
+              <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">
+                <div style="font-weight:600;color:#111">${r.guest || "—"}</div>
+                <div style="font-size:10px;color:#999;margin-top:2px">${r.ref || ""}</div>
+              </td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#666">${r.channel || "—"}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#666">${fmtD(r.checkin)} – ${fmtD(r.checkout)}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#666">${r.nights || 0}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${fmt(r.grossAmount || 0)}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#7A5252">-${fmt(ded)}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:700">${fmt(r.ownerPayout || 0)}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:11px"><span style="color:${statusColor};font-weight:600">● ${r.payoutStatus || "—"}</span></td>
+            </tr>`;
+          }).join("");
+
+          const html = `<!DOCTYPE html><html><head><title>Owner Statement — ${monthName}</title>
+            <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px 48px;color:#111;max-width:1000px;margin:0 auto}table{width:100%;border-collapse:collapse}@media print{body{padding:20px 24px}}</style>
+          </head><body>
+            <!-- Header -->
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #eee">
+              <div style="font-size:14px;font-weight:700;color:#80020E;letter-spacing:0.5px">HOSTYO</div>
+              <div style="text-align:right">
+                <div style="font-size:22px;font-weight:700;color:#111">Owner Statement</div>
+                <div style="font-size:11px;color:#999;margin-top:4px">${property.name} · ${monthName}</div>
+              </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div style="display:flex;gap:16px;margin-bottom:28px">
+              <div style="flex:1;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:16px">
+                <div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Reservations</div>
+                <div style="font-size:24px;font-weight:700">${monthRes.length}</div>
+                <div style="font-size:10px;color:#999;margin-top:2px">${totalNights} nights</div>
+              </div>
+              <div style="flex:1;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:16px">
+                <div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Gross Revenue</div>
+                <div style="font-size:24px;font-weight:700">${fmt(totalGross)}</div>
+              </div>
+              <div style="flex:1;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:16px">
+                <div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Deductions</div>
+                <div style="font-size:24px;font-weight:700;color:#7A5252">-${fmt(totalDeductions)}</div>
+              </div>
+              <div style="flex:1;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:16px">
+                <div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Net Owner Payout</div>
+                <div style="font-size:24px;font-weight:700;color:#2F6B57">${fmt(totalPayout)}</div>
+              </div>
+            </div>
+
+            <!-- Breakdown -->
+            <div style="margin-bottom:28px;padding:20px;background:#fafafa;border:1px solid #eee;border-radius:10px">
+              <div style="font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Monthly Breakdown</div>
+              <table style="width:100%;border-collapse:collapse">
+                <tr><td style="padding:6px 0;font-size:13px;color:#555">Gross booking revenue</td><td style="padding:6px 0;font-size:13px;font-weight:600;text-align:right">${fmt(totalGross)}</td></tr>
+                <tr><td style="padding:6px 0;font-size:13px;color:#555">Platform commissions</td><td style="padding:6px 0;font-size:13px;color:#7A5252;text-align:right">-${fmt(totalPlatformFee)}</td></tr>
+                <tr><td style="padding:6px 0;font-size:13px;color:#555">Cleaning fees</td><td style="padding:6px 0;font-size:13px;color:#7A5252;text-align:right">-${fmt(totalCleaning)}</td></tr>
+                <tr><td style="padding:6px 0;font-size:13px;color:#555">Management fees</td><td style="padding:6px 0;font-size:13px;color:#7A5252;text-align:right">-${fmt(totalMgmtFee)}</td></tr>
+                ${totalExpenses > 0 ? `<tr><td style="padding:6px 0;font-size:13px;color:#555">Expenses</td><td style="padding:6px 0;font-size:13px;color:#7A5252;text-align:right">-${fmt(totalExpenses)}</td></tr>` : ""}
+                <tr style="border-top:2px solid #ddd"><td style="padding:10px 0;font-size:14px;font-weight:700;color:#111">Net Owner Payout</td><td style="padding:10px 0;font-size:16px;font-weight:700;color:#2F6B57;text-align:right">${fmt(totalPayout)}</td></tr>
+              </table>
+            </div>
+
+            <!-- Reservations Table -->
+            <div style="font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Reservation Details</div>
+            <table>
+              <thead>
+                <tr>
+                  ${["Guest / Ref", "Channel", "Stay Dates", "Nights", "Gross", "Deductions", "Payout", "Status"].map(h => `<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.3px">${h}</th>`).join("")}
+                </tr>
+              </thead>
+              <tbody>${resRows}</tbody>
+              <tfoot>
+                <tr style="background:#fafafa">
+                  <td colspan="4" style="padding:10px 12px;font-size:12px;font-weight:700">Total</td>
+                  <td style="padding:10px 12px;font-size:12px;font-weight:700">${fmt(totalGross)}</td>
+                  <td style="padding:10px 12px;font-size:12px;font-weight:700;color:#7A5252">-${fmt(totalDeductions)}</td>
+                  <td style="padding:10px 12px;font-size:14px;font-weight:700;color:#2F6B57">${fmt(totalPayout)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <!-- Footer -->
+            <div style="margin-top:32px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#bbb;text-align:center">
+              Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · HOSTYO LTD
+            </div>
+          </body></html>`;
           const w = window.open("", "_blank");
           if (w) { w.document.write(html); w.document.close(); w.print(); }
         };
