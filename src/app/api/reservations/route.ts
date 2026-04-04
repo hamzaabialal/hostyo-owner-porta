@@ -84,12 +84,18 @@ async function fetchReservations() {
   });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!DB_ID) {
     return NextResponse.json({ source: "placeholder", data: [] });
   }
 
   try {
+    // Force fresh data if ?fresh=1
+    const url = new URL(req.url);
+    if (url.searchParams.get("fresh") === "1") {
+      const { invalidate } = await import("@/lib/cache");
+      invalidate("reservations");
+    }
     const reservations = await cached("reservations", fetchReservations);
     return NextResponse.json({ source: "notion", data: reservations });
   } catch (error: any) {

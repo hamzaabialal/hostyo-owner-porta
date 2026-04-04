@@ -34,7 +34,41 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
       try {
         const page = await notion.pages.retrieve({ page_id: expenseId }) as any;
         const propertyName = prop(page, "Property") || "";
-        const expId = prop(page, "Expense ID") || "";
+        const reservationRef = prop(page, "Reservation ID") || "";
+
+        // If expense is linked to a reservation, look up reservation details
+        if (reservationRef) {
+          // Find the reservation by ref to get guest, dates, etc.
+          const DB_RES = process.env.NOTION_RESERVATIONS_DB || "";
+          if (DB_RES) {
+            try {
+              const resQuery = await notion.databases.query({
+                database_id: DB_RES,
+                filter: { property: "Reservation Code", rich_text: { contains: reservationRef.slice(0, 15) } },
+                page_size: 1,
+              });
+              if (resQuery.results.length > 0) {
+                const resPage = resQuery.results[0] as any;
+                return NextResponse.json({
+                  ok: true,
+                  isExpenseUpdate: true,
+                  expensePageId: expenseId,
+                  reservation: {
+                    id: resPage.id,
+                    ref: prop(resPage, "Reservation Code") || prop(resPage, "Name") || reservationRef,
+                    property: prop(resPage, "Property") || propertyName,
+                    guest: prop(resPage, "Guest") || "",
+                    checkin: (prop(resPage, "Check In") || "").split("T")[0],
+                    checkout: (prop(resPage, "Check Out") || "").split("T")[0],
+                    channel: prop(resPage, "Channel") || "",
+                  },
+                });
+              }
+            } catch { /* fallback below */ }
+          }
+        }
+
+        // Property-only expense (no reservation linked)
         return NextResponse.json({
           ok: true,
           isPropertyOnly: true,
@@ -42,7 +76,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
           expensePageId: expenseId,
           reservation: {
             id: "",
-            ref: expId,
+            ref: "",
             property: propertyName,
             guest: "",
             checkin: "",
