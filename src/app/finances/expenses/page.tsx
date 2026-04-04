@@ -168,27 +168,13 @@ function PropertyExpenseLink({ property }: { property: string }) {
     if (!property) return;
     setLoading(true);
     try {
-      // Find the property's Notion ID to generate a submission link
-      const res = await fetch("/api/properties");
+      const res = await fetch("/api/submit/generate-property", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyName: property }),
+      });
       const data = await res.json();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const match = (data.data || []).find((p: any) => p.name?.trim() === property?.trim());
-      if (match?.id) {
-        // Use the property's first reservation or create a generic link
-        const resRes = await fetch("/api/reservations");
-        const resData = await resRes.json();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const propRes = (resData.data || []).find((r: any) => r.property?.trim() === property?.trim());
-        if (propRes?.notionId) {
-          const genRes = await fetch("/api/submit/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reservationId: propRes.notionId }),
-          });
-          const genData = await genRes.json();
-          if (genData.ok) setLink(genData.url);
-        }
-      }
+      if (data.ok) setLink(data.url);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };
