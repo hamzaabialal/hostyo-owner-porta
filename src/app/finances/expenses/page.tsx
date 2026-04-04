@@ -104,60 +104,7 @@ const CloseIcon = () => (
 /* ================================================================
    Component
    ================================================================ */
-function ShareableExpenseLink({ reservation }: { reservation: string }) {
-  const [link, setLink] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  // Build the link from the reservation ref — we need to find the reservation's Notion ID
-  const generateLink = async () => {
-    setLoading(true);
-    try {
-      // Fetch reservations to find the matching one
-      const res = await fetch("/api/reservations");
-      const data = await res.json();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const match = (data.data || []).find((r: any) => r.ref && reservation.includes(r.ref.slice(0, 10)));
-      if (match?.notionId) {
-        const genRes = await fetch("/api/submit/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reservationId: match.notionId }),
-        });
-        const genData = await genRes.json();
-        if (genData.ok) setLink(genData.url);
-      }
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
-  };
-
-  const copyLink = async () => {
-    await navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  if (link) {
-    return (
-      <div className="flex items-center gap-2 p-2.5 bg-[#f8f8f8] border border-[#e2e2e2] rounded-lg">
-        <input type="text" value={link} readOnly className="flex-1 text-[10px] text-[#555] bg-transparent outline-none font-mono truncate" />
-        <button onClick={copyLink} className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${copied ? "bg-[#EAF3EF] text-[#2F6B57]" : "bg-[#80020E] text-white hover:bg-[#6b010c]"}`}>
-          {copied ? "Copied!" : "Copy"}
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <button onClick={generateLink} disabled={loading}
-      className="flex items-center gap-1.5 px-3 py-2 border border-[#80020E] text-[#80020E] bg-transparent rounded-lg text-[11px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-50">
-      {loading ? <div className="w-3 h-3 border-2 border-[#80020E] border-t-transparent rounded-full animate-spin" /> : (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-      )}
-      {loading ? "Generating..." : "Get Vendor Link"}
-    </button>
-  );
-}
+// ShareableExpenseLink removed — replaced by PropertyExpenseLink which uses expense tokens
 
 function PropertyExpenseLink({ expenseId }: { expenseId: string }) {
   const [link, setLink] = useState("");

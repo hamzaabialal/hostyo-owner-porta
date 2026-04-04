@@ -16,6 +16,7 @@ function prop(page: any, name: string): any {
     case "rich_text": return p.rich_text?.[0]?.plain_text || "";
     case "number": return p.number;
     case "select": return p.select?.name || "";
+    case "status": return p.status?.name || "";
     case "date": return p.date?.start || "";
     case "formula":
       if (p.formula.type === "number") return p.formula.number;

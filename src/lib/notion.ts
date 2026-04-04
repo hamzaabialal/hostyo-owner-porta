@@ -39,6 +39,8 @@ export function getProp(page: any, name: string): any {
       return prop.number ?? 0;
     case "select":
       return prop.select?.name || "";
+    case "status":
+      return prop.status?.name || "";
     case "multi_select":
       return prop.multi_select?.map((s: { name: string }) => s.name) || [];
     case "date":
