@@ -191,19 +191,19 @@ function AccordionDetail({ r }: { r: Reservation }) {
             <div className="bg-white border border-[#e8e8e8] rounded-xl shadow-sm overflow-hidden mb-4">
               <div className="flex items-center justify-between px-5 py-3 bg-[#fafafa] border-b border-[#f0f0f0]">
                 <span className="text-[12px] font-semibold text-[#999] uppercase tracking-wide">Linked Expenses ({linkedExpenses.length})</span>
-                {linkedExpenses.length > 3 && (
+                {linkedExpenses.length > 5 && (
                   <a href="/finances/expenses" className="text-[11px] font-medium text-black hover:text-black transition-colors">View all →</a>
                 )}
               </div>
-              <div className="divide-y divide-[#f3f3f3]">
+              <div className="divide-y divide-[#f3f3f3] max-h-[320px] overflow-y-auto">
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {linkedExpenses.map((exp: any, i: number) => (
                   <a key={i} href={`/finances/expenses?open=${exp.id}`}
                     className="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-[#f9f9f9] transition-colors">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="text-[13px] font-medium text-[#111]">{exp.category || "Expense"}</div>
                       <div className="text-[11px] text-[#999]">{exp.vendor ? `${exp.vendor} · ` : ""}{exp.date || ""}</div>
-                      {exp.description && <div className="text-[11px] text-[#888] mt-0.5 italic truncate max-w-[200px]">{exp.description}</div>}
+                      {exp.description && <div className="text-[11px] text-[#888] mt-0.5 italic truncate">{exp.description}</div>}
                     </div>
                     <div className="text-right flex-shrink-0 ml-3 flex items-center gap-2">
                       <div>
@@ -563,20 +563,30 @@ function ReservationsContent() {
       </div>
 
       {/* ── Mobile Calendar View (single property only) ── */}
-      {mobileView === "calendar" && (
-        <div className="md:hidden">
-          <ReservationCalendar
-            reservations={filtered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
-            onReservationTap={(res) => {
-              const match = filtered.find((r) => r.id === res.id);
-              if (match) setDrawerRes(match);
-            }}
-            onPropertyTap={(name) => setPropertyDrawerName(name)}
-            propertyImages={propertyImages}
-            showAllProperties={false}
-          />
-        </div>
-      )}
+      {mobileView === "calendar" && (() => {
+        // On mobile, show only one property at a time — use the selected filter or default to first property
+        const mobileProperty = filterProperty || (propertyOptions.length > 0 ? propertyOptions[0].value : "");
+        const mobileFiltered = mobileProperty
+          ? filtered.filter((r) => r.property === mobileProperty)
+          : filtered;
+        return (
+          <div className="md:hidden">
+            {!filterProperty && propertyOptions.length > 1 && (
+              <p className="text-[11px] text-[#999] mb-2 text-center">Showing: {mobileProperty}. Use the Properties filter to switch.</p>
+            )}
+            <ReservationCalendar
+              reservations={mobileFiltered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
+              onReservationTap={(res) => {
+                const match = filtered.find((r) => r.id === res.id);
+                if (match) setDrawerRes(match);
+              }}
+              onPropertyTap={(name) => setPropertyDrawerName(name)}
+              propertyImages={propertyImages}
+              showAllProperties={false}
+            />
+          </div>
+        );
+      })()}
 
       {/* ── Mobile Card List ── */}
       {mobileView === "list" && (
@@ -641,52 +651,43 @@ function ReservationsContent() {
       {/* ── Desktop Table ── */}
       {mobileView === "list" && (
       <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
-        <table className="w-full border-collapse text-[13px] table-fixed">
-          <colgroup>
-            <col style={{ width: "110px" }} />
-            {showPropertyCol && <col style={{ width: "200px" }} />}
-            <col />
-            <col style={{ width: "160px" }} />
-            <col style={{ width: "110px" }} />
-          </colgroup>
+        <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="bg-[#fafafa]">
               <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Status</th>
-              {showPropertyCol && <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Property</th>}
-              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Guest</th>
-              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Dates</th>
-              <th className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Payout</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Guest / Ref</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Channel</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Gross</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Deductions</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Payout</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">Expected by</th>
             </tr>
           </thead>
           {paginated.length === 0 ? (
-            <tbody><tr><td colSpan={showPropertyCol ? 5 : 4} className="text-center py-10 text-[#999] text-sm">No reservations match your filters.</td></tr></tbody>
+            <tbody><tr><td colSpan={7} className="text-center py-10 text-[#999] text-sm">No reservations match your filters.</td></tr></tbody>
           ) : paginated.map((r) => {
             const isOpen = expandedId === r.id;
-            const cols = showPropertyCol ? 5 : 4;
+            const cols = 7;
+            const deductions = (r.platformFee || 0) + (r.hostyoFee || 0) + (r.cleaningFee || 0);
+            const expectedBy = r.checkOut ? (() => { const d = new Date(r.checkOut + "T00:00:00"); d.setDate(d.getDate() + 7); return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); })() : "—";
             return (
               <tbody key={r.id}>
                 <tr onClick={() => toggleRow(r.id)}
                   className={`cursor-pointer transition-colors border-b ${isOpen ? "bg-[#fafafa] border-[#e2e2e2]" : "hover:bg-[#f9f9f9] border-[#f0f0f0]"}`}>
                   <td className="px-4 py-3.5">
-                    <span className={statusPillClass(r.status)}>{r.status}</span>
-                  </td>
-                  {showPropertyCol && (
-                    <td className="px-4 py-3.5">
-                      <span className="text-[13px] text-[#555] truncate block">{r.property}</span>
-                    </td>
-                  )}
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
-                      <span className="text-[13px] font-medium text-[#111]">{r.guest}</span>
-                    </div>
+                    <span className={statusPillClass(r.payoutStatus || r.status)}>{r.payoutStatus || r.status}</span>
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className="text-[13px] text-[#666] whitespace-nowrap">{fmtDateShort(r.checkIn)} – {fmtDateShort(r.checkOut)}</span>
+                    <div className="font-medium text-[#111]">{r.guest}</div>
+                    {r.ref && <div className="text-[11px] text-[#999] mt-0.5">{r.ref}</div>}
                   </td>
-                  <td className="px-4 py-3.5 text-right">
-                    <span className="text-[13px] font-semibold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || 0)}</span>
+                  <td className="px-4 py-3.5">
+                    <ChannelBadge channel={r.channel} />
                   </td>
+                  <td className="px-4 py-3.5 tabular-nums text-[#111]">{fmtCurrency(r.gross || 0)}</td>
+                  <td className="px-4 py-3.5 tabular-nums text-[#666]">{fmtCurrency(deductions)}</td>
+                  <td className="px-4 py-3.5 font-semibold tabular-nums text-[#111]">{fmtCurrency(r.ownerPayout || 0)}</td>
+                  <td className="px-4 py-3.5 text-[#666]">{expectedBy}</td>
                 </tr>
                 {isOpen && (
                   <tr>

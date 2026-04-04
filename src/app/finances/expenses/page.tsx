@@ -159,6 +159,68 @@ function ShareableExpenseLink({ reservation }: { reservation: string }) {
   );
 }
 
+function PropertyExpenseLink({ property }: { property: string }) {
+  const [link, setLink] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const generateLink = async () => {
+    if (!property) return;
+    setLoading(true);
+    try {
+      // Find the property's Notion ID to generate a submission link
+      const res = await fetch("/api/properties");
+      const data = await res.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const match = (data.data || []).find((p: any) => p.name?.trim() === property?.trim());
+      if (match?.id) {
+        // Use the property's first reservation or create a generic link
+        const resRes = await fetch("/api/reservations");
+        const resData = await resRes.json();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const propRes = (resData.data || []).find((r: any) => r.property?.trim() === property?.trim());
+        if (propRes?.notionId) {
+          const genRes = await fetch("/api/submit/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reservationId: propRes.notionId }),
+          });
+          const genData = await genRes.json();
+          if (genData.ok) setLink(genData.url);
+        }
+      }
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  };
+
+  const copyLink = async () => {
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (link) {
+    return (
+      <div className="flex items-center gap-2 p-2.5 bg-[#f8f8f8] border border-[#e2e2e2] rounded-lg">
+        <input type="text" value={link} readOnly className="flex-1 text-[10px] text-[#555] bg-transparent outline-none font-mono truncate" />
+        <button onClick={copyLink} className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${copied ? "bg-[#EAF3EF] text-[#2F6B57]" : "bg-[#80020E] text-white hover:bg-[#6b010c]"}`}>
+          {copied ? "Copied!" : "Copy"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={generateLink} disabled={loading || !property}
+      className="flex items-center gap-1.5 px-3 py-2 border border-[#80020E] text-[#80020E] bg-transparent rounded-lg text-[11px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-50">
+      {loading ? <div className="w-3 h-3 border-2 border-[#80020E] border-t-transparent rounded-full animate-spin" /> : (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+      )}
+      {loading ? "Generating..." : "Get Vendor Link"}
+    </button>
+  );
+}
+
 function ExpensesPageInner() {
   const { fetchData } = useData();
   const searchParams = useSearchParams();
@@ -620,12 +682,18 @@ function ExpensesPageInner() {
                     onChange={async (e) => {
                       const newCat = e.target.value;
                       try {
-                        await fetch(`/api/expenses/${selectedExpense.id}`, {
+                        const res = await fetch(`/api/expenses/${selectedExpense.id}`, {
                           method: "PATCH", headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ category: newCat }),
                         });
-                        setSelectedExpense({ ...selectedExpense, category: newCat });
-                      } catch { /* ignore */ }
+                        const data = await res.json();
+                        if (data.ok) {
+                          setSelectedExpense({ ...selectedExpense, category: newCat });
+                        } else {
+                          console.error("Category update failed:", data.error);
+                          alert("Category update failed: " + data.error);
+                        }
+                      } catch (err) { console.error("Category update error:", err); }
                     }}
                     className="w-full h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E] transition-colors appearance-none cursor-pointer"
                     style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}
@@ -651,12 +719,20 @@ function ExpensesPageInner() {
                         const val = parseFloat(e.target.value) || 0;
                         if (val === selectedExpense.amount) return;
                         try {
-                          await fetch(`/api/expenses/${selectedExpense.id}`, {
+                          const res = await fetch(`/api/expenses/${selectedExpense.id}`, {
                             method: "PATCH", headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ amount: val }),
                           });
-                          setSelectedExpense({ ...selectedExpense, amount: val });
-                        } catch { /* ignore */ }
+                          const data = await res.json();
+                          if (data.ok) {
+                            setSelectedExpense({ ...selectedExpense, amount: val });
+                            e.target.style.borderColor = "#2F6B57";
+                            setTimeout(() => { e.target.style.borderColor = ""; }, 1500);
+                          } else {
+                            e.target.style.borderColor = "#FF5A5F";
+                            console.error("Price update failed:", data.error);
+                          }
+                        } catch (err) { console.error("Price update error:", err); }
                       }}
                       className="w-full h-[38px] pl-7 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] font-semibold text-[#111] bg-white outline-none focus:border-[#80020E] transition-colors"
                     />
@@ -675,12 +751,20 @@ function ExpensesPageInner() {
                       const val = e.target.value.trim();
                       if (val === (selectedExpense.vendor || "")) return;
                       try {
-                        await fetch(`/api/expenses/${selectedExpense.id}`, {
+                        const res = await fetch(`/api/expenses/${selectedExpense.id}`, {
                           method: "PATCH", headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ vendor: val }),
                         });
-                        setSelectedExpense({ ...selectedExpense, vendor: val });
-                      } catch { /* ignore */ }
+                        const data = await res.json();
+                        if (data.ok) {
+                          setSelectedExpense({ ...selectedExpense, vendor: val });
+                          e.target.style.borderColor = "#2F6B57";
+                          setTimeout(() => { e.target.style.borderColor = ""; }, 1500);
+                        } else {
+                          e.target.style.borderColor = "#FF5A5F";
+                          console.error("Vendor update failed:", data.error);
+                        }
+                      } catch (err) { console.error("Vendor update error:", err); }
                     }}
                     className="w-full h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E] transition-colors"
                   />
@@ -688,12 +772,14 @@ function ExpensesPageInner() {
                 </div>
 
                 {/* Shareable Vendor Link */}
-                {selectedExpense.reservation && (
-                  <div className="mb-4">
-                    <label className="block text-[12px] font-medium text-[#888] mb-1.5">Vendor Submission Link</label>
+                <div className="mb-4">
+                  <label className="block text-[12px] font-medium text-[#888] mb-1.5">Vendor Submission Link</label>
+                  {selectedExpense.reservation ? (
                     <ShareableExpenseLink reservation={selectedExpense.reservation} />
-                  </div>
-                )}
+                  ) : (
+                    <PropertyExpenseLink property={selectedExpense.property} />
+                  )}
+                </div>
 
                 {/* Delete */}
                 <button onClick={async () => {

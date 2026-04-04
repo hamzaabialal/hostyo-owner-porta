@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import ChannelBadge from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
+import { getDocuments, addDocument, removeDocument, formatFileSize, type PropertyDocument } from "@/lib/documents";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -203,6 +204,15 @@ export default function PropertyDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"overview" | "reservations" | "earnings" | "expenses" | "documents">("overview");
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  const [docs, setDocs] = useState<PropertyDocument[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const refreshDocs = useCallback(() => {
+    if (id) setDocs(getDocuments(id));
+  }, [id]);
+
+  useEffect(() => { refreshDocs(); }, [refreshDocs]);
 
   useEffect(() => {
     Promise.all([
@@ -554,17 +564,192 @@ export default function PropertyDetailPage() {
       }} />}
 
       {/* ═══ Documents Tab ═══ */}
-      {tab === "documents" && (
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-[#f5f5f5] flex items-center justify-center mx-auto mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="1.5">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
+      {tab === "documents" && (() => {
+        // Group expenses by month for auto-generated expense reports
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const expMonthMap: Record<string, any[]> = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const exp of expenses as any[]) {
+          const key = (exp.date || "").slice(0, 7);
+          if (!key) continue;
+          if (!expMonthMap[key]) expMonthMap[key] = [];
+          expMonthMap[key].push(exp);
+        }
+
+        // Group reservations by month for earnings statements
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const resMonthMap: Record<string, any[]> = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const r of reservations as any[]) {
+          const key = (r.checkout || r.checkin || "").slice(0, 7);
+          if (!key || r.status === "Cancelled") continue;
+          if (!resMonthMap[key]) resMonthMap[key] = [];
+          resMonthMap[key].push(r);
+        }
+
+        const allReportMonths = Array.from(new Set([...Object.keys(expMonthMap), ...Object.keys(resMonthMap)])).sort().reverse();
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const openExpenseReport = (monthKey: string, monthExpenses: any[]) => {
+          const [y, m] = monthKey.split("-");
+          const monthName = new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+          const total = monthExpenses.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0);
+          const fmt = (n: number) => `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const rows = monthExpenses.map((exp: any) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${exp.date}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${exp.category || "—"}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${exp.vendor || "—"}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:600">${fmt(exp.amount || 0)}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${exp.status || "—"}</td></tr>`).join("");
+          const html = `<!DOCTYPE html><html><head><title>Expense Report — ${monthName}</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#111;max-width:900px;margin:0 auto}table{width:100%;border-collapse:collapse}@media print{body{padding:20px}}</style></head><body><div style="display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #eee"><div style="font-size:13px;font-weight:700;color:#80020E">HOSTYO</div><div style="text-align:right"><div style="font-size:18px;font-weight:700">Expense Report</div><div style="font-size:11px;color:#999;margin-top:3px">${property.name} · ${monthName}</div></div></div><table><thead><tr>${["Date","Category","Vendor","Amount","Status"].map((h: string) => `<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;font-size:11px;color:#666">${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="3" style="padding:8px 12px;font-size:12px;font-weight:700">Total</td><td style="padding:8px 12px;font-size:14px;font-weight:700">${fmt(total)}</td><td></td></tr></tfoot></table></body></html>`;
+          const w = window.open("", "_blank");
+          if (w) { w.document.write(html); w.document.close(); w.print(); }
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const openEarningsStatement = (monthKey: string, monthRes: any[]) => {
+          const [y, m] = monthKey.split("-");
+          const monthName = new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+          const totalGross = monthRes.reduce((s: number, r: { grossAmount?: number }) => s + (r.grossAmount || 0), 0);
+          const totalPayout = monthRes.reduce((s: number, r: { ownerPayout?: number }) => s + (r.ownerPayout || 0), 0);
+          const fmt = (n: number) => `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const rows = monthRes.map((r: any) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${r.guest}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${r.checkout || r.checkin || ""}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${r.channel || ""}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${fmt(r.grossAmount || 0)}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:600">${fmt(r.ownerPayout || 0)}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${r.payoutStatus || ""}</td></tr>`).join("");
+          const html = `<!DOCTYPE html><html><head><title>Earnings Statement — ${monthName}</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#111;max-width:900px;margin:0 auto}table{width:100%;border-collapse:collapse}@media print{body{padding:20px}}</style></head><body><div style="display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #eee"><div style="font-size:13px;font-weight:700;color:#80020E">HOSTYO</div><div style="text-align:right"><div style="font-size:18px;font-weight:700">Earnings Statement</div><div style="font-size:11px;color:#999;margin-top:3px">${property.name} · ${monthName}</div></div></div><table><thead><tr>${["Guest","Date","Channel","Gross","Owner Payout","Status"].map((h: string) => `<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;font-size:11px;color:#666">${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="3" style="padding:8px 12px;font-size:12px;font-weight:700">Total</td><td style="padding:8px 12px;font-size:12px;font-weight:700">${fmt(totalGross)}</td><td style="padding:8px 12px;font-size:14px;font-weight:700">${fmt(totalPayout)}</td><td></td></tr></tfoot></table></body></html>`;
+          const w = window.open("", "_blank");
+          if (w) { w.document.write(html); w.document.close(); w.print(); }
+        };
+
+        const handleUpload = async (files: FileList | null) => {
+          if (!files || !id) return;
+          setUploading(true);
+          for (const file of Array.from(files)) {
+            try {
+              const formData = new FormData();
+              formData.append("file", file);
+              const res = await fetch("/api/submit/upload", { method: "POST", body: formData });
+              const text = await res.text();
+              let data;
+              try { data = JSON.parse(text); } catch { continue; }
+              if (data.ok) {
+                addDocument({
+                  propertyId: id,
+                  name: file.name,
+                  url: data.url,
+                  size: formatFileSize(file.size),
+                  type: "document",
+                  source: "Admin",
+                });
+              }
+            } catch { /* skip */ }
+          }
+          setUploading(false);
+          refreshDocs();
+        };
+
+        const reports = docs.filter((d) => d.type === "report");
+        const propDocs = docs.filter((d) => d.type === "document");
+
+        return (
+          <div className="space-y-5">
+            {/* Upload Zone */}
+            <div className="bg-white border-2 border-dashed border-[#e2e2e2] rounded-xl p-8 text-center hover:border-[#80020E]/30 transition-colors"
+              onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-[#80020E]", "bg-[#80020E]/[0.02]"); }}
+              onDragLeave={(e) => { e.currentTarget.classList.remove("border-[#80020E]", "bg-[#80020E]/[0.02]"); }}
+              onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove("border-[#80020E]", "bg-[#80020E]/[0.02]"); handleUpload(e.dataTransfer.files); }}>
+              <div className="w-12 h-12 rounded-xl bg-[#f5f5f5] flex items-center justify-center mx-auto mb-3">
+                {uploading ? (
+                  <div className="w-5 h-5 border-2 border-[#80020E] border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                )}
+              </div>
+              <div className="text-[14px] font-medium text-[#111] mb-1">{uploading ? "Uploading..." : "Drop files here to upload"}</div>
+              <div className="text-[12px] text-[#999]">or <button onClick={() => fileInputRef.current?.click()} className="text-[#80020E] font-medium hover:underline">browse files</button> from your device</div>
+              <div className="text-[10px] text-[#bbb] mt-2">PDF · DOC · JPG · PNG · XLS · UP TO 25MB</div>
+              <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx" className="hidden" onChange={(e) => handleUpload(e.target.files)} />
+            </div>
+
+            {/* Reports + Property Documents side by side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Reports (auto-generated) */}
+              <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 bg-[#fafafa] border-b border-[#f0f0f0]">
+                  <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Reports</span>
+                  <span className="text-[11px] text-[#bbb]">{allReportMonths.length} files</span>
+                </div>
+                <div className="divide-y divide-[#f3f3f3] max-h-[400px] overflow-y-auto">
+                  {allReportMonths.length === 0 ? (
+                    <div className="p-6 text-center text-[12px] text-[#999]">No reports generated yet.</div>
+                  ) : allReportMonths.map((key) => {
+                    const [y, m] = key.split("-");
+                    const monthLabel = new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+                    const hasExpenses = !!expMonthMap[key];
+                    const hasEarnings = !!resMonthMap[key];
+                    return (
+                      <div key={key} className="px-5 py-3">
+                        {hasEarnings && (
+                          <div className="flex items-center justify-between py-1.5">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[13px] font-medium text-[#111] truncate">Earnings — {monthLabel}</div>
+                              <div className="text-[10px] text-[#999]">Generated · System</div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button onClick={() => openEarningsStatement(key, resMonthMap[key])} className="w-7 h-7 rounded-md border border-[#e2e2e2] flex items-center justify-center text-[#888] hover:text-[#80020E] hover:border-[#80020E] transition-colors" title="Download">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {hasExpenses && (
+                          <div className="flex items-center justify-between py-1.5">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[13px] font-medium text-[#111] truncate">Expense Report — {monthLabel}</div>
+                              <div className="text-[10px] text-[#999]">Generated · System</div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button onClick={() => openExpenseReport(key, expMonthMap[key])} className="w-7 h-7 rounded-md border border-[#e2e2e2] flex items-center justify-center text-[#888] hover:text-[#80020E] hover:border-[#80020E] transition-colors" title="Download">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Property Documents (uploaded) */}
+              <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 bg-[#fafafa] border-b border-[#f0f0f0]">
+                  <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Property Documents</span>
+                  <span className="text-[11px] text-[#bbb]">{propDocs.length} files</span>
+                </div>
+                <div className="divide-y divide-[#f3f3f3] max-h-[400px] overflow-y-auto">
+                  {propDocs.length === 0 ? (
+                    <div className="p-6 text-center text-[12px] text-[#999]">No documents uploaded yet.</div>
+                  ) : propDocs.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between px-5 py-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-medium text-[#111] truncate">{doc.name}</div>
+                        <div className="text-[10px] text-[#999]">Uploaded {new Date(doc.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {doc.source}</div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[10px] text-[#bbb]">{doc.size}</span>
+                        <a href={doc.url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-md border border-[#e2e2e2] flex items-center justify-center text-[#888] hover:text-[#80020E] hover:border-[#80020E] transition-colors" title="Download">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </a>
+                        <button onClick={() => { removeDocument(doc.id); refreshDocs(); }} className="w-7 h-7 rounded-md border border-[#e2e2e2] flex items-center justify-center text-[#ccc] hover:text-[#7A5252] hover:border-[#7A5252] transition-colors" title="Delete">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="text-[15px] font-semibold text-[#111] mb-1">No documents yet</div>
-          <div className="text-[13px] text-[#888]">Property documents, reports, and onboarding files will appear here.</div>
-        </div>
-      )}
+        );
+      })()}
     </AppShell>
   );
 }

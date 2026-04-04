@@ -5,29 +5,31 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { getChannelIcon } from "@/components/ChannelBadge";
 
-interface Arrival { guest: string; property: string; guests: number; channel: string; }
-interface Departure { guest: string; property: string; guests: number; channel: string; }
-interface Upcoming { guest: string; property: string; dates: string; amount: string; channel: string; }
+interface InHouseGuest { guest: string; property: string; channel: string; daysLeft: number; }
+interface NextArrival { guest: string; property: string; channel: string; daysAway: number; date: string; }
 interface Payment { balance: string; paidThisMonth: string; pending: string; forecast?: string; }
 
 export default function DashboardPage() {
-  const [arrivals, setArrivals] = useState<Arrival[]>([]);
-  const [departures, setDepartures] = useState<Departure[]>([]);
-  const [upcoming, setUpcoming] = useState<Upcoming[]>([]);
+  const [inHouse, setInHouse] = useState<InHouseGuest[]>([]);
+  const [nextArrivals, setNextArrivals] = useState<NextArrival[]>([]);
   const [payment, setPayment] = useState<Payment>({ balance: "€0", paidThisMonth: "€0", pending: "€0" });
+  const [expenses, setExpenses] = useState("€0");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/today")
-      .then((r) => r.json())
-      .then((data) => {
-        setArrivals(data.arrivals || []);
-        setDepartures(data.departures || []);
-        setUpcoming(data.upcoming || []);
-        setPayment(data.payment || { balance: "€0", paidThisMonth: "€0", pending: "€0" });
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch("/api/today").then((r) => r.json()),
+      fetch("/api/expenses").then((r) => r.json()).catch(() => ({ data: [] })),
+    ]).then(([todayData, expData]) => {
+      setInHouse(todayData.inHouse || []);
+      setNextArrivals(todayData.nextArrivals || []);
+      setPayment(todayData.payment || { balance: "€0", paidThisMonth: "€0", pending: "€0" });
+      // Calculate expenses this month
+      const thisMonth = new Date().toISOString().slice(0, 7);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const monthExp = (expData.data || []).filter((e: any) => (e.date || "").startsWith(thisMonth)).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      setExpenses(`€${monthExp.toLocaleString("en-IE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`);
+    }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -40,101 +42,98 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="Today">
-      {/* Subtitle only — no duplicate "Today" heading */}
       <p className="text-[13px] text-[#888] mb-6 -mt-1">A live view of today&apos;s activity across your portfolio</p>
 
-      {/* Operations */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-        {/* Arrivals */}
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-[13px] font-semibold text-[#111]">Arrivals</h3>
-              <p className="text-[11px] text-[#999]">Check-ins today</p>
-            </div>
-            <span className="text-[20px] font-medium text-[#111]">{arrivals.length}</span>
-          </div>
-          {arrivals.length > 0 ? arrivals.map((a, i) => (
-            <Link key={i} href={`/reservations?guest=${encodeURIComponent(a.guest)}`} className="flex items-center gap-2 py-2.5 border-t border-[#f3f3f3] hover:bg-[#f9f9f9] rounded-lg px-2 -mx-2 transition-colors">
-              <span className="flex-shrink-0">{getChannelIcon(a.channel)}</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-medium text-[#111] truncate">{a.guest}</p>
-                <p className="text-[11px] text-[#999] truncate">{a.property} · {a.guests} guests</p>
-              </div>
-            </Link>
-          )) : (
-            <p className="text-[12px] text-[#999] py-4 text-center border-t border-[#f3f3f3]">No arrivals today</p>
-          )}
-        </div>
-
-        {/* Departures */}
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-[13px] font-semibold text-[#111]">Departures</h3>
-              <p className="text-[11px] text-[#999]">Check-outs today</p>
-            </div>
-            <span className="text-[20px] font-medium text-[#111]">{departures.length}</span>
-          </div>
-          {departures.length > 0 ? departures.map((d, i) => (
-            <Link key={i} href={`/reservations?guest=${encodeURIComponent(d.guest)}`} className="flex items-center gap-2 py-2.5 border-t border-[#f3f3f3] hover:bg-[#f9f9f9] rounded-lg px-2 -mx-2 transition-colors">
-              <span className="flex-shrink-0">{getChannelIcon(d.channel)}</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-medium text-[#111] truncate">{d.guest}</p>
-                <p className="text-[11px] text-[#999] truncate">{d.property}</p>
-              </div>
-            </Link>
-          )) : (
-            <p className="text-[12px] text-[#999] py-4 text-center border-t border-[#f3f3f3]">No departures today</p>
-          )}
-        </div>
-
-        {/* Upcoming */}
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-[13px] font-semibold text-[#111]">Upcoming</h3>
-              <p className="text-[11px] text-[#999]">Next 3 reservations</p>
-            </div>
-            <Link href="/reservations" className="text-[11px] font-medium text-black hover:text-black transition-colors">View all →</Link>
-          </div>
-          {upcoming.length > 0 ? upcoming.map((r, i) => (
-            <Link key={i} href={`/reservations?guest=${encodeURIComponent(r.guest)}`} className="flex items-center gap-2 py-2.5 border-t border-[#f3f3f3] hover:bg-[#f9f9f9] rounded-lg px-2 -mx-2 transition-colors">
-              <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-medium text-[#111] truncate">{r.guest}</p>
-                <p className="text-[11px] text-[#999] truncate">{r.property} · {r.dates}</p>
-              </div>
-            </Link>
-          )) : (
-            <p className="text-[12px] text-[#999] py-4 text-center border-t border-[#f3f3f3]">No upcoming reservations</p>
-          )}
-        </div>
+      {/* ── Summary Cards ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
+          <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Balance</span>
+          <p className="text-[22px] font-bold text-[#111] mt-1">{payment.balance}</p>
+          <p className="text-[11px] text-[#aaa] mt-0.5">Payout pending</p>
+        </Link>
+        <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
+          <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Paid Out</span>
+          <p className="text-[22px] font-bold text-[#111] mt-1">{payment.paidThisMonth}</p>
+          <p className="text-[11px] text-[#aaa] mt-0.5">This month</p>
+        </Link>
+        <Link href="/finances/expenses" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
+          <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Expenses</span>
+          <p className="text-[22px] font-bold text-[#111] mt-1">{expenses}</p>
+          <p className="text-[11px] text-[#aaa] mt-0.5">This month</p>
+        </Link>
+        <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
+          <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Forecast</span>
+          <p className="text-[22px] font-bold text-[#111] mt-1">{payment.forecast || "€0"}</p>
+          <p className="text-[11px] text-[#aaa] mt-0.5">Upcoming reservations</p>
+        </Link>
       </div>
 
-      {/* Payment Summary */}
-      <h3 className="text-[14px] font-medium text-[#111] mb-3">Payment summary</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
-          <span className="text-[10px] md:text-[11px] font-medium text-[#888] uppercase tracking-wide">Balance</span>
-          <p className="text-[18px] md:text-[22px] font-medium text-[#111] mt-1">{payment.balance}</p>
-          <p className="text-[10px] text-[#aaa] mt-0.5">In-house reservations total</p>
-        </Link>
-        <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
-          <span className="text-[10px] md:text-[11px] font-medium text-[#888] uppercase tracking-wide">Paid this month</span>
-          <p className="text-[18px] md:text-[22px] font-medium text-[#111] mt-1">{payment.paidThisMonth}</p>
-          <p className="text-[10px] text-[#aaa] mt-0.5">Total transferred this month</p>
-        </Link>
-        <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
-          <span className="text-[10px] md:text-[11px] font-medium text-[#888] uppercase tracking-wide">Pending payment</span>
-          <p className="text-[18px] md:text-[22px] font-medium text-[#111] mt-1">{payment.pending}</p>
-          <p className="text-[10px] text-[#aaa] mt-0.5">Completed, payout pending</p>
-        </Link>
-        <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
-          <span className="text-[10px] md:text-[11px] font-medium text-[#888] uppercase tracking-wide">Forecast</span>
-          <p className="text-[18px] md:text-[22px] font-medium text-[#111] mt-1">{payment.forecast || "€0.00"}</p>
-          <p className="text-[10px] text-[#aaa] mt-0.5">Upcoming reservations total</p>
-        </Link>
+      {/* ── In House + Next Arrivals ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* In House */}
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
+          <h3 className="text-[15px] font-semibold text-[#111] mb-4">In house</h3>
+          {inHouse.length === 0 ? (
+            <p className="text-[13px] text-[#999] py-4 text-center">No guests currently in house</p>
+          ) : (
+            <div className="space-y-0">
+              {inHouse.map((g, i) => (
+                <Link key={i} href={`/reservations?guest=${encodeURIComponent(g.guest)}`}
+                  className="flex items-center gap-3 py-3 border-t border-[#f3f3f3] first:border-t-0 hover:bg-[#f9f9f9] -mx-2 px-2 rounded-lg transition-colors">
+                  <span className="flex-shrink-0">{getChannelIcon(g.channel)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-semibold text-[#111] truncate">{g.guest}</p>
+                    <p className="text-[12px] text-[#999] truncate">{g.property}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-[18px] font-bold text-[#111]">{g.daysLeft}</div>
+                    <div className="text-[10px] text-[#999]">days left</div>
+                  </div>
+                </Link>
+              ))}
+              {/* Departing labels */}
+              {inHouse.map((g, i) => {
+                if (g.daysLeft === 0) return <div key={`dep-${i}`} className="text-[11px] text-[#FF5A5F] font-medium -mt-1 ml-9">Departing today</div>;
+                if (g.daysLeft === 1) return <div key={`dep-${i}`} className="text-[11px] text-[#FF5A5F] font-medium -mt-1 ml-9">Departing tomorrow</div>;
+                return null;
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Next Arrivals */}
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[15px] font-semibold text-[#111]">Next arrivals</h3>
+            <div className="flex items-center gap-3">
+              <span className="text-[12px] text-[#999]">{nextArrivals.length} upcoming</span>
+              <Link href="/reservations" className="text-[12px] font-medium text-[#888] hover:text-[#555] transition-colors">View all →</Link>
+            </div>
+          </div>
+          {nextArrivals.length === 0 ? (
+            <p className="text-[13px] text-[#999] py-4 text-center">No upcoming arrivals</p>
+          ) : (
+            <div className="space-y-0">
+              {nextArrivals.map((a, i) => (
+                <Link key={i} href={`/reservations?guest=${encodeURIComponent(a.guest)}`}
+                  className="flex items-center gap-3 py-3 border-t border-[#f3f3f3] first:border-t-0 hover:bg-[#f9f9f9] -mx-2 px-2 rounded-lg transition-colors">
+                  <span className="flex-shrink-0">{getChannelIcon(a.channel)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-semibold text-[#111] truncate">{a.guest}</p>
+                    <p className="text-[12px] text-[#999] truncate">{a.property}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-[18px] font-bold text-[#111]">{a.daysAway}</div>
+                    <div className="text-[10px] text-[#999]">days away</div>
+                    {a.daysAway === 0 && <div className="text-[10px] text-[#2F6B57] font-medium">Arriving today</div>}
+                    {a.daysAway === 1 && <div className="text-[10px] text-[#2F6B57] font-medium">Arriving tomorrow</div>}
+                    {a.daysAway > 1 && <div className="text-[10px] text-[#999]">{a.date}</div>}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </AppShell>
   );
