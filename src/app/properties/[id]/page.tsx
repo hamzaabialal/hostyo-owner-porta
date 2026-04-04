@@ -643,7 +643,6 @@ export default function PropertyDetailPage() {
           refreshDocs();
         };
 
-        const reports = docs.filter((d) => d.type === "report");
         const propDocs = docs.filter((d) => d.type === "document");
 
         return (
