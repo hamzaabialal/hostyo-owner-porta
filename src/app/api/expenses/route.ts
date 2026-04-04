@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { queryDatabase, getProp, DB } from "@/lib/notion";
-import { cached } from "@/lib/cache";
+import { cached, invalidate } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
