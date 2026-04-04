@@ -222,14 +222,18 @@ function ExpensesPageInner() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
+  const openId = searchParams.get("open");
+
   useEffect(() => {
+    // If ?open= is present, invalidate cache to get fresh data
+    if (openId) invalidate("expenses");
+
     fetchData("expenses", "/api/expenses")
       .then((res: unknown) => {
         const d = res as { data?: Expense[] };
         if (d.data) {
           setApiExpenses(d.data);
           // Auto-open drawer if ?open= param is present
-          const openId = searchParams.get("open");
           if (openId) {
             const match = d.data.find((e) => e.id === openId);
             if (match) {
@@ -242,7 +246,7 @@ function ExpensesPageInner() {
       .catch(console.error)
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [openId]);
 
   const allExpenses = apiExpenses;
 

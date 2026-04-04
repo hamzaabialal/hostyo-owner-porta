@@ -179,6 +179,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       properties,
     });
 
+    // Invalidate expenses cache so the new expense shows immediately
+    try {
+      const { invalidate } = await import("@/lib/cache");
+      invalidate("expenses");
+    } catch { /* ignore */ }
+
     return NextResponse.json({ ok: true, expenseId });
   } catch (error: any) {
     console.error("Submit POST error:", error?.message);
