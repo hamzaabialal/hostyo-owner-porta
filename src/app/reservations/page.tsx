@@ -77,9 +77,9 @@ function AccordionDetail({ r }: { r: Reservation }) {
 
   const netEarnings = r.gross + r.platformFee + r.hostyoFee + r.cleaningFee + r.expensesTotal;
 
-  // Fetch linked expenses when Expenses tab is opened
+  // Fetch linked expenses when Expenses or Earnings tab is opened
   useEffect(() => {
-    if (tab === "expenses" && !expensesLoaded && r.ref) {
+    if ((tab === "expenses" || tab === "earnings") && !expensesLoaded && r.ref) {
       fetch("/api/expenses")
         .then((res) => res.json())
         .then((data) => {
@@ -92,6 +92,10 @@ function AccordionDetail({ r }: { r: Reservation }) {
         .finally(() => setExpensesLoaded(true));
     }
   }, [tab, expensesLoaded, r.ref]);
+
+  // Calculate total from linked expenses
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const linkedExpensesTotal = linkedExpenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
   const tabs = [
     { key: "overview" as const, label: "Overview" },
@@ -158,7 +162,9 @@ function AccordionDetail({ r }: { r: Reservation }) {
                 const vat = (r.hostyoFee || 0) * 0.19;
                 return vat !== 0 ? <FinRow label="VAT 19%" value={fmtCurrency(-vat)} neg /> : null;
               })()}
-              {r.expensesTotal !== 0 && <FinRow label="Expenses" value={fmtCurrency(r.expensesTotal)} neg />}
+              {(linkedExpensesTotal > 0 || r.expensesTotal !== 0) && (
+                <FinRow label="Expenses" value={fmtCurrency(-(linkedExpensesTotal || Math.abs(r.expensesTotal || 0)))} neg />
+              )}
             </div>
             <div className="px-5 py-4 bg-gradient-to-r from-[#80020E]/5 to-[#80020E]/[0.02] border-t border-[#80020E]/10">
               <div className="flex justify-between items-center py-2.5">
