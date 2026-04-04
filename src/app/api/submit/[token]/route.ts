@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { decodeToken } from "@/lib/token";
+import { decodeToken, isPropertyToken, decodePropertyToken } from "@/lib/token";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +24,29 @@ function prop(page: any, name: string): any {
   }
 }
 
-/** GET — fetch reservation context for the vendor form */
+/** GET — fetch reservation/property context for the vendor form */
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   try {
+    // Property-only submission (not tied to a reservation)
+    if (isPropertyToken(token)) {
+      const propertyName = decodePropertyToken(token);
+      return NextResponse.json({
+        ok: true,
+        isPropertyOnly: true,
+        reservation: {
+          id: "",
+          ref: "",
+          property: propertyName,
+          guest: "",
+          checkin: "",
+          checkout: "",
+          channel: "",
+        },
+      });
+    }
+
+    // Reservation-based submission
     const pageId = decodeToken(token);
     const page = await notion.pages.retrieve({ page_id: pageId }) as any;
 
@@ -61,23 +80,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
 
   try {
-    let pageId: string;
-    try {
-      pageId = decodeToken(token);
-    } catch {
-      return NextResponse.json({ ok: false, error: "Invalid token format" }, { status: 400 });
-    }
+    let reservationRef = "";
+    let propertyName = "";
 
-    // Verify reservation exists
-    let page: any;
-    try {
-      page = await notion.pages.retrieve({ page_id: pageId });
-    } catch (e: any) {
-      console.error("Reservation lookup failed:", e?.message);
-      return NextResponse.json({ ok: false, error: "Reservation not found: " + (e?.message || "unknown") }, { status: 404 });
+    if (isPropertyToken(token)) {
+      // Property-only submission
+      propertyName = decodePropertyToken(token);
+    } else {
+      // Reservation-based submission
+      let pageId: string;
+      try {
+        pageId = decodeToken(token);
+      } catch {
+        return NextResponse.json({ ok: false, error: "Invalid token format" }, { status: 400 });
+      }
+      let page: any;
+      try {
+        page = await notion.pages.retrieve({ page_id: pageId });
+      } catch (e: any) {
+        console.error("Reservation lookup failed:", e?.message);
+        return NextResponse.json({ ok: false, error: "Reservation not found: " + (e?.message || "unknown") }, { status: 404 });
+      }
+      reservationRef = prop(page, "Reservation Code") || prop(page, "Name") || "";
+      propertyName = prop(page, "Property") || "";
     }
-    const reservationRef = prop(page, "Reservation Code") || prop(page, "Name") || "";
-    const propertyName = prop(page, "Property") || "";
 
     const body = await req.json();
     const { category, description, amount, vendorName, status: workStatus, photoUrls, receiptUrls } = body;
@@ -91,9 +117,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     const properties: any = {
       "Expense ID": { title: [{ text: { content: expenseId } }] },
       "Created": { date: { start: new Date().toISOString().split("T")[0] } },
-      "Amount": { rich_text: [{ text: { content: String(parseFloat(amount).toFixed(2)) } }] },
-      "Reservation ID": { rich_text: [{ text: { content: reservationRef } }] },
+      "Amount": { rich_text: [{ text: { content: String(parseFloat(amount || "0").toFixed(2)) } }] },
     };
+
+    if (reservationRef) {
+      properties["Reservation ID"] = { rich_text: [{ text: { content: reservationRef } }] };
+    }
 
     // Category (select) — only set if provided
     if (category) {

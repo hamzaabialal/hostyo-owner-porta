@@ -252,6 +252,7 @@ function UploadArea({
 export default function SubmitExpensePage() {
   const { token } = useParams<{ token: string }>();
   const [reservation, setReservation] = useState<ReservationContext | null>(null);
+  const [isPropertyOnly, setIsPropertyOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -275,8 +276,10 @@ export default function SubmitExpensePage() {
     fetch(`/api/submit/${token}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.ok) setReservation(data.reservation);
-        else setError(data.error || "Invalid link");
+        if (data.ok) {
+          setReservation(data.reservation);
+          if (data.isPropertyOnly) setIsPropertyOnly(true);
+        } else setError(data.error || "Invalid link");
       })
       .catch(() => setError("Could not load reservation"))
       .finally(() => setLoading(false));
@@ -343,19 +346,27 @@ export default function SubmitExpensePage() {
       </header>
 
       <div className="max-w-[480px] mx-auto px-4 py-5 pb-8">
-        {/* 1. Reservation context card */}
+        {/* 1. Context card */}
         <div className="bg-white border border-[#eaeaea] rounded-xl p-4 mb-5">
-          <div className="text-[11px] font-medium text-[#999] uppercase tracking-wide mb-2">Reservation</div>
-          <div className="text-[15px] font-semibold text-[#111] mb-1">{reservation.property}</div>
-          <div className="text-[12px] text-[#888]">
-            {reservation.ref && <span>{reservation.ref} &middot; </span>}
-            {fmtDate(reservation.checkin)} – {fmtDate(reservation.checkout)}
+          <div className="text-[11px] font-medium text-[#999] uppercase tracking-wide mb-2">
+            {isPropertyOnly ? "Property" : "Reservation"}
           </div>
-          {reservation.guest && (
-            <div className="text-[12px] text-[#aaa] mt-1">Guest: {reservation.guest}</div>
+          <div className="text-[15px] font-semibold text-[#111] mb-1">{reservation.property}</div>
+          {!isPropertyOnly && (
+            <>
+              <div className="text-[12px] text-[#888]">
+                {reservation.ref && <span>{reservation.ref} &middot; </span>}
+                {fmtDate(reservation.checkin)} – {fmtDate(reservation.checkout)}
+              </div>
+              {reservation.guest && (
+                <div className="text-[12px] text-[#aaa] mt-1">Guest: {reservation.guest}</div>
+              )}
+            </>
           )}
           <div className="mt-3 px-3 py-2 bg-[#f8f8f8] rounded-lg text-[11px] text-[#888] leading-relaxed">
-            You are submitting work completed for this reservation.
+            {isPropertyOnly
+              ? "You are submitting work completed for this property."
+              : "You are submitting work completed for this reservation."}
           </div>
         </div>
 
