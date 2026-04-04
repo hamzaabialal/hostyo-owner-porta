@@ -88,15 +88,11 @@ export default function DashboardPage() {
                   <div className="text-right flex-shrink-0">
                     <div className="text-[18px] font-bold text-[#111]">{g.daysLeft}</div>
                     <div className="text-[10px] text-[#999]">days left</div>
+                    {g.daysLeft === 0 && <div className="text-[10px] text-[#FF5A5F] font-medium">Departing today</div>}
+                    {g.daysLeft === 1 && <div className="text-[10px] text-[#FF5A5F] font-medium">Departing tomorrow</div>}
                   </div>
                 </Link>
               ))}
-              {/* Departing labels */}
-              {inHouse.map((g, i) => {
-                if (g.daysLeft === 0) return <div key={`dep-${i}`} className="text-[11px] text-[#FF5A5F] font-medium -mt-1 ml-9">Departing today</div>;
-                if (g.daysLeft === 1) return <div key={`dep-${i}`} className="text-[11px] text-[#FF5A5F] font-medium -mt-1 ml-9">Departing tomorrow</div>;
-                return null;
-              })}
             </div>
           )}
         </div>
