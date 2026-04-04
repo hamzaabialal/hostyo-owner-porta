@@ -231,9 +231,16 @@ export default function PropertyDetailPage() {
       setProperty(found || null);
       if (found) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setReservations(allRes.filter((r: any) => r.property?.trim() === found.name?.trim()));
+        const propName = found.name?.trim().toLowerCase() || "";
+        setReservations(allRes.filter((r: any) => {
+          const rp = (r.property || "").trim().toLowerCase();
+          return rp === propName || rp.startsWith(propName) || propName.startsWith(rp);
+        }));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setExpenses(allExp.filter((e: any) => e.property?.trim() === found.name?.trim()));
+        setExpenses(allExp.filter((e: any) => {
+          const ep = (e.property || "").trim().toLowerCase();
+          return ep === propName || ep.startsWith(propName) || propName.startsWith(ep);
+        }));
       }
     }).catch(console.error).finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -559,7 +566,11 @@ export default function PropertyDetailPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const allExp = (res as any)?.data || [];
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          setExpenses(allExp.filter((e: any) => e.property?.trim() === property.name?.trim()));
+          const pn = (property.name || "").trim().toLowerCase();
+          setExpenses(allExp.filter((e: any) => {
+            const ep = (e.property || "").trim().toLowerCase();
+            return ep === pn || ep.startsWith(pn) || pn.startsWith(ep);
+          }));
         }).catch(() => {});
       }} />}
 

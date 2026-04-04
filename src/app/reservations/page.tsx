@@ -479,10 +479,20 @@ function ReservationsContent() {
   const uniqueProperties = useMemo(() => new Set(data.map((r) => r.property)), [data]);
   const showPropertyCol = uniqueProperties.size > 1 && !filterProperty;
 
+  // Property match: use startsWith to handle minor name variations (e.g. "View" vs "Views")
+  const matchesProperty = useCallback((resProperty: string, filterProp: string) => {
+    if (!filterProp) return true;
+    if (resProperty === filterProp) return true;
+    // Fuzzy: check if one starts with the other (handles trailing "s", "es", etc.)
+    const a = resProperty.toLowerCase().trim();
+    const b = filterProp.toLowerCase().trim();
+    return a.startsWith(b) || b.startsWith(a);
+  }, []);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return data.filter((r) => {
-      if (filterProperty && r.property !== filterProperty) return false;
+      if (filterProperty && !matchesProperty(r.property, filterProperty)) return false;
       if (filterStatus && r.status !== filterStatus) return false;
       if (filterChannel && r.channel !== filterChannel) return false;
       if (q && !r.guest.toLowerCase().includes(q) && !r.ref.toLowerCase().includes(q)) return false;
@@ -490,17 +500,17 @@ function ReservationsContent() {
       if (dateTo && r.checkIn > dateTo) return false;
       return true;
     });
-  }, [data, filterProperty, filterStatus, filterChannel, search, dateFrom, dateTo]);
+  }, [data, filterProperty, filterStatus, filterChannel, search, dateFrom, dateTo, matchesProperty]);
 
   // Calendar gets all reservations without date range filter (calendar has its own month navigation)
   const calendarFiltered = useMemo(() => {
     return data.filter((r) => {
-      if (filterProperty && r.property !== filterProperty) return false;
+      if (filterProperty && !matchesProperty(r.property, filterProperty)) return false;
       if (filterStatus && r.status !== filterStatus) return false;
       if (filterChannel && r.channel !== filterChannel) return false;
       return true;
     });
-  }, [data, filterProperty, filterStatus, filterChannel]);
+  }, [data, filterProperty, filterStatus, filterChannel, matchesProperty]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => {
