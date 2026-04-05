@@ -354,29 +354,28 @@ export default function FinancesEarningsPage() {
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr className="bg-[#fafafa]">
-                  {["Date", "Property", "Guest / Ref", "Channel", "Gross", "Deductions", "Net Payout", "Status", "Payout Date"].map((h) => (
+                  {["Status", "Guest / Ref", "Channel", "Gross", "Deductions", "Payout", "Expected by"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-[#999] uppercase tracking-wider border-b border-[#eaeaea]">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r) => {
-                  const deductions = r.platformFee + r.hostyoFee + r.cleaning + r.expenses;
+                  const deductions = r.platformFee + r.hostyoFee + r.vat + r.cleaning + r.expenses;
+                  const expectedBy = r.checkoutDate ? expectedByDate(r.checkoutDate) : fmtDate(r.payoutDate);
                   return (
                     <tr key={r.id} onClick={() => { setSelectedRow(r); document.body.style.overflow = "hidden"; }}
                       className="border-b border-[#f3f3f3] last:border-b-0 hover:bg-[#fafafa] cursor-pointer transition-colors">
-                      <td className="px-4 py-3.5 text-[#777] whitespace-nowrap">{fmtDate(r.date)}</td>
-                      <td className="px-4 py-3.5 font-medium text-[#111] whitespace-nowrap">{r.property}</td>
+                      <td className="px-4 py-3.5"><span className={statusPillFinance(r.payoutStatus)}>{r.payoutStatus}</span></td>
                       <td className="px-4 py-3.5">
-                        <div className="text-[#111]">{r.guest}</div>
-                        {r.ref && <div className="text-[11px] text-[#aaa]">{r.ref}</div>}
+                        <div className="font-medium text-[#111]">{r.guest}</div>
+                        {r.ref && <div className="text-[11px] text-[#999] mt-0.5">{r.ref}</div>}
                       </td>
                       <td className="px-4 py-3.5"><ChannelBadge channel={r.channel} /></td>
-                      <td className="px-4 py-3.5 text-[#111] font-medium whitespace-nowrap">{fmtCurrency(r.gross)}</td>
-                      <td className="px-4 py-3.5 text-[#999] whitespace-nowrap">{fmtCurrency(deductions)}</td>
-                      <td className="px-4 py-3.5 font-semibold text-accent whitespace-nowrap">{fmtCurrency(r.net)}</td>
-                      <td className="px-4 py-3.5"><span className={statusPillFinance(r.payoutStatus)}>{r.payoutStatus}</span></td>
-                      <td className="px-4 py-3.5 text-[#777] whitespace-nowrap">{fmtDate(r.payoutDate)}</td>
+                      <td className="px-4 py-3.5 text-[#111] tabular-nums whitespace-nowrap">{fmtCurrency(r.gross)}</td>
+                      <td className="px-4 py-3.5 text-[#666] tabular-nums whitespace-nowrap">{fmtCurrency(deductions)}</td>
+                      <td className="px-4 py-3.5 font-semibold text-[#111] tabular-nums whitespace-nowrap">{fmtCurrency(r.net)}</td>
+                      <td className="px-4 py-3.5 text-[#666] whitespace-nowrap">{expectedBy}</td>
                     </tr>
                   );
                 })}
