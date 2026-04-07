@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import MobileNav from "./MobileNav";
@@ -61,6 +61,16 @@ function seedNotifications(reservations: any[], expenses: any[]) {
 export default function AppShell({ title, children }: { title: string; children: React.ReactNode }) {
   const { fetchData } = useData();
   const seeded = useRef(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Listen for sidebar collapse events
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("hostyo_sidebar_collapsed") : null;
+    if (saved === "true") setSidebarCollapsed(true);
+    const handler = (e: Event) => setSidebarCollapsed((e as CustomEvent).detail);
+    window.addEventListener("hostyo:sidebar", handler);
+    return () => window.removeEventListener("hostyo:sidebar", handler);
+  }, []);
 
   // Prefetch all data in background on mount
   useEffect(() => {
@@ -90,7 +100,7 @@ export default function AppShell({ title, children }: { title: string; children:
         <Sidebar />
       </div>
 
-      <div className="flex-1 flex flex-col min-h-screen min-w-0 md:ml-[220px]">
+      <div className={`flex-1 flex flex-col min-h-screen min-w-0 transition-all duration-200 ${sidebarCollapsed ? "md:ml-[68px]" : "md:ml-[220px]"}`}>
         {/* Mobile header - shown only on mobile */}
         <MobileHeader title={title} />
         {/* Desktop top bar - hidden on mobile */}

@@ -783,48 +783,44 @@ function ExpensesPageInner() {
             const fmt = (n: number) => options.currency ? `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : n.toFixed(2);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const expenseCards = filtered.map((r: any) => {
-              const proofHtml = (r.proof && r.proof.length > 0)
+              const proofItems = (r.proof && r.proof.length > 0)
                 ? r.proof.map((url: string, i: number) => {
                     const isPdf = url.match(/\.pdf/i);
                     if (isPdf) {
                       const fname = url.split("/").pop() || `File ${i + 1}`;
-                      return `<div style="border:1px solid #e5e5e5;border-radius:8px;padding:16px;margin-bottom:8px;background:#fafafa;display:flex;align-items:center;gap:8px">
-                        <span style="font-size:11px;font-weight:600;color:#80020E;background:#F6EDED;padding:3px 8px;border-radius:4px">PDF</span>
-                        <span style="font-size:11px;color:#555;word-break:break-all">${fname}</span>
+                      return `<div style="display:inline-flex;align-items:center;gap:8px;border:1px solid #e5e5e5;border-radius:8px;padding:10px 14px;background:#fafafa">
+                        <span style="font-size:10px;font-weight:700;color:#80020E;background:#F6EDED;padding:2px 6px;border-radius:4px">PDF</span>
+                        <span style="font-size:10px;color:#555">${fname}</span>
                       </div>`;
                     }
-                    return `<img src="${url}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e5;margin-bottom:8px" />`;
+                    return `<img src="${url}" style="height:140px;width:auto;max-width:200px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e5" />`;
                   }).join("")
-                : '<div style="color:#bbb;font-size:11px;font-style:italic">No receipts attached</div>';
+                : '<div style="color:#bbb;font-size:10px;font-style:italic">No receipts attached</div>';
 
               const desc = r.description || "";
               const statusDot = r.status === "Approved" || r.status === "Paid" ? "#2F6B57" : r.status === "In Review" ? "#8A6A2E" : "#999";
 
-              return `<div style="display:flex;gap:32px;padding:28px 0;border-bottom:1px solid #eee">
-                <div style="flex:1;min-width:0">
-                  <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:2px">${r.category || "Expense"} ${desc ? "— " + desc : ""}</div>
-                  <div style="font-size:11px;color:#999;margin-bottom:12px">${r.date || ""}</div>
-                  <div style="font-size:28px;font-weight:700;color:#111;margin-bottom:4px">${fmt(r.amount)}</div>
-                  <div style="font-size:10px;color:#aaa;margin-bottom:16px">incl. VAT</div>
-                  <table style="width:100%;font-size:12px;border-collapse:collapse">
-                    <tr><td style="color:#999;padding:4px 0;width:90px">CATEGORY</td><td style="color:#111;font-weight:500;padding:4px 0">${r.category || "—"}</td></tr>
-                    <tr><td style="color:#999;padding:4px 0">VENDOR</td><td style="color:#111;font-weight:500;padding:4px 0">${r.vendor || "—"}</td></tr>
-                    <tr><td style="color:#999;padding:4px 0">STATUS</td><td style="padding:4px 0"><span style="color:${statusDot};font-weight:600">● ${r.status || "—"}</span></td></tr>
-                    <tr><td style="color:#999;padding:4px 0">PROPERTY</td><td style="color:#111;font-weight:500;padding:4px 0">${r.property || "—"}</td></tr>
-                  </table>
-                  ${desc ? `<div style="margin-top:12px;font-size:11px;color:#666;font-style:italic;line-height:1.5">${desc}</div>` : ""}
-                </div>
-                <div style="width:240px;flex-shrink:0">
-                  <div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Receipt / Invoice</div>
-                  ${proofHtml}
-                </div>
+              return `<div style="page-break-inside:avoid;padding:28px 0;border-bottom:1px solid #eee">
+                <div style="font-size:15px;font-weight:700;color:#111;margin-bottom:2px">${r.category || "Expense"} ${desc ? "— " + desc : ""}</div>
+                <div style="font-size:11px;color:#999;margin-bottom:14px">${r.date || ""}</div>
+                <div style="font-size:28px;font-weight:700;color:#111;margin-bottom:3px">${fmt(r.amount)}</div>
+                <div style="font-size:10px;color:#aaa;margin-bottom:16px">incl. VAT</div>
+                <table style="width:auto;font-size:12px;border-collapse:collapse;margin-bottom:16px">
+                  <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Category</td><td style="color:#111;font-weight:500;padding:4px 0">${r.category || "—"}</td></tr>
+                  <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Vendor</td><td style="color:#111;font-weight:500;padding:4px 0">${r.vendor || "—"}</td></tr>
+                  <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Status</td><td style="padding:4px 0"><span style="color:${statusDot};font-weight:600">● ${r.status || "—"}</span></td></tr>
+                  <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Property</td><td style="color:#111;font-weight:500;padding:4px 0">${r.property || "—"}</td></tr>
+                </table>
+                ${desc ? `<div style="font-size:12px;color:#666;font-style:italic;line-height:1.5;margin-bottom:16px">${desc}</div>` : ""}
+                <div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Receipt / Invoice</div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap">${proofItems}</div>
               </div>`;
             }).join("");
 
             const html = `<!DOCTYPE html><html><head><title>Expense Report</title>
               <style>
                 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px 48px;color:#111;max-width:900px;margin:0 auto}
-                @media print{body{padding:24px 32px}img{max-height:180px!important}}
+                @media print{body{padding:24px 32px}img{max-height:140px!important}}
               </style></head><body>
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #eee">
                 <div>

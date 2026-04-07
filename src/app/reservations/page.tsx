@@ -560,7 +560,10 @@ function ReservationsContent() {
 
       {/* ── Mobile Filters + View Toggle (inline) ── */}
       <div className="flex items-center gap-1.5 mb-4 md:hidden flex-wrap">
-        <FilterDropdown placeholder="Properties" value={filterProperty} onChange={setFilterProperty} options={propertyOptions} searchable />
+        {/* Only show Properties filter on mobile if multiple properties or in list mode */}
+        {(mobileView === "list" || propertyOptions.length > 1) && (
+          <FilterDropdown placeholder="Properties" value={filterProperty} onChange={setFilterProperty} options={propertyOptions} searchable />
+        )}
         <FilterDropdown placeholder="Status" value={filterStatus} onChange={setFilterStatus} options={statusOptions} />
         {/* View toggle icons — ghost style */}
         <div className="flex items-center gap-1 ml-auto">
@@ -604,20 +607,17 @@ function ReservationsContent() {
 
       {/* ── Mobile Calendar View (single property only) ── */}
       {mobileView === "calendar" && (() => {
-        // On mobile, show only one property at a time — use the selected filter or default to first property
+        // On mobile: default to first property, only show property filter if multiple properties
         const mobileProperty = filterProperty || (propertyOptions.length > 0 ? propertyOptions[0].value : "");
         const mobileFiltered = mobileProperty
-          ? calendarFiltered.filter((r) => r.property === mobileProperty)
+          ? calendarFiltered.filter((r) => matchesProperty(r.property, mobileProperty))
           : calendarFiltered;
         return (
           <div className="md:hidden">
-            {!filterProperty && propertyOptions.length > 1 && (
-              <p className="text-[11px] text-[#999] mb-2 text-center">Showing: {mobileProperty}. Use the Properties filter to switch.</p>
-            )}
             <ReservationCalendar
               reservations={mobileFiltered.map((r) => ({ id: r.id, guest: r.guest, property: r.property, channel: r.channel, checkIn: r.checkIn, checkOut: r.checkOut, status: r.status, ownerPayout: r.ownerPayout }))}
               onReservationTap={(res) => {
-                const match = filtered.find((r) => r.id === res.id);
+                const match = calendarFiltered.find((r) => r.id === res.id);
                 if (match) setDrawerRes(match);
               }}
               onPropertyTap={(name) => setPropertyDrawerName(name)}
@@ -715,7 +715,7 @@ function ReservationsContent() {
                 <tr onClick={() => toggleRow(r.id)}
                   className={`cursor-pointer transition-colors border-b ${isOpen ? "bg-[#fafafa] border-[#e2e2e2]" : "hover:bg-[#f9f9f9] border-[#f0f0f0]"}`}>
                   <td className="px-4 py-3.5">
-                    <span className={statusPillClass(r.payoutStatus || r.status)}>{r.payoutStatus || r.status}</span>
+                    <span className={statusPillClass(r.status)}>{r.status}</span>
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="font-medium text-[#111]">{r.guest}</div>

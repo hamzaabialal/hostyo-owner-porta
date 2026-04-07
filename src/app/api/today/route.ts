@@ -139,14 +139,16 @@ async function fetchTodayData() {
     if (status === "Completed" && payoutStatus === "Pending") pendingPayment += ownerPayout;
     if (checkin > todayStr && status !== "Cancelled" && payoutStatus !== "Paid") forecast += ownerPayout;
 
-    // In-house: checked in <= today && checkout > today && not cancelled
-    if (checkin <= todayStr && checkout > todayStr && status !== "Cancelled") {
+    // In-house: checked in <= today && checkout >= today && not cancelled
+    // (includes departing today: checkout === today, daysLeft = 0)
+    if (checkin <= todayStr && checkout >= todayStr && status !== "Cancelled") {
       const daysLeft = Math.ceil((new Date(checkout + "T00:00:00").getTime() - new Date(todayStr + "T00:00:00").getTime()) / 86400000);
       inHouse.push({ guest, property, channel, checkout, daysLeft, nights });
     }
 
-    // Next arrivals: checkin > today && not cancelled
-    if (checkin > todayStr && status !== "Cancelled") {
+    // Next arrivals: checkin >= today && not cancelled
+    // (includes arriving today: checkin === today, daysAway = 0)
+    if (checkin >= todayStr && status !== "Cancelled") {
       const daysAway = Math.ceil((new Date(checkin + "T00:00:00").getTime() - new Date(todayStr + "T00:00:00").getTime()) / 86400000);
       const formatDate = (d: string) => { if (!d) return ""; return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
       nextArrivals.push({ guest, property, channel, checkin, daysAway, date: formatDate(checkin) });
