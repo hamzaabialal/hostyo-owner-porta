@@ -61,6 +61,13 @@ export function getUnreadCount(): number {
   return getNotifications().filter((n) => !n.read).length;
 }
 
+export function markAsRead(id: string) {
+  if (typeof window === "undefined") return;
+  const notifications = getNotifications().map((n) => n.id === id ? { ...n, read: true } : n);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+  window.dispatchEvent(new CustomEvent("hostyo:notification"));
+}
+
 export function dismissNotification(id: string) {
   if (typeof window === "undefined") return;
   const notifications = getNotifications().filter((n) => n.id !== id);

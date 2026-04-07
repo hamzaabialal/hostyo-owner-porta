@@ -329,10 +329,10 @@ export default function FinancesOverviewPage() {
           { label: "Avg / Booking", value: fmtCurrency(avgPerBooking), sub: "YTD" },
           { label: "Avg / Property", value: fmtCurrency(avgPerProperty), sub: "YTD" },
         ].map((c) => (
-          <div key={c.label} className="bg-[#1a1a1a] rounded-xl p-3 md:p-4">
-            <div className="text-[9px] md:text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-1">{c.label}</div>
+          <div key={c.label} className="bg-[#80020E] rounded-xl p-3 md:p-4">
+            <div className="text-[9px] md:text-[10px] font-semibold text-white/60 uppercase tracking-wider mb-1">{c.label}</div>
             <div className="text-[16px] md:text-[20px] font-bold text-white truncate">{c.value}</div>
-            <div className="text-[9px] md:text-[10px] text-[#666] mt-0.5">{c.sub}</div>
+            <div className="text-[9px] md:text-[10px] text-white/40 mt-0.5">{c.sub}</div>
           </div>
         ))}
       </div>
