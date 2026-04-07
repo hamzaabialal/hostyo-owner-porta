@@ -22,6 +22,8 @@ export default function UsersPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [createdUser, setCreatedUser] = useState<{ email: string; tempPassword: string } | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterRole, setFilterRole] = useState("");
   const [propertyOptions, setPropertyOptions] = useState<string[]>([]);
 
   const isAdmin = session?.user?.role === "admin";
@@ -61,14 +63,58 @@ export default function UsersPage() {
     );
   }
 
+  const filteredUsers = users.filter((u) => {
+    if (filterRole === "admin" && !u.isAdmin) return false;
+    if (filterRole === "owner" && u.isAdmin) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q) && !u.properties.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const adminCount = users.filter((u) => u.isAdmin).length;
+  const ownerCount = users.filter((u) => !u.isAdmin).length;
+
   return (
     <AppShell title="Users">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <div className="text-[13px] text-[#888] -mt-1">Manage property owners and admin users.</div>
+      <div className="text-[13px] text-[#888] mb-5 -mt-1">Manage property owners and admin users.</div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
+          <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Total Users</div>
+          <div className="text-[22px] font-bold text-[#111]">{users.length}</div>
+        </div>
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
+          <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Admins</div>
+          <div className="text-[22px] font-bold text-[#111]">{adminCount}</div>
+        </div>
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
+          <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Owners</div>
+          <div className="text-[22px] font-bold text-[#111]">{ownerCount}</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, email or property..."
+            className="w-full h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
+        </div>
+        <div className="flex items-center gap-1">
+          {[{ label: "All", value: "" }, { label: "Admins", value: "admin" }, { label: "Owners", value: "owner" }].map((f) => (
+            <button key={f.value} onClick={() => setFilterRole(f.value)}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
+                filterRole === f.value ? "bg-[#80020E] text-white" : "bg-[#f5f5f5] text-[#555] hover:bg-[#eee]"
+              }`}>{f.label}</button>
+          ))}
         </div>
         <button onClick={() => setInviteOpen(true)}
-          className="flex items-center gap-1.5 h-[38px] px-4 rounded-lg border border-[#80020E] text-[#80020E] text-[13px] font-medium hover:bg-[#80020E]/5 transition-colors">
+          className="flex items-center gap-1.5 h-[38px] px-4 rounded-lg border border-[#80020E] text-[#80020E] text-[13px] font-medium hover:bg-[#80020E]/5 transition-colors ml-auto">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Invite User
         </button>
@@ -85,9 +131,9 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody>
-            {users.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-10 text-[#999]">No users found.</td></tr>
-            ) : users.map((u) => (
+            {filteredUsers.length === 0 ? (
+              <tr><td colSpan={5} className="text-center py-10 text-[#999]">No users match your filters.</td></tr>
+            ) : filteredUsers.map((u) => (
               <tr key={u.id} className="border-b border-[#f3f3f3] hover:bg-[#f9f9f9]">
                 <td className="px-4 py-3">
                   <div className="font-medium text-[#111]">{u.name || "—"}</div>
