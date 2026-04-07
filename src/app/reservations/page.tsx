@@ -437,7 +437,7 @@ function ReservationsContent() {
             cleaningFee: -(r.cleaning || 0),
             expensesTotal: -(r.expenses || 0),
             ownerPayout: r.ownerPayout || 0,
-            payoutStatus: r.payoutStatus || "Pending",
+            payoutStatus: (r.status === "Cancelled") ? "Cancelled" : (r.payoutStatus || "Pending"),
           }));
           setData(mapped);
         }

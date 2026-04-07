@@ -682,7 +682,16 @@ export default function PropertyDetailPage() {
             ${cards}
           </body></html>`;
           const w = window.open("", "_blank");
-          if (w) { w.document.write(html); w.document.close(); w.print(); }
+          if (w) {
+            w.document.write(html); w.document.close();
+            const imgs = w.document.querySelectorAll("img");
+            if (imgs.length > 0) {
+              let loaded = 0;
+              const checkPrint = () => { loaded++; if (loaded >= imgs.length) setTimeout(() => w.print(), 300); };
+              imgs.forEach((img: HTMLImageElement) => { if (img.complete) checkPrint(); else { img.onload = checkPrint; img.onerror = checkPrint; } });
+              setTimeout(() => w.print(), 5000);
+            } else { w.print(); }
+          }
         };
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -844,7 +853,16 @@ export default function PropertyDetailPage() {
             </div>
           </body></html>`;
           const w = window.open("", "_blank");
-          if (w) { w.document.write(html); w.document.close(); w.print(); }
+          if (w) {
+            w.document.write(html); w.document.close();
+            const imgs = w.document.querySelectorAll("img");
+            if (imgs.length > 0) {
+              let loaded = 0;
+              const checkPrint = () => { loaded++; if (loaded >= imgs.length) setTimeout(() => w.print(), 300); };
+              imgs.forEach((img: HTMLImageElement) => { if (img.complete) checkPrint(); else { img.onload = checkPrint; img.onerror = checkPrint; } });
+              setTimeout(() => w.print(), 5000);
+            } else { w.print(); }
+          }
         };
 
         const handleUpload = async (files: FileList | null) => {

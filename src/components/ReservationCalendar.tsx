@@ -20,6 +20,7 @@ const CHANNEL_COLORS: Record<string, { bg: string; text: string }> = {
   "VRBO": { bg: "#3B5998", text: "#fff" },
   "Agoda": { bg: "#5D2E8C", text: "#fff" },
   "Direct": { bg: "#80020E", text: "#fff" },
+  "BookingSite": { bg: "#80020E", text: "#fff" },
 };
 
 function getColor(channel: string) {

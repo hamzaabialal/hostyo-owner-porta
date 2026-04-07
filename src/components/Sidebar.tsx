@@ -63,10 +63,14 @@ export default function Sidebar() {
     <aside className={`fixed top-0 left-0 bottom-0 ${w} bg-white border-r border-[#eaeaea] flex flex-col z-50 transition-all duration-200`}>
       {/* Logo + Collapse toggle */}
       <div className={`flex items-center ${collapsed ? "justify-center px-2" : "justify-between px-5"} pt-5 pb-4`}>
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/hostyo-logo.png" alt="Hostyo" className="w-8 h-8 rounded-lg object-contain flex-shrink-0" />
-          {!collapsed && <span className="font-semibold text-[15px] text-text-primary">Hostyo</span>}
+        <Link href="/dashboard" className="flex items-center">
+          {collapsed ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src="/hostyo-logo.png" alt="Hostyo" className="w-8 h-8 rounded-lg object-contain" />
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src="/hostyo-07.png" alt="Hostyo" className="h-7 object-contain" onError={(e) => { e.currentTarget.src = "/hostyo-logo.png"; e.currentTarget.className = "w-8 h-8 rounded-lg object-contain"; }} />
+          )}
         </Link>
         {!collapsed && (
           <button onClick={toggleCollapse} className="p-1 text-[#ccc] hover:text-[#888] transition-colors" title="Collapse sidebar">
