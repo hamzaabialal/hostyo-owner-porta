@@ -61,12 +61,15 @@ function seedNotifications(reservations: any[], expenses: any[]) {
 export default function AppShell({ title, children }: { title: string; children: React.ReactNode }) {
   const { fetchData } = useData();
   const seeded = useRef(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("hostyo_sidebar_collapsed") === "true";
+    }
+    return false;
+  });
 
-  // Listen for sidebar collapse events
+  // Listen for sidebar collapse toggle events
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("hostyo_sidebar_collapsed") : null;
-    if (saved === "true") setSidebarCollapsed(true);
     const handler = (e: Event) => setSidebarCollapsed((e as CustomEvent).detail);
     window.addEventListener("hostyo:sidebar", handler);
     return () => window.removeEventListener("hostyo:sidebar", handler);

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { getNotifications, markAllRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
+import { getNotifications, markAllRead, markAsRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -79,6 +79,9 @@ export default function MobileHeader({ title }: { title: string }) {
                   <button onClick={() => { markAllRead(); refresh(); }} className="text-[#888] hover:text-[#555] transition-colors">Mark all read</button>
                   <span className="text-[#ddd]">|</span>
                   <button onClick={() => { clearAllNotifications(); refresh(); }} className="text-[#888] hover:text-[#555] transition-colors">Clear All</button>
+                  <button onClick={() => setNotifOpen(false)} className="ml-1 p-1 text-[#999] hover:text-[#555] transition-colors">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-[12px]">
@@ -101,8 +104,8 @@ export default function MobileHeader({ title }: { title: string }) {
               ) : (
                 <div>
                   {items.map((n) => (
-                    <div key={n.id}
-                      className={`flex items-start gap-3 px-5 py-4 border-b border-[#f3f3f3] ${
+                    <div key={n.id} onClick={() => { if (!n.read) { markAsRead(n.id); refresh(); } }}
+                      className={`flex items-start gap-3 px-5 py-4 border-b border-[#f3f3f3] cursor-pointer hover:bg-[#f9f9f9] transition-colors ${
                         !n.read ? "bg-[#80020E]/[0.02] border-l-[3px] border-l-[#80020E]" : "border-l-[3px] border-l-transparent"
                       }`}>
                       {notifIcon(n.type)}
