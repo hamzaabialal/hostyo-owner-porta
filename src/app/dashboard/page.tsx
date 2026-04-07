@@ -87,13 +87,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="text-[18px] font-bold text-[#111]">{g.daysLeft}</div>
-                    {g.daysLeft === 0 ? (
-                      <div className="text-[10px] text-[#FF5A5F] font-semibold">Departing today</div>
-                    ) : g.daysLeft === 1 ? (
-                      <div className="text-[10px] text-[#FF5A5F] font-semibold">Departing tomorrow</div>
-                    ) : (
-                      <div className="text-[10px] text-[#999]">days left</div>
-                    )}
+                    <div className="text-[10px] text-[#999]">days left</div>
+                    {g.daysLeft === 0 && <div className="text-[10px] text-[#FF5A5F] font-semibold">Departing today</div>}
+                    {g.daysLeft === 1 && <div className="text-[10px] text-[#FF5A5F] font-semibold">Departing tomorrow</div>}
                   </div>
                 </Link>
               ))}
@@ -124,16 +120,10 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="text-[18px] font-bold text-[#111]">{a.daysAway}</div>
-                    {a.daysAway === 0 ? (
-                      <div className="text-[10px] text-[#2F6B57] font-semibold">Arriving today</div>
-                    ) : a.daysAway === 1 ? (
-                      <div className="text-[10px] text-[#2F6B57] font-semibold">Arriving tomorrow</div>
-                    ) : (
-                      <>
-                        <div className="text-[10px] text-[#999]">days away</div>
-                        <div className="text-[10px] text-[#999]">{a.date}</div>
-                      </>
-                    )}
+                    <div className="text-[10px] text-[#999]">days away</div>
+                    {a.daysAway === 0 && <div className="text-[10px] text-[#2F6B57] font-semibold">Arriving today</div>}
+                    {a.daysAway === 1 && <div className="text-[10px] text-[#2F6B57] font-semibold">Arriving tomorrow</div>}
+                    {a.daysAway > 1 && <div className="text-[10px] text-[#999]">{a.date}</div>}
                   </div>
                 </Link>
               ))}

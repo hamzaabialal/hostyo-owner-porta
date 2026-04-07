@@ -129,17 +129,20 @@ function MonthGrid({ year, month, reservations, onTap, showNav, onPrev, onNext }
                   const { bg, text } = getColor(entry.r.channel);
                   const nights = daysBetween(entry.r.checkIn, entry.r.checkOut);
                   const span = Math.max(1, entry.span);
-                  // Width: each cell = 100%, borders = 1px each. Total = span cells + (span-1) borders - 2px margin
                   const barWidth = span === 1 ? "calc(100%)" : `calc(${span} * 100% + ${span - 1}px)`;
+                  // Only show name on the actual first bar (check-in day), not on week continuations
+                  const isRealStart = new Date(entry.r.checkIn + "T00:00:00").getTime() === new Date(year, month, day).getTime();
                   return (
                     <button key={entry.r.id} onClick={() => onTap(entry.r)}
-                      className="block text-left rounded-lg h-[26px] md:h-[28px] px-1.5 text-[10px] md:text-[11px] font-semibold leading-[26px] md:leading-[28px] truncate cursor-pointer hover:brightness-110 relative z-[1]"
+                      className={`block text-left h-[26px] md:h-[28px] ${isRealStart ? "rounded-lg px-1.5" : "rounded-r-lg rounded-l-none px-1"} text-[10px] md:text-[11px] font-semibold leading-[26px] md:leading-[28px] truncate cursor-pointer hover:brightness-110 relative z-[1]`}
                       style={{ backgroundColor: bg, color: text, width: barWidth }}
                       title={`${entry.r.guest} · ${nights}N`}>
-                      <span className="flex items-center gap-1 truncate">
-                        <span className="flex-shrink-0 [&_img]:w-[12px] [&_img]:h-[12px] [&_svg]:w-[12px] [&_svg]:h-[12px]">{getChannelIcon(entry.r.channel)}</span>
-                        <span className="truncate">{entry.r.guest.split(" ")[0]} · {nights}N</span>
-                      </span>
+                      {isRealStart ? (
+                        <span className="flex items-center gap-1 truncate">
+                          <span className="flex-shrink-0 [&_img]:w-[12px] [&_img]:h-[12px] [&_svg]:w-[12px] [&_svg]:h-[12px]">{getChannelIcon(entry.r.channel)}</span>
+                          <span className="truncate">{entry.r.guest.split(" ")[0]} · {nights}N</span>
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
