@@ -21,6 +21,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
+  const [createdUser, setCreatedUser] = useState<{ email: string; tempPassword: string } | null>(null);
   const [propertyOptions, setPropertyOptions] = useState<string[]>([]);
 
   const isAdmin = session?.user?.role === "admin";
@@ -117,10 +118,10 @@ export default function UsersPage() {
         <InviteModal
           propertyOptions={propertyOptions}
           onClose={() => setInviteOpen(false)}
-          onCreated={(tempPassword) => {
+          onCreated={(email, tempPassword) => {
             refreshUsers();
             setInviteOpen(false);
-            alert(`User created! Temporary password: ${tempPassword}\n\nShare this with the user so they can log in and change their password.`);
+            setCreatedUser({ email, tempPassword });
           }}
         />
       )}
@@ -134,12 +135,21 @@ export default function UsersPage() {
           onSaved={() => { refreshUsers(); setEditUser(null); }}
         />
       )}
+
+      {/* Created User Success Modal */}
+      {createdUser && (
+        <CreatedUserModal
+          email={createdUser.email}
+          tempPassword={createdUser.tempPassword}
+          onClose={() => setCreatedUser(null)}
+        />
+      )}
     </AppShell>
   );
 }
 
 /* ── Invite Modal ── */
-function InviteModal({ propertyOptions, onClose, onCreated }: { propertyOptions: string[]; onClose: () => void; onCreated: (tempPassword: string) => void }) {
+function InviteModal({ propertyOptions, onClose, onCreated }: { propertyOptions: string[]; onClose: () => void; onCreated: (email: string, tempPassword: string) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("owner");
@@ -158,7 +168,7 @@ function InviteModal({ propertyOptions, onClose, onCreated }: { propertyOptions:
         body: JSON.stringify({ name, email, role, properties: selectedProps.join(", ") }),
       });
       const data = await res.json();
-      if (data.ok) onCreated(data.tempPassword);
+      if (data.ok) onCreated(email, data.tempPassword);
       else setError(data.error || "Failed to create user");
     } catch { setError("Network error"); }
     finally { setSaving(false); }
@@ -286,6 +296,71 @@ function EditModal({ user, propertyOptions, onClose, onSaved }: { user: User; pr
             <button onClick={onClose} className="px-4 py-2 rounded-lg border border-[#e2e2e2] text-[13px] font-medium text-[#555] hover:bg-[#f5f5f5]">Cancel</button>
             <button onClick={handleSave} disabled={saving}
               className="px-4 py-2 rounded-lg bg-[#80020E] text-white text-[13px] font-medium hover:bg-[#6b010c] disabled:opacity-60">{saving ? "Saving..." : "Save Changes"}</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ── Created User Success Modal ── */
+function CreatedUserModal({ email, tempPassword, onClose }: { email: string; tempPassword: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const loginUrl = typeof window !== "undefined" ? `${window.location.origin}/login` : "";
+  const shareText = `Welcome to Hostyo!\n\nYour account has been created.\n\nLogin: ${loginUrl}\nEmail: ${email}\nTemporary Password: ${tempPassword}\n\nPlease change your password after logging in.`;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(shareText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 z-[9998] flex items-center justify-center p-4" onClick={onClose}>
+        <div className="bg-white rounded-2xl w-full max-w-[440px] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="pt-8 pb-2 flex justify-center">
+            <div className="w-16 h-16 rounded-full bg-[#EAF3EF] flex items-center justify-center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2F6B57" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+          </div>
+          <div className="px-6 pb-2 text-center">
+            <h2 className="text-[18px] font-bold text-[#111] mb-1">User Created Successfully</h2>
+            <p className="text-[13px] text-[#888]">Share the login details below with the new user.</p>
+          </div>
+          <div className="px-6 py-4">
+            <div className="bg-[#fafafa] border border-[#eaeaea] rounded-xl p-4 space-y-3">
+              <div>
+                <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Login URL</div>
+                <div className="text-[13px] font-medium text-[#80020E] break-all">{loginUrl}</div>
+              </div>
+              <div className="border-t border-[#f0f0f0] pt-3">
+                <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Email</div>
+                <div className="text-[13px] font-medium text-[#111]">{email}</div>
+              </div>
+              <div className="border-t border-[#f0f0f0] pt-3">
+                <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Temporary Password</div>
+                <div className="text-[16px] font-bold text-[#111] font-mono tracking-wider">{tempPassword}</div>
+              </div>
+            </div>
+            <p className="text-[11px] text-[#999] mt-3 text-center">The user should change their password after first login.</p>
+          </div>
+          <div className="px-6 pb-6 flex gap-3">
+            <button onClick={handleCopy}
+              className={`flex-1 h-[42px] rounded-lg text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors ${
+                copied ? "bg-[#EAF3EF] text-[#2F6B57] border border-[#D6E7DE]" : "bg-[#111] text-white hover:bg-[#222]"
+              }`}>
+              {copied ? (
+                <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>Copied!</>
+              ) : (
+                <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy Login Details</>
+              )}
+            </button>
+            <button onClick={onClose}
+              className="px-5 h-[42px] rounded-lg border border-[#e2e2e2] text-[13px] font-medium text-[#555] hover:bg-[#f5f5f5] transition-colors">
+              Done
+            </button>
           </div>
         </div>
       </div>
