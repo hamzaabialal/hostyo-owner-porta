@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import MobileTabs from "@/components/MobileTabs";
-import ChannelBadge, { getChannelIcon } from "@/components/ChannelBadge";
+import ChannelBadge from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
 
 const FINANCE_TABS = [
@@ -44,11 +44,7 @@ function fmtCurrency(n: number): string {
   return "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function fmtDateShort(d: string): string {
-  if (!d) return "";
-  const dt = new Date(d + "T00:00:00");
-  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
+// fmtDateShort removed — no longer used
 
 function statusPillFinance(s: string): string {
   const key = s.toLowerCase().replace(/\s+/g, "-");
@@ -189,75 +185,7 @@ function SummaryCard({ label, value, accent, subtitle, onClick }: { label: strin
 /* ------------------------------------------------------------------ */
 /*  Balance Summary                                                    */
 /* ------------------------------------------------------------------ */
-function BalanceSummarySection({ paid, pending, upcoming }: { paid: number; pending: number; upcoming: number }) {
-  const total = paid + pending + upcoming;
-  const paidPct = total > 0 ? (paid / total) * 100 : 0;
-  const pendingPct = total > 0 ? (pending / total) * 100 : 0;
-
-  const rows = [
-    { label: "Paid this month", amount: paid, dot: "bg-[#2F6B57]" },
-    { label: "Pending payment", amount: pending, dot: "bg-[#d4a843]" },
-    { label: "Upcoming (forecast)", amount: upcoming, dot: "bg-[#5E6673]" },
-  ];
-
-  return (
-    <div className="bg-white border border-[#eaeaea] rounded-xl p-4 md:p-6">
-      <div className="text-[12px] md:text-[13px] font-semibold text-[#111] mb-3 md:mb-4">Balance Summary</div>
-      <div className="flex h-[6px] rounded-full overflow-hidden bg-[#f0f0f0] mb-4 md:mb-5">
-        <div className="bg-[#2F6B57] rounded-l-full" style={{ width: `${paidPct}%` }} />
-        <div className="bg-[#d4a843]" style={{ width: `${pendingPct}%` }} />
-      </div>
-      <div className="space-y-2.5 md:space-y-3">
-        {rows.map((r) => (
-          <div key={r.label} className="flex items-center justify-between text-[12px] md:text-[13px]">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${r.dot}`} />
-              <span className="text-[#555]">{r.label}</span>
-            </div>
-            <span className="font-semibold text-[#111]">{fmtCurrency(r.amount)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Trend Chart                                                        */
-/* ------------------------------------------------------------------ */
-function PayoutBarChart({ data }: { data: { month: string; payout: number }[] }) {
-  const maxVal = Math.max(...data.map((d) => d.payout), 1);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-
-  return (
-    <div className="relative">
-      {/* Y-axis labels */}
-      <div className="flex items-end gap-1.5 md:gap-2 h-[120px] md:h-[160px]">
-        {data.map((d, i) => {
-          const pct = maxVal > 0 ? (d.payout / maxVal) * 100 : 0;
-          return (
-            <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0 relative"
-              onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(null)}>
-              {/* Tooltip */}
-              {hoveredIdx === i && d.payout > 0 && (
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-[#111] text-white text-[10px] font-medium px-2 py-1 rounded-md whitespace-nowrap z-10">
-                  {d.month}: {fmtCurrency(d.payout)}
-                </div>
-              )}
-              <div className="w-full flex justify-center h-[95px] md:h-[130px] items-end">
-                <div
-                  className="w-full max-w-[32px] md:max-w-[40px] rounded-t-md bg-[#80020E] hover:bg-[#6b010c] transition-colors cursor-pointer"
-                  style={{ height: `${Math.max(pct, d.payout > 0 ? 3 : 0)}%` }}
-                />
-              </div>
-              <span className="text-[9px] md:text-[10px] text-[#999] font-medium">{d.month}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+// BalanceSummarySection and PayoutBarChart removed — replaced by new overview layout
 
 /* ------------------------------------------------------------------ */
 /*  Empty State                                                        */
@@ -328,56 +256,8 @@ export default function FinancesOverviewPage() {
       .reduce((sum, r) => sum + (r.ownerPayout || 0), 0);
   }, [reservations, now]);
 
-  // Recent payouts: completed + paid
-  const recentPayouts = useMemo(() =>
-    reservations
-      .filter((r) => r.payoutStatus === "Paid")
-      .sort((a, b) => (b.checkout || "").localeCompare(a.checkout || ""))
-      .slice(0, 6),
-  [reservations]);
-
-  // Upcoming forecast: future reservations
-  const upcomingRows = useMemo(() => {
-    const today = now.toISOString().split("T")[0];
-    return reservations
-      .filter((r) => r.checkin > today && r.status !== "Cancelled")
-      .sort((a, b) => a.checkin.localeCompare(b.checkin))
-      .slice(0, 6);
-  }, [reservations, now]);
-
-  // Monthly owner payouts (last 6 months)
-  const monthlyPayouts = useMemo(() => {
-    const months: { month: string; payout: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const label = d.toLocaleDateString("en-GB", { month: "short" });
-      const payout = reservations
-        .filter((r) => (r.checkout || "").startsWith(key))
-        .reduce((s, r) => s + (r.ownerPayout || 0), 0);
-      months.push({ month: label, payout });
-    }
-    return months;
-  }, [reservations, now]);
-
-  if (loading) {
-    return (
-      <AppShell title="Finances">
-        <div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading financial data...</div>
-      </AppShell>
-    );
-  }
-
-  if (reservations.length === 0) {
-    return (
-      <AppShell title="Finances">
-        <EmptyState />
-      </AppShell>
-    );
-  }
-
-  // Additional computed values
-  const today = now.toISOString().split("T")[0];
+  // Additional computed values (all hooks must be before early returns)
+  const today = useMemo(() => now.toISOString().split("T")[0], [now]);
   const activeProperties = useMemo(() => new Set(reservations.filter((r) => r.status !== "Cancelled").map((r) => r.property)).size, [reservations]);
   const feesThisMonth = useMemo(() => reservations.filter((r) => (r.checkout || "").startsWith(thisMonth)).reduce((s, r) => s + (r.managementFee || 0), 0), [reservations, thisMonth]);
   const upcomingConfirmed = useMemo(() => reservations.filter((r) => r.checkin > today && r.status !== "Cancelled").length, [reservations, today]);
@@ -418,6 +298,22 @@ export default function FinancesOverviewPage() {
   }, [reservations, now, thisMonth]);
 
   const maxFee = Math.max(...monthlyFees.map((d) => Math.max(d.collected, d.forecast)), 1);
+
+  if (loading) {
+    return (
+      <AppShell title="Finances">
+        <div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading financial data...</div>
+      </AppShell>
+    );
+  }
+
+  if (reservations.length === 0) {
+    return (
+      <AppShell title="Finances">
+        <EmptyState />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="Finances">
