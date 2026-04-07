@@ -132,18 +132,28 @@ export default function Sidebar() {
           </div>
         )}
 
-        {/* Users (admin only) */}
+        {/* Admin-only nav items */}
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {(session?.user as any)?.role === "admin" && (() => {
           const usersActive = pathname.startsWith("/users");
+          const ticketsActive = pathname.startsWith("/tickets");
           return (
-            <Link href="/users" title={collapsed ? "Users" : undefined}
-              className={`flex items-center ${collapsed ? "justify-center" : ""} gap-2.5 ${collapsed ? "px-0 py-2.5" : "px-3 py-2.5"} rounded-lg text-[14px] mb-0.5 transition-colors ${
-                usersActive ? "bg-accent-light text-accent font-semibold" : "text-text-secondary hover:bg-[#f5f5f5] hover:text-text-primary"
-              }`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[18px] h-[18px]"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-              {!collapsed && "Users"}
-            </Link>
+            <>
+              <Link href="/users" title={collapsed ? "Users" : undefined}
+                className={`flex items-center ${collapsed ? "justify-center" : ""} gap-2.5 ${collapsed ? "px-0 py-2.5" : "px-3 py-2.5"} rounded-lg text-[14px] mb-0.5 transition-colors ${
+                  usersActive ? "bg-accent-light text-accent font-semibold" : "text-text-secondary hover:bg-[#f5f5f5] hover:text-text-primary"
+                }`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[18px] h-[18px]"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                {!collapsed && "Users"}
+              </Link>
+              <Link href="/tickets" title={collapsed ? "Support" : undefined}
+                className={`flex items-center ${collapsed ? "justify-center" : ""} gap-2.5 ${collapsed ? "px-0 py-2.5" : "px-3 py-2.5"} rounded-lg text-[14px] mb-0.5 transition-colors ${
+                  ticketsActive ? "bg-accent-light text-accent font-semibold" : "text-text-secondary hover:bg-[#f5f5f5] hover:text-text-primary"
+                }`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[18px] h-[18px]"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                {!collapsed && "Support"}
+              </Link>
+            </>
           );
         })()}
 

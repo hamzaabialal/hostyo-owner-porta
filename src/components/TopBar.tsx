@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getNotifications, markAllRead, markAsRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
+import { addTicket } from "@/lib/tickets";
 
 /* ── Time helpers ── */
 function timeAgo(iso: string): string {
@@ -68,8 +69,12 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = () => {
     if (!subject.trim() || !message.trim()) return;
-    const mailto = `mailto:support@hostyo.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
-    window.open(mailto, "_blank");
+    addTicket({
+      subject: subject.trim(),
+      message: message.trim(),
+      submittedBy: "User",
+      submittedEmail: "",
+    });
     setSent(true);
     setTimeout(() => onClose(), 1500);
   };
