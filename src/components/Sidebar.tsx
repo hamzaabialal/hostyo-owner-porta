@@ -64,8 +64,13 @@ export default function Sidebar() {
       {/* Logo + Collapse toggle */}
       <div className={`flex items-center ${collapsed ? "justify-center px-2" : "justify-between px-5"} pt-5 pb-4`}>
         <Link href="/dashboard" className="flex items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/property-icons/hostyo-07.png" alt="Hostyo" className={collapsed ? "h-8 object-contain" : "h-8 object-contain"} />
+          {collapsed ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src="/hostyo-logo.png" alt="Hostyo" className="w-8 h-8 rounded-lg object-contain" />
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src="/property-icons/hostyo-07.png" alt="Hostyo" className="h-8 object-contain" />
+          )}
         </Link>
         {!collapsed && (
           <button onClick={toggleCollapse} className="p-1 text-[#ccc] hover:text-[#888] transition-colors" title="Collapse sidebar">
