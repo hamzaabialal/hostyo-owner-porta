@@ -133,6 +133,7 @@ export default function Sidebar() {
         )}
 
         {/* Users (admin only) */}
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {(session?.user as any)?.role === "admin" && (() => {
           const usersActive = pathname.startsWith("/users");
           return (
