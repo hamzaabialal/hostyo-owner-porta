@@ -560,8 +560,8 @@ function ReservationsContent() {
 
       {/* ── Mobile Filters + View Toggle (inline) ── */}
       <div className="flex items-center gap-1.5 mb-4 md:hidden flex-wrap">
-        {/* Only show Properties filter on mobile if multiple properties or in list mode */}
-        {(mobileView === "list" || propertyOptions.length > 1) && (
+        {/* Only show Properties filter on mobile in list mode, or calendar mode with multiple properties */}
+        {(mobileView === "list" || (mobileView === "calendar" && propertyOptions.length > 1)) && (
           <FilterDropdown placeholder="Properties" value={filterProperty} onChange={setFilterProperty} options={propertyOptions} searchable />
         )}
         <FilterDropdown placeholder="Status" value={filterStatus} onChange={setFilterStatus} options={statusOptions} />
