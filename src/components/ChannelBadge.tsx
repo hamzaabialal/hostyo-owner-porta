@@ -6,6 +6,10 @@ const logoImages: Record<string, string> = {
   "Booking.com": "/ota-logos/booking.svg",
   "Expedia": "/ota-logos/expedia.ico",
   "Direct": "/hostyo-logo.png",
+};
+
+// Logos that need a dark background (white icons)
+const logoDarkBg: Record<string, string> = {
   "BookingSite": "/hostyo-11.png",
 };
 
@@ -16,20 +20,31 @@ const logoFallbacks: Record<string, { bg: string; letter: string }> = {
 
 function normalizeChannel(channel: string): string {
   const lower = channel.toLowerCase().trim();
+  if (lower.includes("bookingsite") || lower === "booking site") return "BookingSite";
   if (lower.includes("booking")) return "Booking.com";
   if (lower.includes("airbnb")) return "Airbnb";
   if (lower.includes("expedia")) return "Expedia";
   if (lower.includes("vrbo")) return "Vrbo";
   if (lower.includes("agoda")) return "Agoda";
-  if (lower.includes("bookingsite") || lower.includes("booking site")) return "BookingSite";
   if (lower.includes("direct") || lower.includes("hostyo")) return "Direct";
   return channel;
 }
 
 function ChannelLogo({ channel, size = 16 }: { channel: string; size?: number }) {
   const normalized = normalizeChannel(channel);
-  const imgSrc = logoImages[normalized];
 
+  // White icon on dark background (e.g. BookingSite)
+  const darkBgSrc = logoDarkBg[normalized];
+  if (darkBgSrc) {
+    return (
+      <span className="inline-flex items-center justify-center rounded-full flex-shrink-0" style={{ width: size, height: size, backgroundColor: "#80020E" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={darkBgSrc} alt={normalized} className="object-contain" style={{ width: size * 0.65, height: size * 0.65 }} />
+      </span>
+    );
+  }
+
+  const imgSrc = logoImages[normalized];
   if (imgSrc) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -65,7 +80,7 @@ function ChannelLogo({ channel, size = 16 }: { channel: string; size?: number })
 
 export default function ChannelBadge({ channel, compact = false }: { channel: string; compact?: boolean }) {
   const normalized = normalizeChannel(channel);
-  const displayName = normalized === "Direct" ? "Hostyo" : normalized;
+  const displayName = normalized === "Direct" ? "Hostyo" : normalized === "BookingSite" ? "Hostyo" : normalized;
 
   return (
     <span className="inline-flex items-center gap-[6px] text-[13px] text-[#555] font-medium">

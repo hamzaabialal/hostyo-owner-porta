@@ -838,7 +838,24 @@ function ExpensesPageInner() {
               ${expenseCards}
             </body></html>`;
             const w = window.open("", "_blank");
-            if (w) { w.document.write(html); w.document.close(); w.print(); }
+            if (w) {
+              w.document.write(html);
+              w.document.close();
+              // Wait for images to load before printing
+              const imgs = w.document.querySelectorAll("img");
+              if (imgs.length > 0) {
+                let loaded = 0;
+                const checkPrint = () => { loaded++; if (loaded >= imgs.length) setTimeout(() => w.print(), 300); };
+                imgs.forEach((img: HTMLImageElement) => {
+                  if (img.complete) checkPrint();
+                  else { img.onload = checkPrint; img.onerror = checkPrint; }
+                });
+                // Fallback: print after 5s even if images fail
+                setTimeout(() => w.print(), 5000);
+              } else {
+                w.print();
+              }
+            }
           }
         }}
       />
