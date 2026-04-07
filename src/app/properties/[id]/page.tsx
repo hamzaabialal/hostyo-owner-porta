@@ -626,7 +626,6 @@ export default function PropertyDetailPage() {
         const openExpenseReport = (monthKey: string, monthExpenses: any[]) => {
           const [y, m] = monthKey.split("-");
           const monthName = new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-          const total = monthExpenses.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0);
           const fmt = (n: number) => `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

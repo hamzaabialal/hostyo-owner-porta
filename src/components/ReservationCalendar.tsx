@@ -284,7 +284,6 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
                 </>
               );
             })()}
-            )}
           </div>
         </div>
       </div>
