@@ -5,9 +5,8 @@ import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 
 const FinancesIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[18px] h-[18px]">
-    <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-  </svg>
+  // eslint-disable-next-line @next/next/no-img-element
+  <img src="/property-icons/Finances.png" alt="" className="w-[18px] h-[18px] opacity-60" />
 );
 
 const navItems = [
