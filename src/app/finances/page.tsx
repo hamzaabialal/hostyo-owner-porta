@@ -376,75 +376,128 @@ export default function FinancesOverviewPage() {
     );
   }
 
+  // Additional computed values
+  const today = now.toISOString().split("T")[0];
+  const activeProperties = useMemo(() => new Set(reservations.filter((r) => r.status !== "Cancelled").map((r) => r.property)).size, [reservations]);
+  const feesThisMonth = useMemo(() => reservations.filter((r) => (r.checkout || "").startsWith(thisMonth)).reduce((s, r) => s + (r.managementFee || 0), 0), [reservations, thisMonth]);
+  const upcomingConfirmed = useMemo(() => reservations.filter((r) => r.checkin > today && r.status !== "Cancelled").length, [reservations, today]);
+
+  // YTD fees (Nov previous year to current month)
+  const ytdStart = `${now.getFullYear() - 1}-11`;
+  const feesYTD = useMemo(() => reservations.filter((r) => { const co = (r.checkout || ""); return co >= ytdStart && co <= thisMonth + "-31"; }).reduce((s, r) => s + (r.managementFee || 0), 0), [reservations, ytdStart, thisMonth]);
+  const ytdBookings = useMemo(() => reservations.filter((r) => { const co = (r.checkout || ""); return co >= ytdStart && co <= thisMonth + "-31" && r.status !== "Cancelled"; }).length, [reservations, ytdStart, thisMonth]);
+  const avgPerBooking = ytdBookings > 0 ? feesYTD / ytdBookings : 0;
+  const avgPerProperty = activeProperties > 0 ? feesYTD / activeProperties : 0;
+
+  // Properties ranked by fees earned
+  const propertyRanking = useMemo(() => {
+    const map: Record<string, { fees: number; revenue: number }> = {};
+    for (const r of reservations) {
+      if (r.status === "Cancelled") continue;
+      const p = r.property || "Unknown";
+      if (!map[p]) map[p] = { fees: 0, revenue: 0 };
+      map[p].fees += r.managementFee || 0;
+      map[p].revenue += r.grossAmount || 0;
+    }
+    return Object.entries(map).sort(([, a], [, b]) => b.fees - a.fees).slice(0, 10);
+  }, [reservations]);
+
+  // Monthly management fees chart (last 6 months)
+  const monthlyFees = useMemo(() => {
+    const months: { month: string; collected: number; forecast: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-GB", { month: "short" });
+      const isPast = key < thisMonth;
+      const isCurrent = key === thisMonth;
+      const fees = reservations.filter((r) => (r.checkout || "").startsWith(key)).reduce((s, r) => s + (r.managementFee || 0), 0);
+      months.push({ month: label, collected: isPast || isCurrent ? fees : 0, forecast: !isPast ? fees : 0 });
+    }
+    return months;
+  }, [reservations, now, thisMonth]);
+
+  const maxFee = Math.max(...monthlyFees.map((d) => Math.max(d.collected, d.forecast)), 1);
+
   return (
     <AppShell title="Finances">
       <MobileTabs tabs={FINANCE_TABS} />
-      <div className="text-[13px] text-[#888] mb-6 -mt-1 hidden md:block">Your financial overview across all properties.</div>
 
-      {/* ── A. Summary Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
-        <SummaryCard label="Owner Balance" value={fmtCurrency(ownerBalance)} accent subtitle="Completed stays, payout pending" onClick={() => router.push("/finances/earnings")} />
-        <SummaryCard label="Paid This Month" value={fmtCurrency(paidThisMonth)} subtitle={new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" })} onClick={() => router.push("/finances/earnings")} />
-        <SummaryCard label="Pending Payment" value={fmtCurrency(pendingPayment)} subtitle="Net owner payout after all fees" onClick={() => router.push("/finances/earnings")} />
-        <SummaryCard label="Upcoming (Forecast)" value={fmtCurrency(upcomingPayouts)} subtitle="Based on future bookings" onClick={() => router.push("/finances/earnings")} />
+      {/* ── Row 1: Dark stat cards ── */}
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+        {[
+          { label: "Properties", value: String(activeProperties), sub: "Active" },
+          { label: `Fees · ${now.toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}`, value: fmtCurrency(feesThisMonth), sub: "This month" },
+          { label: "Upcoming", value: fmtCurrency(upcomingPayouts), sub: `${upcomingConfirmed} Confirmed` },
+          { label: "Fees YTD", value: fmtCurrency(feesYTD), sub: `Nov ${now.getFullYear() - 1} – ${now.toLocaleDateString("en-GB", { month: "short" })} ${String(now.getFullYear()).slice(2)}` },
+          { label: "Avg / Booking", value: fmtCurrency(avgPerBooking), sub: "YTD" },
+          { label: "Avg / Property", value: fmtCurrency(avgPerProperty), sub: "YTD" },
+        ].map((c) => (
+          <div key={c.label} className="bg-[#1a1a1a] rounded-xl p-3 md:p-4">
+            <div className="text-[9px] md:text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-1">{c.label}</div>
+            <div className="text-[16px] md:text-[20px] font-bold text-white truncate">{c.value}</div>
+            <div className="text-[9px] md:text-[10px] text-[#666] mt-0.5">{c.sub}</div>
+          </div>
+        ))}
       </div>
 
-      {/* ── B & D. Balance Summary + Trend ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-6">
-        <BalanceSummarySection paid={paidThisMonth} pending={pendingPayment} upcoming={upcomingPayouts} />
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-4 md:p-6">
-          <div className="flex items-center justify-between mb-3 md:mb-4">
-            <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Owner Payouts</div>
-            <div className="text-[10px] md:text-[11px] text-[#999]">Hover a bar for details</div>
+      {/* ── Row 2: Light stat cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-5">
+        <SummaryCard label="Owner Balance" value={fmtCurrency(ownerBalance)} accent subtitle="Payout pending" onClick={() => router.push("/finances/earnings")} />
+        <SummaryCard label="Owner Payouts" value={fmtCurrency(paidThisMonth)} subtitle="This month" onClick={() => router.push("/finances/earnings")} />
+        <SummaryCard label="Pending Payout" value={fmtCurrency(pendingPayment)} subtitle="Net after fees" onClick={() => router.push("/finances/earnings")} />
+        <SummaryCard label="Revenue Forecast" value={fmtCurrency(upcomingPayouts)} subtitle="Future bookings" onClick={() => router.push("/finances/earnings")} />
+      </div>
+
+      {/* ── Monthly Management Fees Chart ── */}
+      <div className="bg-white border border-[#eaeaea] rounded-xl p-5 md:p-6 mb-5">
+        <div className="flex items-center justify-between mb-5">
+          <div className="text-[14px] font-semibold text-[#111]">Monthly management fees</div>
+          <div className="flex items-center gap-4 text-[11px] text-[#999]">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#80020E]" />Collected</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#80020E]/20" />Forecast</span>
+            <span>collected vs forecast</span>
           </div>
-          <PayoutBarChart data={monthlyPayouts} />
+        </div>
+        {/* Y-axis + bars */}
+        <div className="flex gap-2">
+          <div className="flex flex-col justify-between text-[10px] text-[#bbb] text-right w-[40px] h-[180px] pb-6">
+            {[...Array(6)].map((_, i) => <span key={i}>€{((maxFee / 5) * (5 - i) / 1000).toFixed(1)}k</span>)}
+          </div>
+          <div className="flex-1 flex items-end gap-2 md:gap-4 h-[180px] border-b border-[#f0f0f0] pb-0">
+            {monthlyFees.map((d) => (
+              <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
+                <div className="w-full flex justify-center items-end h-[150px] gap-[2px]">
+                  {d.collected > 0 && <div className="w-full max-w-[28px] rounded-t bg-[#80020E]" style={{ height: `${(d.collected / maxFee) * 100}%` }} />}
+                  {d.forecast > 0 && d.forecast !== d.collected && <div className="w-full max-w-[28px] rounded-t bg-[#80020E]/20" style={{ height: `${(d.forecast / maxFee) * 100}%` }} />}
+                  {d.collected === 0 && d.forecast === 0 && <div className="w-full max-w-[28px] rounded-t bg-[#f0f0f0]" style={{ height: "2px" }} />}
+                </div>
+                <span className="text-[10px] text-[#999] font-medium">{d.month}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* ── C. Recent Payouts + Upcoming Payouts side by side ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
-        <div className="bg-white border border-[#eaeaea] rounded-xl">
-          <div className="px-4 md:px-5 py-3 md:py-4 border-b border-[#f0f0f0]">
-            <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Recent Payouts</div>
-          </div>
-          {recentPayouts.length === 0 ? (
-            <div className="px-5 py-8 text-center text-[13px] text-[#aaa]">No recent payouts to show.</div>
-          ) : (
-            <div className="divide-y divide-[#f3f3f3]">
-              {recentPayouts.map((r, i) => (
-                <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-2 md:gap-3 px-4 md:px-5 py-3 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
-                  <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-[#111] truncate text-[12px] md:text-[13px]">{r.property}</div>
-                    <div className="text-[11px] text-[#999] mt-0.5 truncate">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
-                  </div>
-                  <div className="text-right font-medium text-[#111] flex-shrink-0 text-[12px] md:text-[13px]">{fmtCurrency(r.ownerPayout || 0)}</div>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* ── Properties by Fees Earned ── */}
+      <div className="bg-white border border-[#eaeaea] rounded-xl p-5 md:p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-[14px] font-semibold text-[#111]">Properties by fees earned</div>
+          <div className="text-[11px] text-[#999]">YTD · ranked</div>
         </div>
-
-        <div className="bg-white border border-[#eaeaea] rounded-xl">
-          <div className="px-4 md:px-5 py-3 md:py-4 border-b border-[#f0f0f0]">
-            <div className="text-[12px] md:text-[13px] font-semibold text-[#111]">Upcoming Payouts (Forecast)</div>
-          </div>
-          {upcomingRows.length === 0 ? (
-            <div className="px-4 py-8 text-center text-[12px] text-[#aaa]">No upcoming payouts forecasted.</div>
-          ) : (
-            <div className="divide-y divide-[#f3f3f3]">
-              {upcomingRows.map((r, i) => (
-                <div key={i} onClick={() => setSelectedReservation(r)} className="flex items-center gap-2 md:gap-3 px-4 md:px-5 py-3 text-[13px] cursor-pointer hover:bg-[#fafafa] transition-colors">
-                  <span className="flex-shrink-0">{getChannelIcon(r.channel)}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-[#111] truncate text-[12px] md:text-[13px]">{r.property}</div>
-                    <div className="text-[11px] text-[#999] mt-0.5 truncate">{r.guest} &middot; {fmtDateShort(r.checkin)} – {fmtDateShort(r.checkout)}</div>
-                  </div>
-                  <div className="text-right font-medium text-[#111] flex-shrink-0 text-[12px] md:text-[13px]">{fmtCurrency(r.ownerPayout || 0)}</div>
-                </div>
-              ))}
+        <div className="divide-y divide-[#f3f3f3]">
+          {propertyRanking.map(([prop, data], i) => (
+            <div key={prop} className="flex items-center gap-3 py-3">
+              <span className="text-[12px] font-medium text-[#bbb] w-5 text-right flex-shrink-0">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium text-[#111] truncate">{prop}</div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-[14px] font-bold text-[#111]">{fmtCurrency(data.fees)}</div>
+                <div className="text-[10px] text-[#999]">{fmtCurrency(data.revenue)} rev</div>
+              </div>
             </div>
-          )}
+          ))}
         </div>
       </div>
 
