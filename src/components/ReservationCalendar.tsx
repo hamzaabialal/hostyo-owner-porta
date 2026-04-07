@@ -113,12 +113,12 @@ function MonthGrid({ year, month, reservations, onTap, showNav, onPrev, onNext }
       </div>
       <div className="grid grid-cols-7">
         {cells.map((day, idx) => {
-          if (day === null) return <div key={`e${idx}`} className="h-[56px] md:h-[68px] border-r border-b border-[#f0f0f0] bg-[#fafafa]/50" />;
+          if (day === null) return <div key={`e${idx}`} className="h-[72px] md:h-[80px] border-r border-b border-[#f0f0f0] bg-[#fafafa]/50" />;
           const dateStr = `${monthStr}-${pad(day)}`;
           const isT = dateStr === todayStr;
           const entries = dayRes[day] || [];
           return (
-            <div key={day} className="h-[56px] md:h-[68px] border-r border-b border-[#f0f0f0] relative overflow-visible">
+            <div key={day} className="h-[72px] md:h-[80px] border-r border-b border-[#f0f0f0] relative overflow-visible">
               <div className="flex items-center gap-0.5 px-0.5 md:px-1 pt-0.5">
                 <span className={`text-[9px] md:text-[10px] font-medium leading-none ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>{day}</span>
                 {isT && <span className="w-1 h-1 rounded-full bg-[#80020E] flex-shrink-0" />}
@@ -132,11 +132,11 @@ function MonthGrid({ year, month, reservations, onTap, showNav, onPrev, onNext }
                   const barWidth = span === 1 ? "calc(100%)" : `calc(${span} * 100% + ${span - 1}px)`;
                   return (
                     <button key={entry.r.id} onClick={() => onTap(entry.r)}
-                      className="block text-left rounded-[3px] h-[16px] md:h-[18px] px-1 text-[8px] md:text-[9px] font-semibold leading-[16px] md:leading-[18px] truncate cursor-pointer hover:brightness-110 relative z-[1]"
+                      className="block text-left rounded-lg h-[26px] md:h-[28px] px-1.5 text-[10px] md:text-[11px] font-semibold leading-[26px] md:leading-[28px] truncate cursor-pointer hover:brightness-110 relative z-[1]"
                       style={{ backgroundColor: bg, color: text, width: barWidth }}
                       title={`${entry.r.guest} · ${nights}N`}>
-                      <span className="flex items-center gap-[3px] truncate">
-                        <span className="flex-shrink-0 [&_img]:w-[10px] [&_img]:h-[10px] [&_svg]:w-[10px] [&_svg]:h-[10px]">{getChannelIcon(entry.r.channel)}</span>
+                      <span className="flex items-center gap-1 truncate">
+                        <span className="flex-shrink-0 [&_img]:w-[12px] [&_img]:h-[12px] [&_svg]:w-[12px] [&_svg]:h-[12px]">{getChannelIcon(entry.r.channel)}</span>
                         <span className="truncate">{entry.r.guest.split(" ")[0]} · {nights}N</span>
                       </span>
                     </button>
@@ -240,54 +240,50 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
 
           {/* Month/Year dropdown */}
           <div className="relative ml-2">
-            <button onClick={() => setMonthPickerOpen(!monthPickerOpen)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e2e2e2] text-[13px] font-semibold text-[#111] hover:border-[#ccc] transition-colors">
-              {(() => {
-                const startD = new Date(today);
-                startD.setDate(startD.getDate() + offset);
-                return `${MONTHS[startD.getMonth()]} ${startD.getFullYear()}`;
-              })()}
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#999]"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            {monthPickerOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-[#e2e2e2] rounded-xl shadow-lg z-50 p-3 w-[260px]">
-                {/* Year selector */}
-                {(() => {
-                  const currentYear = new Date(today.getTime() + offset * 86400000).getFullYear();
-                  const years = [currentYear - 1, currentYear, currentYear + 1];
-                  return (
-                    <>
+            {(() => {
+              const startD = new Date(today);
+              startD.setDate(startD.getDate() + offset);
+              const viewM = startD.getMonth();
+              const viewY = startD.getFullYear();
+
+              const setMonthYear = (targetYear: number, targetMonth: number) => {
+                const target = new Date(targetYear, targetMonth, 1);
+                const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                const diffDays = Math.round((target.getTime() - todayStart.getTime()) / 86400000);
+                setOffset(diffDays);
+              };
+
+              return (
+                <>
+                  <button onClick={() => setMonthPickerOpen(!monthPickerOpen)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e2e2e2] text-[13px] font-semibold text-[#111] hover:border-[#ccc] transition-colors">
+                    {MONTHS[viewM]} {viewY}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#999]"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  {monthPickerOpen && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-[#e2e2e2] rounded-xl shadow-lg z-50 p-3 w-[260px]">
                       <div className="flex items-center justify-center gap-3 mb-3">
-                        {years.map((y) => (
+                        {[viewY - 1, viewY, viewY + 1].map((y) => (
                           <button key={y} className={`px-3 py-1 rounded-lg text-[12px] font-semibold transition-colors ${
-                            y === currentYear ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"
-                          }`} onClick={() => {
-                            const target = new Date(y, new Date(today.getTime() + offset * 86400000).getMonth(), 1);
-                            const diff = Math.floor((target.getTime() - today.getTime()) / 86400000);
-                            setOffset(diff);
-                          }}>{y}</button>
+                            y === viewY ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"
+                          }`} onClick={() => setMonthYear(y, viewM)}>{y}</button>
                         ))}
                       </div>
                       <div className="grid grid-cols-3 gap-1">
-                        {MONTHS.map((m, i) => {
-                          const isActive = i === new Date(today.getTime() + offset * 86400000).getMonth() && currentYear === new Date(today.getTime() + offset * 86400000).getFullYear();
-                          return (
-                            <button key={m} onClick={() => {
-                              const target = new Date(currentYear, i, 1);
-                              const diff = Math.floor((target.getTime() - today.getTime()) / 86400000);
-                              setOffset(diff);
-                              setMonthPickerOpen(false);
-                            }} className={`px-2 py-2 rounded-lg text-[12px] font-medium transition-colors ${
-                              isActive ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"
-                            }`}>{m.slice(0, 3)}</button>
-                          );
-                        })}
+                        {MONTHS.map((m, i) => (
+                          <button key={m} onClick={() => {
+                            setMonthYear(viewY, i);
+                            setMonthPickerOpen(false);
+                          }} className={`px-2 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                            i === viewM ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"
+                          }`}>{m.slice(0, 3)}</button>
+                        ))}
                       </div>
-                    </>
-                  );
-                })()}
-              </div>
-            )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>

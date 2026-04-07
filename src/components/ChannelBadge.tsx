@@ -6,6 +6,7 @@ const logoImages: Record<string, string> = {
   "Booking.com": "/ota-logos/booking.svg",
   "Expedia": "/ota-logos/expedia.ico",
   "Direct": "/hostyo-logo.png",
+  "BookingSite": "/hostyo-11.png",
 };
 
 const logoFallbacks: Record<string, { bg: string; letter: string }> = {
@@ -20,6 +21,7 @@ function normalizeChannel(channel: string): string {
   if (lower.includes("expedia")) return "Expedia";
   if (lower.includes("vrbo")) return "Vrbo";
   if (lower.includes("agoda")) return "Agoda";
+  if (lower.includes("bookingsite") || lower.includes("booking site")) return "BookingSite";
   if (lower.includes("direct") || lower.includes("hostyo")) return "Direct";
   return channel;
 }
