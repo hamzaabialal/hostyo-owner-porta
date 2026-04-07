@@ -66,7 +66,9 @@ const handler = NextAuth({
               const email = getProp(user, "Email");
 
               if (storedHash === passwordHash) {
-                return { id: user.id, email, name, image: null };
+                const isAdmin = getProp(user, "Is Admin") === true;
+                const properties = getProp(user, "Properties") || "";
+                return { id: user.id, email, name, image: null, role: isAdmin ? "admin" : "owner", properties };
               }
               // Wrong password
               return null;
@@ -88,9 +90,18 @@ const handler = NextAuth({
     strategy: "jwt",
   },
   callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = (user as any).role || "owner";
+        token.properties = (user as any).properties || "";
+      }
+      return token;
+    },
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
+        (session.user as any).role = token.role || "owner";
+        (session.user as any).properties = token.properties || "";
       }
       return session;
     },
