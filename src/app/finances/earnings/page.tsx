@@ -67,13 +67,8 @@ function expectedByDate(checkout: string): string {
 }
 
 function statusPillFinance(s: string): string {
-  const map: Record<string, string> = {
-    Paid: "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#2F6B57] bg-[#EAF3EF] border-[#D6E7DE]",
-    Pending: "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#8A6A2E] bg-[#F6F1E6] border-[#E8DDC7]",
-    Upcoming: "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#5E6673] bg-[#EEF1F5] border-[#DDE3EA]",
-    "On Hold": "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#8A5A2E] bg-[#F7EEE6] border-[#E9D9C7]",
-  };
-  return map[s] || "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#555] bg-[#f5f5f5] border-[#e5e5e5]";
+  const key = s.toLowerCase().replace(/\s+/g, "-");
+  return "pill pill-" + key;
 }
 
 /* ------------------------------------------------------------------ */
@@ -141,14 +136,10 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
             <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wide mb-3">Breakdown</div>
             <InfoItem label="Gross booking" value={fmtCurrency(row.gross)} />
             {row.platformFee !== 0 && <InfoItem label="Platform commission" value={fmtCurrency(row.platformFee)} />}
-            {row.hostyoFee !== 0 && <InfoItem label="Management fee" value={fmtCurrency(row.hostyoFee)} />}
-            {row.vat !== 0 && <InfoItem label="Service VAT (19%)" value={fmtCurrency(row.vat)} />}
             {row.cleaning !== 0 && <InfoItem label="Cleaning" value={fmtCurrency(row.cleaning)} />}
+            {row.hostyoFee !== 0 && <InfoItem label="Management fee" value={fmtCurrency(row.hostyoFee)} />}
+            {row.vat !== 0 && <InfoItem label="VAT 19%" value={fmtCurrency(row.vat)} />}
             {row.expenses !== 0 && <InfoItem label="Expenses" value={fmtCurrency(row.expenses)} />}
-            <div className="flex items-center justify-between py-2.5 border-b border-[#f3f3f3]">
-              <span className="text-[12px] text-[#999]">Total deductions</span>
-              <span className="text-[13px] font-medium text-[#7A5252]">{fmtCurrency(deductions)}</span>
-            </div>
           </div>
           <div>
             <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wide mb-3">Payout</div>
@@ -408,7 +399,7 @@ export default function FinancesEarningsPage() {
               const ded = r.platformFee + r.hostyoFee + r.vat + r.cleaning + r.expenses;
               return `<tr>${[r.date, r.property, r.guest, r.ref, r.channel, fmt(r.gross), fmt(ded), fmt(r.net), r.payoutStatus].map(v => `<td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${v}</td>`).join("")}</tr>`;
             }).join("");
-            const html = `<!DOCTYPE html><html><head><title>Earnings Report</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#111}h1{font-size:18px;margin-bottom:4px}p{font-size:12px;color:#888;margin-bottom:20px}table{width:100%;border-collapse:collapse}@media print{body{padding:20px}}</style></head><body><h1>Earnings Report</h1><p>Generated ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} — ${filtered.length} records</p><table>${headerRow}${bodyRows}</table></body></html>`;
+            const html = `<!DOCTYPE html><html><head><title>Earnings Report</title><style>body{font-family:-apple-system,sans-serif;padding:40px 48px;color:#111;max-width:1000px;margin:0 auto}table{width:100%;border-collapse:collapse}@media print{body{padding:20px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #eee"><div><img src="/hostyo-logo.png" alt="HOSTYO" style="height:32px;margin-bottom:8px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" /><div style="display:none;font-size:13px;font-weight:700;color:#80020E">HOSTYO</div><div style="font-size:10px;color:#555;line-height:1.6;margin-top:6px">HOSTYO LTD<br>+35777788280<br>billing@hostyo.com<br>VAT No: 60253322Q<br>20 Dimotikis Agoras, Larnaca, Cyprus, 6021</div></div><div style="text-align:right"><div style="font-size:20px;font-weight:700">Earnings Report</div><div style="font-size:11px;color:#999;margin-top:4px">Generated ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} · ${filtered.length} records</div></div></div><table>${headerRow}${bodyRows}</table></body></html>`;
             const w = window.open("", "_blank");
             if (w) { w.document.write(html); w.document.close(); w.print(); }
           }

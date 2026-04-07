@@ -131,7 +131,7 @@ function MonthGrid({ year, month, reservations, onTap, showNav, onPrev, onNext }
                   return (
                     <button key={entry.r.id} onClick={() => onTap(entry.r)}
                       className="block text-left rounded-[3px] h-[16px] md:h-[18px] px-1 text-[8px] md:text-[9px] font-semibold leading-[16px] md:leading-[18px] truncate cursor-pointer hover:brightness-110 relative z-[1]"
-                      style={{ backgroundColor: bg, color: text, width: span === 1 ? "calc(100% - 2px)" : `calc(${span} * (100% + 1px) - 2px)` }}
+                      style={{ backgroundColor: bg, color: text, width: span === 1 ? "calc(100% - 1px)" : `calc(${span * 100}% + ${span - 1}px)` }}
                       title={`${entry.r.guest} · ${nights}N`}>
                       <span className="flex items-center gap-[3px] truncate">
                         <span className="flex-shrink-0 [&_img]:w-[10px] [&_img]:h-[10px] [&_svg]:w-[10px] [&_svg]:h-[10px]">{getChannelIcon(entry.r.channel)}</span>

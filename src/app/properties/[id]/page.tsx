@@ -205,6 +205,7 @@ export default function PropertyDetailPage() {
   const [tab, setTab] = useState<"overview" | "reservations" | "earnings" | "expenses" | "documents">("overview");
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [docs, setDocs] = useState<PropertyDocument[]>([]);
+  const [ownerProfile, setOwnerProfile] = useState({ fullName: "", legalName: "", billingAddress: "" });
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -213,6 +214,22 @@ export default function PropertyDetailPage() {
   }, [id]);
 
   useEffect(() => { refreshDocs(); }, [refreshDocs]);
+
+  // Fetch owner profile for billing info on reports
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok && data.profile) {
+          setOwnerProfile({
+            fullName: data.profile.fullName || "",
+            legalName: data.profile.legalName || "",
+            billingAddress: data.profile.billingAddress || "",
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -599,7 +616,11 @@ export default function PropertyDetailPage() {
           resMonthMap[key].push(r);
         }
 
-        const allReportMonths = Array.from(new Set([...Object.keys(expMonthMap), ...Object.keys(resMonthMap)])).sort().reverse();
+        // Only show reports for past months (not current or future)
+        const currentMonth = new Date().toISOString().slice(0, 7);
+        const allReportMonths = Array.from(new Set([...Object.keys(expMonthMap), ...Object.keys(resMonthMap)]))
+          .filter((k) => k < currentMonth)
+          .sort().reverse();
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const openExpenseReport = (monthKey: string, monthExpenses: any[]) => {
@@ -651,10 +672,16 @@ export default function PropertyDetailPage() {
             <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px 48px;color:#111;max-width:900px;margin:0 auto}@media print{body{padding:20px 30px}img{max-height:160px!important}}</style>
           </head><body>
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #eee">
-              <div style="font-size:13px;font-weight:700;color:#80020E;letter-spacing:0.5px">HOSTYO</div>
+              <div>
+                <img src="/hostyo-logo.png" alt="HOSTYO" style="height:32px;margin-bottom:8px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+                <div style="display:none;font-size:13px;font-weight:700;color:#80020E;letter-spacing:0.5px">HOSTYO</div>
+                <div style="font-size:10px;color:#555;line-height:1.6;margin-top:6px">
+                  HOSTYO LTD<br>+35777788280<br>billing@hostyo.com<br>VAT No: 60253322Q<br>20 Dimotikis Agoras, Larnaca, Cyprus, 6021
+                </div>
+              </div>
               <div style="text-align:right">
                 <div style="font-size:20px;font-weight:700;color:#111">Expense Report</div>
-                <div style="font-size:11px;color:#999;margin-top:3px">Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</div>
+                <div style="font-size:11px;color:#999;margin-top:3px">${property.name} · ${monthName}</div>
               </div>
             </div>
             <div style="display:flex;gap:24px;padding:14px 0;margin-bottom:10px;border-bottom:1px solid #eee">
@@ -712,15 +739,30 @@ export default function PropertyDetailPage() {
             </tr>`;
           }).join("");
 
+          const billingName = ownerProfile.legalName || ownerProfile.fullName || "";
+          const billingAddr = ownerProfile.billingAddress || "";
+
           const html = `<!DOCTYPE html><html><head><title>Owner Statement — ${monthName}</title>
             <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px 48px;color:#111;max-width:1000px;margin:0 auto}table{width:100%;border-collapse:collapse}@media print{body{padding:20px 24px}}</style>
           </head><body>
             <!-- Header -->
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #eee">
-              <div style="font-size:14px;font-weight:700;color:#80020E;letter-spacing:0.5px">HOSTYO</div>
+              <div>
+                <img src="/hostyo-logo.png" alt="HOSTYO" style="height:32px;margin-bottom:8px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+                <div style="display:none;font-size:14px;font-weight:700;color:#80020E;letter-spacing:0.5px">HOSTYO</div>
+                <div style="font-size:11px;color:#555;line-height:1.6;margin-top:6px">
+                  HOSTYO LTD<br>
+                  +35777788280<br>
+                  billing@hostyo.com<br>
+                  VAT No: 60253322Q<br>
+                  20 Dimotikis Agoras, Larnaca, Cyprus, 6021
+                </div>
+              </div>
               <div style="text-align:right">
                 <div style="font-size:22px;font-weight:700;color:#111">Owner Statement</div>
                 <div style="font-size:11px;color:#999;margin-top:4px">${property.name} · ${monthName}</div>
+                ${billingName ? `<div style="margin-top:12px;font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px">Billing To</div>
+                <div style="font-size:12px;color:#333;margin-top:3px;line-height:1.5">${billingName}${billingAddr ? "<br>" + billingAddr : ""}</div>` : ""}
               </div>
             </div>
 

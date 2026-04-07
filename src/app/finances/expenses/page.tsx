@@ -828,7 +828,11 @@ function ExpensesPageInner() {
               </style></head><body>
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #eee">
                 <div>
-                  <div style="font-size:13px;font-weight:600;color:#80020E;letter-spacing:0.5px">HOSTYO</div>
+                  <img src="/hostyo-logo.png" alt="HOSTYO" style="height:32px;margin-bottom:8px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+                  <div style="display:none;font-size:13px;font-weight:600;color:#80020E;letter-spacing:0.5px">HOSTYO</div>
+                  <div style="font-size:10px;color:#555;line-height:1.6;margin-top:6px">
+                    HOSTYO LTD<br>+35777788280<br>billing@hostyo.com<br>VAT No: 60253322Q<br>20 Dimotikis Agoras, Larnaca, Cyprus, 6021
+                  </div>
                 </div>
                 <div style="text-align:right">
                   <div style="font-size:20px;font-weight:700;color:#111">Expense Report</div>

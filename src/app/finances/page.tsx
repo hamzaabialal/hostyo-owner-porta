@@ -51,14 +51,8 @@ function fmtDateShort(d: string): string {
 }
 
 function statusPillFinance(s: string): string {
-  const map: Record<string, string> = {
-    Paid: "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#2F6B57] bg-[#EAF3EF] border-[#D6E7DE]",
-    Pending: "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#8A6A2E] bg-[#F6F1E6] border-[#E8DDC7]",
-    Upcoming: "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#5E6673] bg-[#EEF1F5] border-[#DDE3EA]",
-    "On Hold": "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#8A5A2E] bg-[#F7EEE6] border-[#E9D9C7]",
-    Completed: "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#4D625A] bg-[#EDF3F0] border-[#DBE6E0]",
-  };
-  return map[s] || "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-[#555] bg-[#f5f5f5] border-[#e5e5e5]";
+  const key = s.toLowerCase().replace(/\s+/g, "-");
+  return "pill pill-" + key;
 }
 
 function fmtDateFull(d: string): string {
