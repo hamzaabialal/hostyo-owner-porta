@@ -106,8 +106,6 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
     );
   }
 
-  const deductions = row.platformFee + row.hostyoFee + row.vat + row.cleaning + row.expenses;
-
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-[100]" onClick={onClose} />
