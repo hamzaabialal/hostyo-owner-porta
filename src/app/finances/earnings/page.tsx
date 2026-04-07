@@ -97,6 +97,26 @@ function exportCSV(rows: EarningRow[], filename: string) {
 /*  Detail Drawer                                                      */
 /* ------------------------------------------------------------------ */
 function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void }) {
+  const [linkedExpensesTotal, setLinkedExpensesTotal] = useState(0);
+
+  // Fetch linked expenses for this reservation
+  useEffect(() => {
+    if (!row.ref) return;
+    fetch("/api/expenses")
+      .then((r) => r.json())
+      .then((data) => {
+        const all = data?.data || [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const linked = all.filter((e: any) => e.reservation && row.ref && e.reservation.includes(row.ref.slice(0, 10)));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const total = linked.reduce((s: number, e: any) => s + (e.amount || 0), 0);
+        setLinkedExpensesTotal(total);
+      })
+      .catch(() => {});
+  }, [row.ref]);
+
+  const expensesAmount = linkedExpensesTotal > 0 ? linkedExpensesTotal : Math.abs(row.expenses || 0);
+
   function InfoItem({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
     return (
       <div className="flex items-center justify-between py-2.5 border-b border-[#f3f3f3] last:border-b-0">
@@ -137,7 +157,7 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
             {row.cleaning !== 0 && <InfoItem label="Cleaning" value={fmtCurrency(row.cleaning)} />}
             {row.hostyoFee !== 0 && <InfoItem label="Management fee" value={fmtCurrency(row.hostyoFee)} />}
             {row.vat !== 0 && <InfoItem label="VAT 19%" value={fmtCurrency(row.vat)} />}
-            {row.expenses !== 0 && <InfoItem label="Expenses" value={fmtCurrency(row.expenses)} />}
+            {expensesAmount > 0 && <InfoItem label="Expenses" value={fmtCurrency(-expensesAmount)} />}
           </div>
           <div>
             <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wide mb-3">Payout</div>

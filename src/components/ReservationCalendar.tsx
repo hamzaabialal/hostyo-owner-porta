@@ -123,15 +123,17 @@ function MonthGrid({ year, month, reservations, onTap, showNav, onPrev, onNext }
                 <span className={`text-[9px] md:text-[10px] font-medium leading-none ${isT ? "text-[#80020E] font-bold" : "text-[#777]"}`}>{day}</span>
                 {isT && <span className="w-1 h-1 rounded-full bg-[#80020E] flex-shrink-0" />}
               </div>
-              <div className="mt-1 space-y-[2px] px-[1px]">
+              <div className="mt-1 space-y-[2px]" style={{ marginLeft: 1, marginRight: -1 }}>
                 {entries.filter((e) => e.isStart || new Date(year, month, day).getDay() === 0).slice(0, 2).map((entry) => {
                   const { bg, text } = getColor(entry.r.channel);
                   const nights = daysBetween(entry.r.checkIn, entry.r.checkOut);
                   const span = Math.max(1, entry.span);
+                  // Width: each cell = 100%, borders = 1px each. Total = span cells + (span-1) borders - 2px margin
+                  const barWidth = span === 1 ? "calc(100%)" : `calc(${span} * 100% + ${span - 1}px)`;
                   return (
                     <button key={entry.r.id} onClick={() => onTap(entry.r)}
                       className="block text-left rounded-[3px] h-[16px] md:h-[18px] px-1 text-[8px] md:text-[9px] font-semibold leading-[16px] md:leading-[18px] truncate cursor-pointer hover:brightness-110 relative z-[1]"
-                      style={{ backgroundColor: bg, color: text, width: span === 1 ? "calc(100% - 1px)" : `calc(${span * 100}% + ${span - 1}px)` }}
+                      style={{ backgroundColor: bg, color: text, width: barWidth }}
                       title={`${entry.r.guest} · ${nights}N`}>
                       <span className="flex items-center gap-[3px] truncate">
                         <span className="flex-shrink-0 [&_img]:w-[10px] [&_img]:h-[10px] [&_svg]:w-[10px] [&_svg]:h-[10px]">{getChannelIcon(entry.r.channel)}</span>
