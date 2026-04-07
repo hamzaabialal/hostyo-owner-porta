@@ -328,56 +328,8 @@ export default function FinancesOverviewPage() {
       .reduce((sum, r) => sum + (r.ownerPayout || 0), 0);
   }, [reservations, now]);
 
-  // Recent payouts: completed + paid
-  const recentPayouts = useMemo(() =>
-    reservations
-      .filter((r) => r.payoutStatus === "Paid")
-      .sort((a, b) => (b.checkout || "").localeCompare(a.checkout || ""))
-      .slice(0, 6),
-  [reservations]);
-
-  // Upcoming forecast: future reservations
-  const upcomingRows = useMemo(() => {
-    const today = now.toISOString().split("T")[0];
-    return reservations
-      .filter((r) => r.checkin > today && r.status !== "Cancelled")
-      .sort((a, b) => a.checkin.localeCompare(b.checkin))
-      .slice(0, 6);
-  }, [reservations, now]);
-
-  // Monthly owner payouts (last 6 months)
-  const monthlyPayouts = useMemo(() => {
-    const months: { month: string; payout: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const label = d.toLocaleDateString("en-GB", { month: "short" });
-      const payout = reservations
-        .filter((r) => (r.checkout || "").startsWith(key))
-        .reduce((s, r) => s + (r.ownerPayout || 0), 0);
-      months.push({ month: label, payout });
-    }
-    return months;
-  }, [reservations, now]);
-
-  if (loading) {
-    return (
-      <AppShell title="Finances">
-        <div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading financial data...</div>
-      </AppShell>
-    );
-  }
-
-  if (reservations.length === 0) {
-    return (
-      <AppShell title="Finances">
-        <EmptyState />
-      </AppShell>
-    );
-  }
-
-  // Additional computed values
-  const today = now.toISOString().split("T")[0];
+  // Additional computed values (all hooks must be before early returns)
+  const today = useMemo(() => now.toISOString().split("T")[0], [now]);
   const activeProperties = useMemo(() => new Set(reservations.filter((r) => r.status !== "Cancelled").map((r) => r.property)).size, [reservations]);
   const feesThisMonth = useMemo(() => reservations.filter((r) => (r.checkout || "").startsWith(thisMonth)).reduce((s, r) => s + (r.managementFee || 0), 0), [reservations, thisMonth]);
   const upcomingConfirmed = useMemo(() => reservations.filter((r) => r.checkin > today && r.status !== "Cancelled").length, [reservations, today]);
@@ -418,6 +370,22 @@ export default function FinancesOverviewPage() {
   }, [reservations, now, thisMonth]);
 
   const maxFee = Math.max(...monthlyFees.map((d) => Math.max(d.collected, d.forecast)), 1);
+
+  if (loading) {
+    return (
+      <AppShell title="Finances">
+        <div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading financial data...</div>
+      </AppShell>
+    );
+  }
+
+  if (reservations.length === 0) {
+    return (
+      <AppShell title="Finances">
+        <EmptyState />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="Finances">
