@@ -10,7 +10,7 @@ const logoImages: Record<string, string> = {
 
 // Logos that need a dark background (white icons)
 const logoDarkBg: Record<string, string> = {
-  "BookingSite": "/hostyo-11.png",
+  "BookingSite": "/property-icons/hostyo-11.png",
 };
 
 const logoFallbacks: Record<string, { bg: string; letter: string }> = {
