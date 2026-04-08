@@ -10,6 +10,7 @@ function LoginForm() {
   const [step, setStep] = useState<"credentials" | "2fa">("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [userName, setUserName] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState(
@@ -23,40 +24,44 @@ function LoginForm() {
     setLoading(true);
     setLoginError("");
 
-    // First verify credentials are correct (without redirect)
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
-
-    if (result?.error) {
-      if (result.error.includes("PENDING_APPROVAL")) {
-        window.location.href = "/pending-approval";
-        return;
-      }
-      setLoginError("Invalid email or password");
-      setLoading(false);
-      return;
-    }
-
-    // Credentials valid — send 2FA code
     try {
-      const res = await fetch("/api/auth/send-code", {
+      // Step 1: Check credentials WITHOUT creating a session
+      const checkRes = await fetch("/api/auth/check-credentials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name: email.split("@")[0], type: "login" }),
+        body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
-      if (!data.ok) {
-        // If email sending fails, just proceed with login (graceful degradation)
-        window.location.href = "/dashboard";
+      const checkData = await checkRes.json();
+
+      if (!checkData.ok) {
+        if (checkData.error === "PENDING_APPROVAL") {
+          window.location.href = "/pending-approval";
+          return;
+        }
+        setLoginError("Invalid email or password");
+        setLoading(false);
         return;
       }
+
+      setUserName(checkData.name || email.split("@")[0]);
+
+      // Step 2: Send 2FA code
+      const codeRes = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name: checkData.name || email.split("@")[0], type: "login" }),
+      });
+      const codeData = await codeRes.json();
+
+      if (!codeData.ok) {
+        // Email service down — fall back to direct login
+        await signIn("credentials", { email, password, callbackUrl: "/dashboard", redirect: true });
+        return;
+      }
+
       setStep("2fa");
     } catch {
-      // Email service unavailable — proceed with login
-      window.location.href = "/dashboard";
+      setLoginError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -69,23 +74,24 @@ function LoginForm() {
     setLoginError("");
 
     try {
-      const res = await fetch("/api/auth/verify", {
+      // Step 3: Verify the 2FA code
+      const verifyRes = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, code: verifyCode.trim() }),
       });
-      const data = await res.json();
+      const verifyData = await verifyRes.json();
 
-      if (!data.ok) {
-        setLoginError(data.error || "Invalid code");
+      if (!verifyData.ok) {
+        setLoginError(verifyData.error || "Invalid code");
         setLoading(false);
         return;
       }
 
-      // Code verified — proceed to dashboard
-      window.location.href = "/dashboard";
+      // Step 4: Code verified — NOW sign in and create session
+      await signIn("credentials", { email, password, callbackUrl: "/dashboard", redirect: true });
     } catch {
-      setLoginError("Verification failed");
+      setLoginError("Verification failed. Please try again.");
       setLoading(false);
     }
   };
@@ -96,7 +102,7 @@ function LoginForm() {
       await fetch("/api/auth/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name: email.split("@")[0], type: "login" }),
+        body: JSON.stringify({ email, name: userName, type: "login" }),
       });
     } catch { /* ignore */ }
   };
