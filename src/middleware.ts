@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 const SECRET = process.env.NEXTAUTH_SECRET || "hostyo-default-secret-change-me";
 
 // Public paths that don't require authentication
-const PUBLIC_PATHS = ["/login", "/signup", "/submit", "/api/auth", "/api/submit"];
+const PUBLIC_PATHS = ["/login", "/signup", "/submit", "/pending-approval", "/api/auth", "/api/submit"];
 
 // API routes that require authentication
 const PROTECTED_API_PATHS = [
@@ -64,6 +64,11 @@ export async function middleware(req: NextRequest) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Pending approval — redirect to pending page
+  if (token.role === "pending" && !pathname.startsWith("/pending-approval")) {
+    return NextResponse.redirect(new URL("/pending-approval", req.url));
   }
 
   // Admin-only pages

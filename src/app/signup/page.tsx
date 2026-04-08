@@ -82,8 +82,8 @@ export default function SignupPage() {
         return;
       }
 
-      // Auto sign in
-      await signIn("credentials", { email, password, callbackUrl: "/dashboard", redirect: true });
+      // Redirect to pending approval page
+      window.location.href = "/pending-approval";
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);

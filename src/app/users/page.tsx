@@ -10,6 +10,7 @@ interface User {
   email: string;
   phone: string;
   isAdmin: boolean;
+  approved: boolean;
   properties: string;
   createdAt: string;
 }
@@ -75,13 +76,14 @@ export default function UsersPage() {
 
   const adminCount = users.filter((u) => u.isAdmin).length;
   const ownerCount = users.filter((u) => !u.isAdmin).length;
+  const pendingCount = users.filter((u) => !u.isAdmin && !u.approved).length;
 
   return (
     <AppShell title="Users">
       <div className="text-[13px] text-[#888] mb-5 -mt-1">Manage property owners and admin users.</div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
           <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Total Users</div>
           <div className="text-[22px] font-bold text-[#111]">{users.length}</div>
@@ -93,6 +95,10 @@ export default function UsersPage() {
         <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
           <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Owners</div>
           <div className="text-[22px] font-bold text-[#111]">{ownerCount}</div>
+        </div>
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
+          <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Pending</div>
+          <div className="text-[22px] font-bold text-[#D4A843]">{pendingCount}</div>
         </div>
       </div>
 
@@ -125,14 +131,14 @@ export default function UsersPage() {
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="bg-[#fafafa]">
-              {["Name", "Email", "Role", "Properties", "Actions"].map((h) => (
+              {["Name", "Email", "Role", "Status", "Properties", "Actions"].map((h) => (
                 <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {filteredUsers.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-10 text-[#999]">No users match your filters.</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-[#999]">No users match your filters.</td></tr>
             ) : filteredUsers.map((u) => (
               <tr key={u.id} className="border-b border-[#f3f3f3] hover:bg-[#f9f9f9]">
                 <td className="px-4 py-3">
@@ -141,6 +147,18 @@ export default function UsersPage() {
                 <td className="px-4 py-3 text-[#666]">{u.email}</td>
                 <td className="px-4 py-3">
                   <span className={`pill ${u.isAdmin ? "pill-live" : "pill-pending"}`}>{u.isAdmin ? "Admin" : "Owner"}</span>
+                </td>
+                <td className="px-4 py-3">
+                  {u.isAdmin || u.approved ? (
+                    <span className="pill pill-live">Approved</span>
+                  ) : (
+                    <button onClick={async () => {
+                      await fetch(`/api/users/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approved: true }) });
+                      refreshUsers();
+                    }} className="px-2.5 py-1 rounded-lg bg-[#80020E] text-white text-[11px] font-medium hover:bg-[#6b010c] transition-colors">
+                      Approve
+                    </button>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-[#666] text-[12px] max-w-[200px] truncate">{u.properties || "All"}</td>
                 <td className="px-4 py-3">

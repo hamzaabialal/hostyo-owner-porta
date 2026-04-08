@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     // Hash the password — never store plain text
     const passwordHash = hashPassword(password);
 
-    // Create user in Notion
+    // Create user in Notion — pending admin approval
     await notion.pages.create({
       parent: { database_id: USERS_DB },
       properties: {
@@ -49,10 +49,11 @@ export async function POST(req: Request) {
         "Email": { email: email.toLowerCase().trim() },
         "Password": { rich_text: [{ text: { content: passwordHash } }] },
         "Is Admin": { checkbox: false },
+        "Approved": { checkbox: false },
       },
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, pendingApproval: true });
   } catch (error) {
     console.error("Registration error:", error);
     return NextResponse.json({ ok: false, error: "Registration failed" }, { status: 500 });

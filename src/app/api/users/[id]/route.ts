@@ -22,6 +22,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.properties !== undefined) {
       properties["Properties"] = { rich_text: [{ text: { content: body.properties } }] };
     }
+    if (body.approved !== undefined) {
+      properties["Approved"] = { checkbox: body.approved };
+    }
 
     console.log("[user PATCH]", id, JSON.stringify(properties));
     await notion.pages.update({ page_id: id, properties });
