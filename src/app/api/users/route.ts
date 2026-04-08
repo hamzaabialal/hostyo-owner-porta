@@ -46,6 +46,7 @@ export async function GET() {
       email: getProp(page, "Email") || "",
       phone: getProp(page, "Phone") || "",
       isAdmin: getProp(page, "Is Admin") === true,
+      approved: getProp(page, "Approved") === true,
       properties: getProp(page, "Properties") || "",
       createdAt: page.created_time || "",
     }));

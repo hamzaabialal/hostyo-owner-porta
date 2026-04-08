@@ -67,6 +67,11 @@ const handler = NextAuth({
 
               if (storedHash === passwordHash) {
                 const isAdmin = getProp(user, "Is Admin") === true;
+                const isApproved = getProp(user, "Approved") === true;
+                // Admins are always approved; owners need admin approval
+                if (!isAdmin && !isApproved) {
+                  throw new Error("PENDING_APPROVAL");
+                }
                 const properties = getProp(user, "Properties") || "";
                 return { id: user.id, email, name, image: null, role: isAdmin ? "admin" : "owner", properties };
               }
@@ -107,10 +112,16 @@ const handler = NextAuth({
           if (res.results.length > 0) {
             const dbUser = res.results[0];
             const isAdmin = getProp(dbUser, "Is Admin") === true;
-            token.role = isAdmin ? "admin" : "owner";
-            token.properties = getProp(dbUser, "Properties") || "";
+            const isApproved = getProp(dbUser, "Approved") === true;
+            if (!isAdmin && !isApproved) {
+              token.role = "pending";
+              token.properties = "";
+            } else {
+              token.role = isAdmin ? "admin" : "owner";
+              token.properties = getProp(dbUser, "Properties") || "";
+            }
           } else {
-            // Auto-create user in Notion for first-time Google login
+            // Auto-create user in Notion for first-time Google login — pending approval
             await notion.pages.create({
               parent: { database_id: USERS_DB },
               properties: {
@@ -118,9 +129,10 @@ const handler = NextAuth({
                 "Email": { email: user.email.toLowerCase().trim() },
                 "Password": { rich_text: [{ text: { content: "" } }] },
                 "Is Admin": { checkbox: false },
+                "Approved": { checkbox: false },
               },
             });
-            token.role = "owner";
+            token.role = "pending";
             token.properties = "";
           }
         } catch (e) {

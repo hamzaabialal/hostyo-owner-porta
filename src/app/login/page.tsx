@@ -12,7 +12,10 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loginError, setLoginError] = useState(error === "CredentialsSignin" ? "Invalid email or password" : "");
+  const [loginError, setLoginError] = useState(
+    error === "CredentialsSignin" ? "Invalid email or password" :
+    error === "PENDING_APPROVAL" ? "Your account is pending admin approval." : ""
+  );
 
   const handleCredentialLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +31,10 @@ function LoginForm() {
     });
 
     if (result?.error) {
+      if (result.error.includes("PENDING_APPROVAL")) {
+        window.location.href = "/pending-approval";
+        return;
+      }
       setLoginError("Invalid email or password");
       setLoading(false);
       return;
