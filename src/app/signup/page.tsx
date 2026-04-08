@@ -38,7 +38,6 @@ export default function SignupPage() {
         return;
       }
 
-      setCodeSent(true);
       setStep("verify");
     } catch {
       setError("Something went wrong. Please try again.");
