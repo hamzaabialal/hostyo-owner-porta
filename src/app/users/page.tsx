@@ -283,6 +283,7 @@ function EditModal({ user, propertyOptions, onClose, onSaved }: { user: User; pr
   const [selectedProps, setSelectedProps] = useState<string[]>(user.properties ? user.properties.split(",").map((s) => s.trim()).filter(Boolean) : []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [resetPasswordResult, setResetPasswordResult] = useState("");
 
   const handleSave = async () => {
     setSaving(true);
@@ -301,13 +302,13 @@ function EditModal({ user, propertyOptions, onClose, onSaved }: { user: User; pr
   };
 
   const handleResetPassword = async () => {
-    if (!confirm(`Reset password for ${user.email}? A new temporary password will be generated.`)) return;
     setSaving(true);
+    setError("");
     try {
       const res = await fetch(`/api/users/${user.id}/reset-password`, { method: "POST" });
       const data = await res.json();
       if (data.ok) {
-        alert(`New temporary password: ${data.tempPassword}\n\nShare this with the user.`);
+        setResetPasswordResult(data.tempPassword);
       } else {
         setError(data.error || "Failed to reset password");
       }
@@ -359,11 +360,15 @@ function EditModal({ user, propertyOptions, onClose, onSaved }: { user: User; pr
 
             {/* Reset Password */}
             <div className="pt-3 border-t border-[#f0f0f0]">
-              <button onClick={handleResetPassword} disabled={saving}
-                className="flex items-center gap-1.5 text-[12px] font-medium text-[#888] hover:text-[#80020E] transition-colors disabled:opacity-50">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                Reset Password
-              </button>
+              {resetPasswordResult ? (
+                <ResetPasswordCard email={user.email} tempPassword={resetPasswordResult} />
+              ) : (
+                <button onClick={handleResetPassword} disabled={saving}
+                  className="flex items-center gap-1.5 text-[12px] font-medium text-[#888] hover:text-[#80020E] transition-colors disabled:opacity-50">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  Reset Password
+                </button>
+              )}
             </div>
 
             {error && <p className="text-[12px] text-[#7A5252] font-medium mt-2">{error}</p>}
@@ -441,5 +446,35 @@ function CreatedUserModal({ email, tempPassword, onClose }: { email: string; tem
         </div>
       </div>
     </>
+  );
+}
+
+/* ── Reset Password Card (inline in Edit Modal) ── */
+function ResetPasswordCard({ email, tempPassword }: { email: string; tempPassword: string }) {
+  const [copied, setCopied] = useState(false);
+  const loginUrl = typeof window !== "undefined" ? `${window.location.origin}/login` : "";
+  const shareText = `Your Hostyo password has been reset.\n\nLogin: ${loginUrl}\nEmail: ${email}\nNew Password: ${tempPassword}\n\nPlease change your password after logging in.`;
+
+  return (
+    <div className="bg-[#EAF3EF] border border-[#D6E7DE] rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2F6B57" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+        <span className="text-[13px] font-semibold text-[#2F6B57]">Password Reset</span>
+      </div>
+      <div className="bg-white rounded-lg p-3 mb-3">
+        <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">New Temporary Password</div>
+        <div className="text-[16px] font-bold text-[#111] font-mono tracking-wider">{tempPassword}</div>
+      </div>
+      <button onClick={async () => { await navigator.clipboard.writeText(shareText); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+        className={`w-full h-[36px] rounded-lg text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+          copied ? "bg-[#2F6B57] text-white" : "bg-white border border-[#D6E7DE] text-[#2F6B57] hover:bg-[#f0f8f4]"
+        }`}>
+        {copied ? (
+          <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>Copied!</>
+        ) : (
+          <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy Reset Details</>
+        )}
+      </button>
+    </div>
   );
 }
