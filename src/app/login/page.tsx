@@ -87,7 +87,10 @@ function LoginForm() {
               />
             </div>
             <div>
-              <label className="block text-[12px] font-medium text-[#888] mb-1.5">Password</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[12px] font-medium text-[#888]">Password</label>
+                <a href="mailto:support@hostyo.com?subject=Password%20Reset%20Request" className="text-[11px] text-[#80020E] font-medium hover:underline">Forgot password?</a>
+              </div>
               <input
                 type="password"
                 value={password}

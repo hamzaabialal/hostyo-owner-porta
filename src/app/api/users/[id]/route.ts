@@ -23,10 +23,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       properties["Properties"] = { rich_text: [{ text: { content: body.properties } }] };
     }
 
+    console.log("[user PATCH]", id, JSON.stringify(properties));
     await notion.pages.update({ page_id: id, properties });
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || "Update failed" }, { status: 500 });
+    console.error("[user PATCH error]", error?.body || error?.message);
+    return NextResponse.json({ ok: false, error: error?.body?.message || error?.message || "Update failed" }, { status: 500 });
   }
 }
 
