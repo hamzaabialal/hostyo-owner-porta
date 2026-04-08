@@ -90,11 +90,45 @@ const handler = NextAuth({
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.role = (user as any).role || "owner";
+    async jwt({ token, user, account }) {
+      // For credentials login, role comes from the user object
+      if (user && (user as any).role) {
+        token.role = (user as any).role;
         token.properties = (user as any).properties || "";
       }
+      // For Google OAuth login, look up role from Notion Users DB
+      if (account?.provider === "google" && user?.email && USERS_DB) {
+        try {
+          const res = await notion.databases.query({
+            database_id: USERS_DB,
+            filter: { property: "Email", email: { equals: user.email.toLowerCase().trim() } },
+            page_size: 1,
+          });
+          if (res.results.length > 0) {
+            const dbUser = res.results[0];
+            const isAdmin = getProp(dbUser, "Is Admin") === true;
+            token.role = isAdmin ? "admin" : "owner";
+            token.properties = getProp(dbUser, "Properties") || "";
+          } else {
+            // Auto-create user in Notion for first-time Google login
+            await notion.pages.create({
+              parent: { database_id: USERS_DB },
+              properties: {
+                "Full Name": { title: [{ text: { content: user.name || "" } }] },
+                "Email": { email: user.email.toLowerCase().trim() },
+                "Password": { rich_text: [{ text: { content: "" } }] },
+                "Is Admin": { checkbox: false },
+              },
+            });
+            token.role = "owner";
+            token.properties = "";
+          }
+        } catch (e) {
+          console.error("Google OAuth user lookup error:", e);
+          token.role = "owner";
+        }
+      }
+      if (!token.role) token.role = "owner";
       return token;
     },
     async session({ session, token }) {
