@@ -9,9 +9,9 @@ const codeStore = new Map<string, { code: string; expires: number; type: string 
 // Clean expired codes
 function cleanExpired() {
   const now = Date.now();
-  for (const [key, val] of codeStore) {
+  codeStore.forEach((val, key) => {
     if (val.expires < now) codeStore.delete(key);
-  }
+  });
 }
 
 export async function POST(req: Request) {
