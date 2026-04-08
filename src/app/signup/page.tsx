@@ -12,7 +12,7 @@ export default function SignupPage() {
   const [verifyCode, setVerifyCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
+  // codeSent state removed — step state handles this
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
