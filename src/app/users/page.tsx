@@ -282,17 +282,36 @@ function EditModal({ user, propertyOptions, onClose, onSaved }: { user: User; pr
   const [isAdmin, setIsAdmin] = useState(user.isAdmin);
   const [selectedProps, setSelectedProps] = useState<string[]>(user.properties ? user.properties.split(",").map((s) => s.trim()).filter(Boolean) : []);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSave = async () => {
     setSaving(true);
+    setError("");
     try {
-      await fetch(`/api/users/${user.id}`, {
+      const res = await fetch(`/api/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, isAdmin, properties: selectedProps.join(", ") }),
       });
-      onSaved();
-    } catch { /* ignore */ }
+      const data = await res.json();
+      if (data.ok) onSaved();
+      else setError(data.error || "Failed to update user");
+    } catch { setError("Network error"); }
+    finally { setSaving(false); }
+  };
+
+  const handleResetPassword = async () => {
+    if (!confirm(`Reset password for ${user.email}? A new temporary password will be generated.`)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/users/${user.id}/reset-password`, { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        alert(`New temporary password: ${data.tempPassword}\n\nShare this with the user.`);
+      } else {
+        setError(data.error || "Failed to reset password");
+      }
+    } catch { setError("Network error"); }
     finally { setSaving(false); }
   };
 
@@ -337,6 +356,17 @@ function EditModal({ user, propertyOptions, onClose, onSaved }: { user: User; pr
                 </div>
               </div>
             )}
+
+            {/* Reset Password */}
+            <div className="pt-3 border-t border-[#f0f0f0]">
+              <button onClick={handleResetPassword} disabled={saving}
+                className="flex items-center gap-1.5 text-[12px] font-medium text-[#888] hover:text-[#80020E] transition-colors disabled:opacity-50">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                Reset Password
+              </button>
+            </div>
+
+            {error && <p className="text-[12px] text-[#7A5252] font-medium mt-2">{error}</p>}
           </div>
           <div className="px-6 pb-5 flex justify-end gap-3">
             <button onClick={onClose} className="px-4 py-2 rounded-lg border border-[#e2e2e2] text-[13px] font-medium text-[#555] hover:bg-[#f5f5f5]">Cancel</button>
