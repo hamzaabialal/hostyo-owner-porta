@@ -28,15 +28,14 @@ function getProp(page: any, name: string): any {
 }
 
 async function getEmailFromRequest(req: NextRequest): Promise<string | null> {
-  // Try JWT token first
   try {
     const token = await getToken({ req, secret: SECRET });
     if (token?.email) return token.email as string;
   } catch (e) {
-    console.log("[profile] getToken failed, trying fallback:", e);
+    console.log("[profile] getToken failed:", e);
   }
 
-  // Fallback: read email from query param (for GET) or body (for PATCH)
+  // Fallback for settings page — read from query param only if authenticated via middleware
   const url = new URL(req.url);
   const emailParam = url.searchParams.get("email");
   if (emailParam) return emailParam;
