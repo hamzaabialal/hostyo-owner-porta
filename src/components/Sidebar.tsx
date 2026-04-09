@@ -17,6 +17,7 @@ const financesSubNav = [
   { label: "Overview", href: "/finances" },
   { label: "Earnings", href: "/finances/earnings" },
   { label: "Expenses", href: "/finances/expenses" },
+  { label: "Payouts", href: "/finances/payouts" },
 ];
 
 const STORAGE_KEY = "hostyo_sidebar_collapsed";
