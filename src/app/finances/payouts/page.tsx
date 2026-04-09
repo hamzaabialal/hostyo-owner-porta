@@ -38,10 +38,6 @@ function fmtCurrency(n: number): string {
   return "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function fmtDate(d: string): string {
-  if (!d) return "";
-  return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
 
 export default function PayoutsPage() {
   const { fetchData } = useData();
