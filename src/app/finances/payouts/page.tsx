@@ -52,7 +52,9 @@ export default function PayoutsPage() {
       .then((res: unknown) => {
         const d = res as { data?: any[] };
         if (d.data) {
-          const mapped: PayoutRow[] = d.data.map((r: any, i: number) => ({
+          // Only show completed reservations in payouts
+          const completed = d.data.filter((r: any) => r.status === "Completed");
+          const mapped: PayoutRow[] = completed.map((r: any, i: number) => ({
             id: i + 1,
             guest: r.guest || "",
             ref: r.ref || "",
@@ -61,8 +63,8 @@ export default function PayoutsPage() {
             checkIn: (r.checkin || "").split("T")[0],
             checkOut: (r.checkout || "").split("T")[0],
             nights: r.nights || 0,
-            status: r.status || "Pending",
-            payoutStatus: r.status === "Cancelled" ? "Cancelled" : (r.payoutStatus || "Pending"),
+            status: r.status || "Completed",
+            payoutStatus: r.payoutStatus || "Pending",
             gross: r.grossAmount || 0,
             platformFee: r.platformFee || 0,
             cleaning: r.cleaning || 0,
@@ -104,7 +106,8 @@ export default function PayoutsPage() {
   const totalMgmtFee = useMemo(() => filtered.reduce((s, r) => s + r.managementFee, 0), [filtered]);
   const totalVat = useMemo(() => filtered.reduce((s, r) => s + r.vat, 0), [filtered]);
   const totalPlatformFee = useMemo(() => filtered.reduce((s, r) => s + r.platformFee, 0), [filtered]);
-  const failedPayouts = useMemo(() => filtered.filter((r) => r.payoutStatus === "Pending" && r.status === "Completed"), [filtered]);
+  const overduePending = useMemo(() => filtered.filter((r) => r.payoutStatus === "Pending"), [filtered]);
+  const erroredPayouts = useMemo(() => filtered.filter((r) => r.payoutStatus.toLowerCase().includes("error") || r.payoutStatus.toLowerCase().includes("fail")), [filtered]);
 
   if (loading) {
     return (
@@ -119,16 +122,31 @@ export default function PayoutsPage() {
       <MobileTabs tabs={FINANCE_TABS} />
       <div className="text-[13px] text-[#888] mb-5 -mt-1 hidden md:block">Track all payouts, fees and deductions.</div>
 
-      {/* Warning: Failed/Overdue Payouts */}
-      {failedPayouts.length > 0 && (
+      {/* Warning: Errored Payouts */}
+      {erroredPayouts.length > 0 && (
         <div className="bg-[#F6EDED] border border-[#E8D8D8] rounded-xl p-4 mb-5 flex items-start gap-3">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7A5252" strokeWidth="2" className="flex-shrink-0 mt-0.5">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
           <div>
-            <div className="text-[13px] font-semibold text-[#7A5252] mb-1">{failedPayouts.length} overdue payout{failedPayouts.length !== 1 ? "s" : ""}</div>
+            <div className="text-[13px] font-semibold text-[#7A5252] mb-1">{erroredPayouts.length} failed payout{erroredPayouts.length !== 1 ? "s" : ""}</div>
             <div className="text-[12px] text-[#7A5252]/80">
-              These reservations are completed but payouts are still pending. Total: {fmtCurrency(failedPayouts.reduce((s, r) => s + r.ownerPayout, 0))}
+              These payouts have errors and need attention. Total: {fmtCurrency(erroredPayouts.reduce((s: number, r: PayoutRow) => s + r.ownerPayout, 0))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warning: Pending Payouts */}
+      {overduePending.length > 0 && (
+        <div className="bg-[#F6F1E6] border border-[#E8DDC7] rounded-xl p-4 mb-5 flex items-start gap-3">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <div>
+            <div className="text-[13px] font-semibold text-[#8A6A2E] mb-1">{overduePending.length} pending payout{overduePending.length !== 1 ? "s" : ""}</div>
+            <div className="text-[12px] text-[#8A6A2E]/80">
+              Completed reservations awaiting payout. Total: {fmtCurrency(overduePending.reduce((s: number, r: PayoutRow) => s + r.ownerPayout, 0))}
             </div>
           </div>
         </div>
@@ -196,7 +214,8 @@ export default function PayoutsPage() {
               {filtered.length === 0 ? (
                 <tr><td colSpan={10} className="text-center py-10 text-[#999]">No payouts match your filters.</td></tr>
               ) : filtered.map((r) => {
-                const isOverdue = r.payoutStatus === "Pending" && r.status === "Completed";
+                const isErrored = r.payoutStatus.toLowerCase().includes("error") || r.payoutStatus.toLowerCase().includes("fail");
+                const isOverdue = isErrored || r.payoutStatus === "Pending";
                 return (
                   <tr key={r.id} className={`border-b border-[#f3f3f3] hover:bg-[#f9f9f9] ${isOverdue ? "bg-[#F6EDED]/30" : ""}`}>
                     <td className="px-3.5 py-3">
