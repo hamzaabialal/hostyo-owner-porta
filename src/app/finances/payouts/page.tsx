@@ -48,16 +48,30 @@ export default function PayoutsPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    fetchData("reservations", "/api/reservations")
-      .then((res: unknown) => {
-        const d = res as { data?: any[] };
-        if (d.data) {
-          // Only show completed reservations in payouts
-          const completed = d.data.filter((r: any) => r.status === "Completed");
-          const mapped: PayoutRow[] = completed.map((r: any, i: number) => ({
+    Promise.all([
+      fetchData("reservations", "/api/reservations"),
+      fetchData("expenses", "/api/expenses"),
+    ]).then(([resResult, expResult]: unknown[]) => {
+      const resData = resResult as { data?: any[] };
+      const expData = expResult as { data?: any[] };
+      const allExpenses = expData?.data || [];
+
+      if (resData.data) {
+        // Only show completed reservations in payouts
+        const completed = resData.data.filter((r: any) => r.status === "Completed");
+        const mapped: PayoutRow[] = completed.map((r: any, i: number) => {
+          // Find linked expenses for this reservation — only Paid/Approved
+          const ref = r.ref || "";
+          const linkedExpenses = ref ? allExpenses.filter((e: any) =>
+            e.reservation && ref && e.reservation.includes(ref.slice(0, 10)) &&
+            (e.status === "Paid" || e.status === "Approved")
+          ) : [];
+          const linkedExpTotal = linkedExpenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
+
+          return {
             id: i + 1,
             guest: r.guest || "",
-            ref: r.ref || "",
+            ref,
             property: (r.property || "").trim(),
             channel: r.channel || "Direct",
             checkIn: (r.checkin || "").split("T")[0],
@@ -70,13 +84,13 @@ export default function PayoutsPage() {
             cleaning: r.cleaning || 0,
             managementFee: r.managementFee || 0,
             vat: (r.managementFee || 0) * 0.19,
-            expenses: r.expenses || 0,
+            expenses: linkedExpTotal > 0 ? linkedExpTotal : (r.expenses || 0),
             ownerPayout: r.ownerPayout || 0,
-          }));
-          setData(mapped);
-        }
-      })
-      .catch(console.error)
+          };
+        });
+        setData(mapped);
+      }
+    }).catch(console.error)
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -205,19 +219,29 @@ export default function PayoutsPage() {
           <table className="w-full border-collapse text-[13px] min-w-[900px]">
             <thead>
               <tr className="bg-[#fafafa]">
-                {["Status", "Guest / Ref", "Property", "Gross", "Platform Fee", "Cleaning", "Mgmt Fee", "VAT 19%", "Expenses", "Owner Payout"].map((h) => (
+                {["Status", "Guest / Ref", "Property", "Gross", "Platform Fee", "Cleaning", "Mgmt Fee", "VAT 19%", "Expenses", "Owner Payout", "Pay By"].map((h) => (
                   <th key={h} className="text-left px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-[#999] border-b border-[#eaeaea] whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-10 text-[#999]">No payouts match your filters.</td></tr>
+                <tr><td colSpan={11} className="text-center py-10 text-[#999]">No payouts match your filters.</td></tr>
               ) : filtered.map((r) => {
                 const isErrored = r.payoutStatus.toLowerCase().includes("error") || r.payoutStatus.toLowerCase().includes("fail");
-                const isOverdue = isErrored || r.payoutStatus === "Pending";
+                // Pay by = checkout + 3 days
+                const payByDate = r.checkOut ? (() => {
+                  const d = new Date(r.checkOut + "T00:00:00");
+                  d.setDate(d.getDate() + 3);
+                  return d;
+                })() : null;
+                const payByStr = payByDate ? payByDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const isOverdueDate = payByDate && r.payoutStatus === "Pending" && payByDate < today;
+                const isOverdue = isErrored || isOverdueDate;
                 return (
-                  <tr key={r.id} className={`border-b border-[#f3f3f3] hover:bg-[#f9f9f9] ${isOverdue ? "bg-[#F6EDED]/30" : ""}`}>
+                  <tr key={r.id} className={`border-b border-[#f3f3f3] hover:bg-[#f9f9f9] ${isErrored ? "bg-[#F6EDED]/30" : isOverdueDate ? "bg-[#F6F1E6]/30" : ""}`}>
                     <td className="px-3.5 py-3">
                       <div className="flex items-center gap-1.5">
                         <span className={`pill pill-${r.payoutStatus.toLowerCase().replace(/\s+/g, "-")}`}>{r.payoutStatus}</span>
@@ -240,6 +264,15 @@ export default function PayoutsPage() {
                     <td className="px-3.5 py-3 tabular-nums text-[#7A5252]">-{fmtCurrency(r.vat)}</td>
                     <td className="px-3.5 py-3 tabular-nums text-[#7A5252]">{r.expenses > 0 ? `-${fmtCurrency(r.expenses)}` : "—"}</td>
                     <td className="px-3.5 py-3 tabular-nums font-semibold text-[#111]">{fmtCurrency(r.ownerPayout)}</td>
+                    <td className="px-3.5 py-3 whitespace-nowrap">
+                      {r.payoutStatus === "Paid" || r.payoutStatus === "Withdrawn" ? (
+                        <span className="text-[#2F6B57] text-[12px] font-medium">Paid</span>
+                      ) : isOverdueDate ? (
+                        <span className="text-[#FF5A5F] text-[12px] font-semibold">{payByStr} (overdue)</span>
+                      ) : (
+                        <span className="text-[#666] text-[12px]">{payByStr}</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
