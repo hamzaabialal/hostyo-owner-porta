@@ -164,7 +164,11 @@ export default function PayoutsPage() {
   const totalVat = useMemo(() => filtered.reduce((s, r) => s + r.vat, 0), [filtered]);
   const totalPlatformFee = useMemo(() => filtered.reduce((s, r) => s + r.platformFee, 0), [filtered]);
   const overduePending = useMemo(() => filtered.filter((r) => r.payoutStatus === "Pending"), [filtered]);
-  const erroredPayouts = useMemo(() => filtered.filter((r) => r.payoutStatus.toLowerCase().includes("error") || r.payoutStatus.toLowerCase().includes("fail")), [filtered]);
+  const erroredPayouts = useMemo(() => filtered.filter((r) => {
+    const s = r.payoutStatus.toLowerCase();
+    return s.includes("error") || s.includes("fail");
+  }), [filtered]);
+  const onHoldPayouts = useMemo(() => filtered.filter((r: PayoutRow) => r.payoutStatus.toLowerCase().includes("hold")), [filtered]);
 
   if (loading) {
     return (
@@ -189,6 +193,21 @@ export default function PayoutsPage() {
             <div className="text-[13px] font-semibold text-[#7A5252] mb-1">{erroredPayouts.length} failed payout{erroredPayouts.length !== 1 ? "s" : ""}</div>
             <div className="text-[12px] text-[#7A5252]/80">
               These payouts have errors and need attention. Total: {fmtCurrency(erroredPayouts.reduce((s: number, r: PayoutRow) => s + r.ownerPayout, 0))}. Click any errored row below to see the reason.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warning: On Hold Payouts */}
+      {onHoldPayouts.length > 0 && (
+        <div className="bg-[#FBF1E2] border border-[#E8DDC7] rounded-xl p-4 mb-5 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-full bg-[#F1E3C5] flex items-center justify-center flex-shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          </div>
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-[#8A6A2E] mb-1">{onHoldPayouts.length} payout{onHoldPayouts.length !== 1 ? "s" : ""} on hold</div>
+            <div className="text-[12px] text-[#8A6A2E]/80">
+              These payouts are paused and need review. Total: {fmtCurrency(onHoldPayouts.reduce((s: number, r: PayoutRow) => s + r.ownerPayout, 0))}. Click any on-hold row below to see the reason.
             </div>
           </div>
         </div>
@@ -271,7 +290,10 @@ export default function PayoutsPage() {
               {filtered.length === 0 ? (
                 <tr><td colSpan={11} className="text-center py-10 text-[#999]">No payouts match your filters.</td></tr>
               ) : filtered.map((r) => {
-                const isErrored = r.payoutStatus.toLowerCase().includes("error") || r.payoutStatus.toLowerCase().includes("fail");
+                const statusLower = r.payoutStatus.toLowerCase();
+                const isErrored = statusLower.includes("error") || statusLower.includes("fail");
+                const isOnHold = statusLower.includes("hold");
+                const isClickable = isErrored || isOnHold;
                 // Pay by = checkout + 3 days
                 const payByDate = r.checkOut ? (() => {
                   const d = new Date(r.checkOut + "T00:00:00");
@@ -285,8 +307,8 @@ export default function PayoutsPage() {
                 return (
                   <tr
                     key={r.id}
-                    onClick={() => { if (isErrored) setErrorModal(r); }}
-                    className={`border-b border-[#f3f3f3] hover:bg-[#f9f9f9] ${isErrored ? "bg-[#F6EDED]/30 cursor-pointer" : isOverdueDate ? "bg-[#F6F1E6]/30" : ""}`}
+                    onClick={() => { if (isClickable) setErrorModal(r); }}
+                    className={`border-b border-[#f3f3f3] hover:bg-[#f9f9f9] ${isErrored ? "bg-[#F6EDED]/30 cursor-pointer" : isOnHold ? "bg-[#FBF1E2]/40 cursor-pointer" : isOverdueDate ? "bg-[#F6F1E6]/30" : ""}`}
                   >
                     <td className="px-3.5 py-3">
                       <div className="flex items-center gap-2">
@@ -301,6 +323,18 @@ export default function PayoutsPage() {
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#B7484F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <line x1="12" y1="8" x2="12" y2="13"/>
                               <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                          </button>
+                        ) : isOnHold ? (
+                          <button
+                            type="button"
+                            onClick={(ev) => { stopPropagation(ev); setErrorModal(r); }}
+                            title="View hold reason"
+                            className="w-5 h-5 rounded-full bg-[#FBF1E2] border border-[#E8DDC7] flex items-center justify-center flex-shrink-0 hover:bg-[#F3E4C2] transition-colors"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="6" y="5" width="4" height="14" rx="1"/>
+                              <rect x="14" y="5" width="4" height="14" rx="1"/>
                             </svg>
                           </button>
                         ) : isOverdueDate ? (
@@ -355,8 +389,15 @@ export default function PayoutsPage() {
         </div>
       </div>
 
-      {/* Error detail modal */}
-      {errorModal && (
+      {/* Error / On-hold detail modal */}
+      {errorModal && (() => {
+        const modalIsOnHold = errorModal.payoutStatus.toLowerCase().includes("hold");
+        const headerBg = modalIsOnHold ? "#FBF1E2" : "#F6EDED";
+        const headerBorder = modalIsOnHold ? "#E8DDC7" : "#E8D8D8";
+        const headerStroke = modalIsOnHold ? "#8A6A2E" : "#B7484F";
+        const headerTitle = modalIsOnHold ? "Payout on hold" : "Payout failed";
+        const reasonLabel = modalIsOnHold ? "Hold reason" : "Reason";
+        return (
         <div
           onClick={() => setErrorModal(null)}
           className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4"
@@ -366,15 +407,22 @@ export default function PayoutsPage() {
             className="bg-white rounded-2xl border border-[#eaeaea] shadow-xl w-full max-w-[480px] overflow-hidden"
           >
             <div className="px-5 py-4 border-b border-[#eaeaea] flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-[#F6EDED] border border-[#E8D8D8] flex items-center justify-center flex-shrink-0">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B7484F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                  <line x1="12" y1="9" x2="12" y2="13"/>
-                  <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: headerBg, borderWidth: 1, borderStyle: "solid", borderColor: headerBorder }}>
+                {modalIsOnHold ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={headerStroke} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="6" y="5" width="4" height="14" rx="1"/>
+                    <rect x="14" y="5" width="4" height="14" rx="1"/>
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={headerStroke} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[14px] font-semibold text-[#111]">Payout failed</div>
+                <div className="text-[14px] font-semibold text-[#111]">{headerTitle}</div>
                 <div className="text-[12px] text-[#888] truncate">{errorModal.guest} · {errorModal.property}</div>
               </div>
               <button
@@ -391,7 +439,7 @@ export default function PayoutsPage() {
             </div>
             <div className="px-5 py-4 space-y-3">
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#999] mb-1">Reason</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#999] mb-1">{reasonLabel}</div>
                 <div className="text-[13px] text-[#111] leading-relaxed">
                   {extractErrorReason(errorModal.payoutError)}
                 </div>
@@ -418,7 +466,8 @@ export default function PayoutsPage() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </AppShell>
   );
 }
