@@ -628,43 +628,57 @@ export default function PropertyDetailPage() {
           const monthName = new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
           const fmt = (n: number) => `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+          const renderMedia = (url: string, i: number, label: string): string => {
+            const isPdf = /\.pdf/i.test(url);
+            if (isPdf) {
+              const fname = url.split("/").pop() || `${label} ${i + 1}`;
+              return `<div style="display:flex;align-items:center;gap:8px;border:1px solid #e5e5e5;border-radius:8px;padding:14px;background:#fafafa;min-height:80px">
+                <span style="font-size:10px;font-weight:700;color:#80020E;background:#F6EDED;padding:3px 7px;border-radius:4px">PDF</span>
+                <span style="font-size:10px;color:#555;word-break:break-all">${fname}</span>
+              </div>`;
+            }
+            return `<img src="${url}" style="width:100%;height:100%;max-height:240px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e5;display:block" />`;
+          };
+
+          const renderMediaSection = (title: string, urls: string[], emptyText: string): string => {
+            if (!urls || urls.length === 0) {
+              return `<div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">${title}</div>
+                <div style="color:#bbb;font-size:10px;font-style:italic;margin-bottom:14px">${emptyText}</div>`;
+            }
+            const items = urls.map((u, i) => `<div style="height:240px">${renderMedia(u, i, title)}</div>`).join("");
+            return `<div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">${title}</div>
+              <div style="display:grid;grid-template-columns:repeat(${Math.min(urls.length, 3)}, 1fr);gap:10px;margin-bottom:14px">${items}</div>`;
+          };
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const cards = monthExpenses.map((exp: any) => {
-            const proofItems = (exp.proof && exp.proof.length > 0)
-              ? exp.proof.map((url: string, i: number) => {
-                  const isPdf = url.match(/\.pdf/i);
-                  if (isPdf) {
-                    const fname = url.split("/").pop() || `File ${i + 1}`;
-                    return `<div style="display:inline-flex;align-items:center;gap:8px;border:1px solid #e5e5e5;border-radius:8px;padding:10px 14px;background:#fafafa">
-                      <span style="font-size:10px;font-weight:700;color:#80020E;background:#F6EDED;padding:2px 6px;border-radius:4px">PDF</span>
-                      <span style="font-size:10px;color:#555">${fname}</span>
-                    </div>`;
-                  }
-                  return `<img src="${url}" style="height:140px;width:auto;max-width:200px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e5" />`;
-                }).join("")
-              : '<div style="color:#bbb;font-size:10px;font-style:italic">No receipts attached</div>';
+            // Prefer the split arrays from the API; fall back to `proof` (legacy) as receipts.
+            const receipts: string[] = (exp.receipts && exp.receipts.length > 0)
+              ? exp.receipts
+              : (exp.photos && exp.photos.length > 0 ? [] : (exp.proof || []));
+            const photos: string[] = exp.photos || [];
 
             const statusDot = exp.status === "Approved" || exp.status === "Paid" ? "#2F6B57" : exp.status === "In Review" ? "#8A6A2E" : "#999";
 
-            return `<div style="page-break-inside:avoid;padding:28px 0;border-bottom:1px solid #eee">
+            return `<div style="page-break-inside:avoid;page-break-after:always;padding:24px 0">
               <div style="font-size:15px;font-weight:700;color:#111;margin-bottom:2px">${exp.category || "Expense"} ${exp.description ? "— " + exp.description : ""}</div>
-              <div style="font-size:11px;color:#999;margin-bottom:14px">${exp.date || ""}</div>
-              <div style="font-size:28px;font-weight:700;color:#111;margin-bottom:3px">${fmt(exp.amount || 0)}</div>
-              <div style="font-size:10px;color:#aaa;margin-bottom:16px">incl. VAT</div>
-              <table style="width:auto;font-size:12px;border-collapse:collapse;margin-bottom:16px">
-                <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Category</td><td style="color:#111;font-weight:500;padding:4px 0">${exp.category || "—"}</td></tr>
-                <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Vendor</td><td style="color:#111;font-weight:500;padding:4px 0">${exp.vendor || "—"}</td></tr>
-                <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Status</td><td style="padding:4px 0"><span style="color:${statusDot};font-weight:600">● ${exp.status || "—"}</span></td></tr>
-                <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Property</td><td style="color:#111;font-weight:500;padding:4px 0">${exp.property || property.name || "—"}</td></tr>
+              <div style="font-size:11px;color:#999;margin-bottom:12px">${exp.date || ""}</div>
+              <div style="font-size:26px;font-weight:700;color:#111;margin-bottom:2px">${fmt(exp.amount || 0)}</div>
+              <div style="font-size:10px;color:#aaa;margin-bottom:14px">incl. VAT</div>
+              <table style="width:auto;font-size:12px;border-collapse:collapse;margin-bottom:12px">
+                <tr><td style="color:#999;padding:3px 16px 3px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Category</td><td style="color:#111;font-weight:500;padding:3px 0">${exp.category || "—"}</td></tr>
+                <tr><td style="color:#999;padding:3px 16px 3px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Vendor</td><td style="color:#111;font-weight:500;padding:3px 0">${exp.vendor || "—"}</td></tr>
+                <tr><td style="color:#999;padding:3px 16px 3px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Status</td><td style="padding:3px 0"><span style="color:${statusDot};font-weight:600">● ${exp.status || "—"}</span></td></tr>
+                <tr><td style="color:#999;padding:3px 16px 3px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Property</td><td style="color:#111;font-weight:500;padding:3px 0">${exp.property || property.name || "—"}</td></tr>
               </table>
-              ${exp.description ? `<div style="font-size:12px;color:#666;font-style:italic;line-height:1.5;margin-bottom:16px">${exp.description}</div>` : ""}
-              <div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Receipt / Invoice</div>
-              <div style="display:flex;gap:10px;flex-wrap:wrap">${proofItems}</div>
+              ${exp.description ? `<div style="font-size:12px;color:#666;font-style:italic;line-height:1.5;margin-bottom:14px">${exp.description}</div>` : ""}
+              ${renderMediaSection("Receipt / Invoice", receipts, "No receipt attached")}
+              ${renderMediaSection("Photo Evidence", photos, "No photo evidence attached")}
             </div>`;
           }).join("");
 
           const html = `<!DOCTYPE html><html><head><title>Expense Report — ${monthName}</title>
-            <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px 48px;color:#111;max-width:900px;margin:0 auto}@media print{body{padding:20px 30px}img{max-height:140px!important}}</style>
+            <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px 48px;color:#111;max-width:900px;margin:0 auto}@media print{body{padding:20px 30px}@page{size:A4;margin:14mm}}</style>
           </head><body>
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #eee">
               <div>

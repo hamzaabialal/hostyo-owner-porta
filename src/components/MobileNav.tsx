@@ -38,8 +38,9 @@ const tabs = [
     href: "/finances",
     match: (p: string) => p.startsWith("/finances"),
     icon: (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src="/property-icons/Finances.png" alt="" className="w-[22px] h-[22px] opacity-60" />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[22px] h-[22px]">
+        <rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 14h2"/>
+      </svg>
     ),
   },
   {

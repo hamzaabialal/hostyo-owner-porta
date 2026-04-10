@@ -22,11 +22,22 @@ async function fetchExpenses() {
     // Proof — read from files property
     const proofProp = p.properties?.["Proof "] || p.properties?.["Proof"];
     const proofFiles = proofProp?.files || [];
-    const proof = proofFiles.map((f: any) => {
-      if (f.file?.url) return f.file.url;
-      if (f.external?.url) return f.external.url;
-      return "";
-    }).filter(Boolean);
+    // Build full file objects (url + name) so we can split them by type
+    const proofItems = proofFiles.map((f: any) => {
+      const url = f.file?.url || f.external?.url || "";
+      const name = (f.name || "").toString();
+      return { url, name };
+    }).filter((f: { url: string }) => Boolean(f.url));
+    const proof = proofItems.map((f: { url: string }) => f.url);
+    // Split into work photos vs. receipts/invoices based on the name prefix the
+    // vendor portal uses when uploading. Anything starting with "Receipt" goes
+    // to receipts; everything else (including "Photo N") is treated as a work photo.
+    const receipts = proofItems
+      .filter((f: { name: string }) => /^receipt/i.test(f.name))
+      .map((f: { url: string }) => f.url);
+    const photos = proofItems
+      .filter((f: { name: string }) => !/^receipt/i.test(f.name))
+      .map((f: { url: string }) => f.url);
 
     // Vendor
     let vendor = getProp(p, "Vendor Name") || "";
@@ -46,6 +57,8 @@ async function fetchExpenses() {
       amount,
       status: getProp(p, "Status ") || getProp(p, "Status") || "Scheduled",
       proof,
+      photos,
+      receipts,
       description: getProp(p, "Description") || "",
       notes: getProp(p, "Notes") || "",
       workCategory: getProp(p, "work category") || "",

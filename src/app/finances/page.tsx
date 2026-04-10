@@ -282,22 +282,28 @@ export default function FinancesOverviewPage() {
     return Object.entries(map).sort(([, a], [, b]) => b.fees - a.fees).slice(0, 10);
   }, [reservations]);
 
-  // Monthly management fees chart (last 6 months)
+  // Monthly management fees chart — 12-month rolling window ending on current month.
+  // Each month has `collected` (paid fees so far) and `pending` (forecast fees from
+  // not-yet-paid, non-cancelled reservations). Past months will be all collected;
+  // future months will be all pending; the current month is a mix of both.
   const monthlyFees = useMemo(() => {
-    const months: { month: string; collected: number; forecast: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
+    const months: { month: string; year: number; key: string; collected: number; pending: number; isCurrent: boolean; isFuture: boolean }[] = [];
+    for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = d.toLocaleDateString("en-GB", { month: "short" });
-      const isPast = key < thisMonth;
       const isCurrent = key === thisMonth;
-      const fees = reservations.filter((r) => (r.checkout || "").startsWith(key)).reduce((s, r) => s + (r.managementFee || 0), 0);
-      months.push({ month: label, collected: isPast || isCurrent ? fees : 0, forecast: !isPast ? fees : 0 });
+      const isFuture = key > thisMonth;
+      const monthRes = reservations.filter((r) => (r.checkout || "").startsWith(key) && r.status !== "Cancelled");
+      const collected = monthRes.filter((r) => r.payoutStatus === "Paid").reduce((s, r) => s + (r.managementFee || 0), 0);
+      const pending = monthRes.filter((r) => r.payoutStatus !== "Paid").reduce((s, r) => s + (r.managementFee || 0), 0);
+      months.push({ month: label, year: d.getFullYear(), key, collected, pending, isCurrent, isFuture });
     }
     return months;
   }, [reservations, now, thisMonth]);
 
-  const maxFee = Math.max(...monthlyFees.map((d) => Math.max(d.collected, d.forecast)), 1);
+  const maxFee = Math.max(...monthlyFees.map((d) => d.collected + d.pending), 1);
+  const [hoveredMonth, setHoveredMonth] = useState<string | null>(null);
 
   if (loading) {
     return (
@@ -319,7 +325,7 @@ export default function FinancesOverviewPage() {
     <AppShell title="Finances">
       <MobileTabs tabs={FINANCE_TABS} />
 
-      {/* ── Row 1: Dark stat cards ── */}
+      {/* ── Row 1: Ghost stat cards ── */}
       <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
         {[
           { label: "Properties", value: String(activeProperties), sub: "Active" },
@@ -329,10 +335,10 @@ export default function FinancesOverviewPage() {
           { label: "Avg / Booking", value: fmtCurrency(avgPerBooking), sub: "YTD" },
           { label: "Avg / Property", value: fmtCurrency(avgPerProperty), sub: "YTD" },
         ].map((c) => (
-          <div key={c.label} className="bg-[#80020E] rounded-xl p-3 md:p-4">
-            <div className="text-[9px] md:text-[10px] font-semibold text-white/60 uppercase tracking-wider mb-1">{c.label}</div>
-            <div className="text-[16px] md:text-[20px] font-bold text-white truncate">{c.value}</div>
-            <div className="text-[9px] md:text-[10px] text-white/40 mt-0.5">{c.sub}</div>
+          <div key={c.label} className="bg-white border border-[#80020E]/25 rounded-xl p-3 md:p-4 hover:border-[#80020E]/50 transition-colors">
+            <div className="text-[9px] md:text-[10px] font-semibold text-[#80020E]/70 uppercase tracking-wider mb-1">{c.label}</div>
+            <div className="text-[16px] md:text-[20px] font-bold text-[#80020E] truncate">{c.value}</div>
+            <div className="text-[9px] md:text-[10px] text-[#80020E]/50 mt-0.5">{c.sub}</div>
           </div>
         ))}
       </div>
@@ -348,29 +354,72 @@ export default function FinancesOverviewPage() {
       {/* ── Monthly Management Fees Chart ── */}
       <div className="bg-white border border-[#eaeaea] rounded-xl p-5 md:p-6 mb-5">
         <div className="flex items-center justify-between mb-5">
-          <div className="text-[14px] font-semibold text-[#111]">Monthly management fees</div>
+          <div>
+            <div className="text-[14px] font-semibold text-[#111]">Monthly management fees</div>
+            <div className="text-[11px] text-[#999] mt-0.5">12-month rolling · collected vs pending</div>
+          </div>
           <div className="flex items-center gap-4 text-[11px] text-[#999]">
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#80020E]" />Collected</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#80020E]/20" />Forecast</span>
-            <span>collected vs forecast</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm border border-[#80020E]/40 bg-[#80020E]/[0.06]" />Pending / Forecast</span>
           </div>
         </div>
         {/* Y-axis + bars */}
         <div className="flex gap-2">
-          <div className="flex flex-col justify-between text-[10px] text-[#bbb] text-right w-[40px] h-[180px] pb-6">
+          <div className="flex flex-col justify-between text-[10px] text-[#bbb] text-right w-[40px] h-[200px] pb-6">
             {[...Array(6)].map((_, i) => <span key={i}>€{((maxFee / 5) * (5 - i) / 1000).toFixed(1)}k</span>)}
           </div>
-          <div className="flex-1 flex items-end gap-2 md:gap-4 h-[180px] border-b border-[#f0f0f0] pb-0">
-            {monthlyFees.map((d) => (
-              <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full flex justify-center items-end h-[150px] gap-[2px]">
-                  {d.collected > 0 && <div className="w-full max-w-[28px] rounded-t bg-[#80020E]" style={{ height: `${(d.collected / maxFee) * 100}%` }} />}
-                  {d.forecast > 0 && d.forecast !== d.collected && <div className="w-full max-w-[28px] rounded-t bg-[#80020E]/20" style={{ height: `${(d.forecast / maxFee) * 100}%` }} />}
-                  {d.collected === 0 && d.forecast === 0 && <div className="w-full max-w-[28px] rounded-t bg-[#f0f0f0]" style={{ height: "2px" }} />}
+          <div className="flex-1 flex items-end gap-1.5 md:gap-2.5 h-[200px] border-b border-[#f0f0f0] pb-0 relative">
+            {monthlyFees.map((d) => {
+              const total = d.collected + d.pending;
+              const collectedPct = (d.collected / maxFee) * 100;
+              const pendingPct = (d.pending / maxFee) * 100;
+              const isHovered = hoveredMonth === d.key;
+              return (
+                <div
+                  key={d.key}
+                  className="flex-1 flex flex-col items-center gap-1 h-full justify-end relative"
+                  onMouseEnter={() => setHoveredMonth(d.key)}
+                  onMouseLeave={() => setHoveredMonth((cur) => (cur === d.key ? null : cur))}
+                  onClick={() => setHoveredMonth((cur) => (cur === d.key ? null : d.key))}
+                >
+                  {/* Tooltip */}
+                  {isHovered && (
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 bg-[#111] text-white text-[11px] rounded-lg px-2.5 py-2 shadow-lg whitespace-nowrap pointer-events-none">
+                      <div className="font-semibold mb-1">{d.month} {d.year}</div>
+                      <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#80020E]" /><span className="text-white/70">Collected</span><span className="ml-2 tabular-nums">{fmtCurrency(d.collected)}</span></div>
+                      <div className="flex items-center gap-1.5 mt-0.5"><span className="w-2 h-2 rounded-sm border border-white/40 bg-white/[0.06]" /><span className="text-white/70">Pending</span><span className="ml-2 tabular-nums">{fmtCurrency(d.pending)}</span></div>
+                      <div className="border-t border-white/10 mt-1 pt-1 flex items-center justify-between gap-2">
+                        <span className="text-white/70">Total</span>
+                        <span className="font-semibold tabular-nums">{fmtCurrency(total)}</span>
+                      </div>
+                      {/* Caret */}
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-[#111]" />
+                    </div>
+                  )}
+                  {/* Bar — single column with stacked collected (solid) + pending (outlined) */}
+                  <div className="w-full flex justify-center items-end h-[170px] cursor-pointer">
+                    <div className="w-full max-w-[26px] flex flex-col justify-end h-full">
+                      {d.pending > 0 && (
+                        <div
+                          className={`w-full border border-[#80020E]/40 bg-[#80020E]/[0.06] ${d.collected > 0 ? "rounded-t border-b-0" : "rounded-t"} ${isHovered ? "bg-[#80020E]/[0.12]" : ""} transition-colors`}
+                          style={{ height: `${pendingPct}%` }}
+                        />
+                      )}
+                      {d.collected > 0 && (
+                        <div
+                          className={`w-full bg-[#80020E] ${d.pending > 0 ? "rounded-b" : "rounded-t"} ${isHovered ? "brightness-110" : ""} transition-all`}
+                          style={{ height: `${collectedPct}%` }}
+                        />
+                      )}
+                      {total === 0 && (
+                        <div className="w-full rounded-t bg-[#f0f0f0]" style={{ height: "2px" }} />
+                      )}
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-medium ${d.isCurrent ? "text-[#80020E] font-semibold" : "text-[#999]"}`}>{d.month}</span>
                 </div>
-                <span className="text-[10px] text-[#999] font-medium">{d.month}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

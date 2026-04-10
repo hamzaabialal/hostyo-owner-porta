@@ -2,6 +2,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { getNotifications, markAllRead, markAsRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
 
+function stopPropagation(ev: { stopPropagation: () => void }): void {
+  ev.stopPropagation();
+}
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -73,21 +77,31 @@ export default function MobileHeader({ title }: { title: string }) {
           <div className="fixed inset-0 bg-black/20 z-[9998]" onClick={() => setNotifOpen(false)} />
           <div className="fixed inset-y-0 right-0 w-full max-w-[420px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-[9999] flex flex-col">
             <div className="px-5 pt-5 pb-3 border-b border-[#eaeaea] flex-shrink-0">
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-start justify-between mb-2">
                 <span className="text-[16px] font-bold text-[#111]">Notifications</span>
+                <button
+                  onClick={() => setNotifOpen(false)}
+                  title="Close"
+                  aria-label="Close notifications"
+                  className="-mt-1 -mr-1 w-9 h-9 flex items-center justify-center rounded-full text-[#666] hover:text-[#111] hover:bg-[#f3f3f3] transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-[12px]">
+                  {unread > 0 && <span className="text-[#80020E] font-semibold">{unread} Unread</span>}
+                  {unread > 0 && items.length > 0 && <span className="text-[#ccc]">&bull;</span>}
+                  <span className="text-[#999]">{items.length} Total</span>
+                </div>
                 <div className="flex items-center gap-3 text-[12px] font-medium">
                   <button onClick={() => { markAllRead(); refresh(); }} className="text-[#888] hover:text-[#555] transition-colors">Mark all read</button>
                   <span className="text-[#ddd]">|</span>
                   <button onClick={() => { clearAllNotifications(); refresh(); }} className="text-[#888] hover:text-[#555] transition-colors">Clear All</button>
-                  <button onClick={() => setNotifOpen(false)} className="ml-1 p-1 text-[#999] hover:text-[#555] transition-colors">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 text-[12px]">
-                {unread > 0 && <span className="text-[#80020E] font-semibold">{unread} Unread</span>}
-                {unread > 0 && items.length > 0 && <span className="text-[#ccc]">&bull;</span>}
-                <span className="text-[#999]">{items.length} Total</span>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
@@ -114,7 +128,7 @@ export default function MobileHeader({ title }: { title: string }) {
                         <div className="text-[12px] text-[#777] mt-0.5 leading-relaxed">{n.description}</div>
                         <div className="text-[10px] text-[#bbb] mt-1.5">{timeAgo(n.timestamp)}</div>
                       </div>
-                      <button onClick={() => { dismissNotification(n.id); refresh(); }}
+                      <button onClick={(ev) => { stopPropagation(ev); dismissNotification(n.id); refresh(); }}
                         className="p-1 text-[#ccc] hover:text-[#888] transition-all flex-shrink-0 mt-0.5">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                       </button>

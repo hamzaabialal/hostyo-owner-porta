@@ -132,15 +132,18 @@ function MonthGrid({ year, month, reservations, onTap, showNav, onPrev, onNext }
                   const barWidth = span === 1 ? "calc(100%)" : `calc(${span} * 100% + ${span - 1}px)`;
                   // Only show name on the actual first bar (check-in day), not on week continuations
                   const isRealStart = new Date(entry.r.checkIn + "T00:00:00").getTime() === new Date(year, month, day).getTime();
+                  // Also show the name at the start of the month when a reservation continues from a previous month
+                  const isMonthStartContinuation = day === 1 && !isRealStart;
+                  const showName = isRealStart || isMonthStartContinuation;
                   return (
                     <button key={entry.r.id} onClick={() => onTap(entry.r)}
                       className={`block text-left h-[26px] md:h-[28px] ${isRealStart ? "rounded-lg px-1.5" : "rounded-r-lg rounded-l-none px-1"} text-[10px] md:text-[11px] font-semibold leading-[26px] md:leading-[28px] truncate cursor-pointer hover:brightness-110 relative z-[1]`}
                       style={{ backgroundColor: bg, color: text, width: barWidth }}
                       title={`${entry.r.guest} · ${nights}N`}>
-                      {isRealStart ? (
+                      {showName ? (
                         <span className="flex items-center gap-1 truncate">
                           <span className="flex-shrink-0 [&_img]:w-[12px] [&_img]:h-[12px] [&_svg]:w-[12px] [&_svg]:h-[12px]">{getChannelIcon(entry.r.channel)}</span>
-                          <span className="truncate">{entry.r.guest.split(" ")[0]} · {nights}N</span>
+                          <span className="truncate">{entry.r.guest} · {nights}N</span>
                         </span>
                       ) : null}
                     </button>
