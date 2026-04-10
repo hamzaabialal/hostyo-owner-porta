@@ -297,7 +297,7 @@ export function reconcileAll(
   const rows: ReconciledReservation[] = [];
   const finalDeficit: Record<string, number> = {};
 
-  for (const [, list] of byProp) {
+  byProp.forEach((list) => {
     // Use the first reservation's property name as the canonical display name.
     const propName = (list[0]?.property || "").trim();
     const reconciled = reconcileProperty(propName, list, expenses);
@@ -306,7 +306,7 @@ export function reconcileAll(
     finalDeficit[propName] = reconciled.length > 0
       ? reconciled[reconciled.length - 1].deficitAfter
       : 0;
-  }
+  });
 
   return { byProperty, rows, finalDeficit };
 }
