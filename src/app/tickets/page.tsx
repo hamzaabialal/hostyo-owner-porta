@@ -6,7 +6,16 @@ import AppShell from "@/components/AppShell";
 import { getTickets, updateTicket, deleteTicket, type SupportTicket } from "@/lib/tickets";
 
 const STATUS_OPTIONS = ["Open", "In Progress", "Resolved", "Closed"] as const;
+type TicketStatus = (typeof STATUS_OPTIONS)[number];
 const PRIORITY_OPTIONS = ["Low", "Medium", "High"] as const;
+
+// Kanban column visual config — ClickUp-style accent bars + dot
+const COLUMNS: { status: TicketStatus; label: string; dot: string; bar: string; count: string }[] = [
+  { status: "Open",        label: "Open",        dot: "#D4A843", bar: "#D4A843", count: "text-[#8A6A2E]" },
+  { status: "In Progress", label: "In Progress", dot: "#655E7A", bar: "#655E7A", count: "text-[#4A4360]" },
+  { status: "Resolved",    label: "Resolved",    dot: "#2F6B57", bar: "#2F6B57", count: "text-[#1F4B3D]" },
+  { status: "Closed",      label: "Closed",      dot: "#999",    bar: "#bbb",    count: "text-[#666]" },
+];
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -19,23 +28,17 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-function statusColor(s: string) {
-  switch (s) {
-    case "Open": return "pill pill-pending";
-    case "In Progress": return "pill pill-in-review";
-    case "Resolved": return "pill pill-live";
-    case "Closed": return "pill pill-scheduled";
-    default: return "pill";
+function priorityBadge(p: string): { color: string; bg: string; label: string } {
+  switch (p) {
+    case "High":   return { color: "#B7484F", bg: "#F6EDED", label: "High" };
+    case "Medium": return { color: "#8A6A2E", bg: "#FBF1E2", label: "Medium" };
+    case "Low":    return { color: "#5A8570", bg: "#EAF2ED", label: "Low" };
+    default:       return { color: "#999",    bg: "#f5f5f5", label: p };
   }
 }
 
-function priorityColor(p: string) {
-  switch (p) {
-    case "High": return "text-[#FF5A5F] font-semibold";
-    case "Medium": return "text-[#8A6A2E] font-medium";
-    case "Low": return "text-[#999]";
-    default: return "text-[#999]";
-  }
+function initialsOf(name: string): string {
+  return name.split(" ").map((n) => n[0]).filter(Boolean).join("").slice(0, 2).toUpperCase() || "U";
 }
 
 export default function TicketsPage() {
@@ -43,9 +46,10 @@ export default function TicketsPage() {
   const { data: session } = useSession() as any;
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [hoverColumn, setHoverColumn] = useState<TicketStatus | null>(null);
 
   const isAdmin = session?.user?.role === "admin";
 
@@ -55,19 +59,36 @@ export default function TicketsPage() {
 
   const refresh = () => setTickets(getTickets());
 
-  const filtered = tickets.filter((t) => {
-    if (filterStatus && t.status !== filterStatus) return false;
+  const matchesFilters = (t: SupportTicket): boolean => {
     if (filterPriority && t.priority !== filterPriority) return false;
     if (search) {
       const q = search.toLowerCase();
-      if (!t.subject.toLowerCase().includes(q) && !t.submittedBy.toLowerCase().includes(q) && !t.submittedEmail.toLowerCase().includes(q)) return false;
+      if (
+        !t.subject.toLowerCase().includes(q) &&
+        !t.submittedBy.toLowerCase().includes(q) &&
+        !t.submittedEmail.toLowerCase().includes(q) &&
+        !t.message.toLowerCase().includes(q)
+      ) return false;
     }
     return true;
-  });
+  };
 
-  const openCount = tickets.filter((t) => t.status === "Open").length;
-  const inProgressCount = tickets.filter((t) => t.status === "In Progress").length;
-  const resolvedCount = tickets.filter((t) => t.status === "Resolved" || t.status === "Closed").length;
+  const ticketsByStatus = (status: TicketStatus): SupportTicket[] =>
+    tickets.filter((t) => t.status === status && matchesFilters(t));
+
+  const totalVisible = tickets.filter(matchesFilters).length;
+
+  const handleDragStart = (id: string) => setDraggingId(id);
+  const handleDragEnd = () => { setDraggingId(null); setHoverColumn(null); };
+  const handleDrop = (status: TicketStatus) => {
+    if (!draggingId) return;
+    const ticket = tickets.find((t) => t.id === draggingId);
+    if (!ticket || ticket.status === status) { setDraggingId(null); setHoverColumn(null); return; }
+    updateTicket(draggingId, { status });
+    refresh();
+    setDraggingId(null);
+    setHoverColumn(null);
+  };
 
   if (!isAdmin) {
     return (
@@ -79,75 +100,121 @@ export default function TicketsPage() {
 
   return (
     <AppShell title="Support Tickets">
-      <div className="text-[13px] text-[#888] mb-5 -mt-1">Manage support tickets from property owners.</div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
-          <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Total</div>
-          <div className="text-[22px] font-bold text-[#111]">{tickets.length}</div>
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-4 mb-4 flex-wrap -mt-1">
+        <div>
+          <div className="text-[13px] text-[#888]">Manage support tickets from property owners.</div>
+          <div className="text-[11px] text-[#bbb] mt-0.5">{totalVisible} of {tickets.length} ticket{tickets.length !== 1 ? "s" : ""} · drag cards between columns to update status</div>
         </div>
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
-          <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Open</div>
-          <div className="text-[22px] font-bold text-[#D4A843]">{openCount}</div>
-        </div>
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
-          <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">In Progress</div>
-          <div className="text-[22px] font-bold text-[#655E7A]">{inProgressCount}</div>
-        </div>
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
-          <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Resolved</div>
-          <div className="text-[22px] font-bold text-[#2F6B57]">{resolvedCount}</div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-[300px]">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tickets..."
-            className="w-full h-[38px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
-        </div>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-          className="h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E]">
-          <option value="">All Statuses</option>
-          {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}
-          className="h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E]">
-          <option value="">All Priorities</option>
-          {PRIORITY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-      </div>
-
-      {/* Tickets List */}
-      <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="p-8 text-center text-[13px] text-[#999]">
-            {tickets.length === 0 ? "No support tickets yet. Tickets submitted via the Help button will appear here." : "No tickets match your filters."}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tickets..."
+              className="h-[36px] w-[220px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
           </div>
-        ) : (
-          <div className="divide-y divide-[#f3f3f3]">
-            {filtered.map((t) => (
-              <button key={t.id} onClick={() => setSelectedTicket(t)}
-                className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-[#f9f9f9] transition-colors">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={statusColor(t.status)}>{t.status}</span>
-                    <span className={`text-[11px] ${priorityColor(t.priority)}`}>{t.priority}</span>
+          <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}
+            className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E]">
+            <option value="">All priorities</option>
+            {PRIORITY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Kanban board */}
+      {tickets.length === 0 ? (
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-12 text-center">
+          <div className="w-14 h-14 rounded-full bg-[#f5f5f5] flex items-center justify-center mx-auto mb-4">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            </svg>
+          </div>
+          <div className="text-[15px] font-semibold text-[#111] mb-1">No support tickets yet</div>
+          <div className="text-[13px] text-[#888]">Tickets submitted via the Help button will appear here.</div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto -mx-4 md:-mx-0 pb-4">
+          <div className="grid grid-flow-col auto-cols-[minmax(280px,1fr)] md:grid-cols-4 md:auto-cols-auto gap-3 px-4 md:px-0 min-w-full">
+            {COLUMNS.map((col) => {
+              const list = ticketsByStatus(col.status);
+              const isHover = hoverColumn === col.status;
+              return (
+                <div
+                  key={col.status}
+                  onDragOver={(e) => { e.preventDefault(); setHoverColumn(col.status); }}
+                  onDragLeave={() => setHoverColumn((cur) => (cur === col.status ? null : cur))}
+                  onDrop={() => handleDrop(col.status)}
+                  className={`bg-[#f7f7f8] rounded-xl border transition-colors flex flex-col ${
+                    isHover ? "border-[#80020E]/40 bg-[#F6EDED]/40" : "border-[#ececec]"
+                  }`}
+                >
+                  {/* Column header */}
+                  <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-[#ececec]">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: col.dot }} />
+                      <span className="text-[12px] font-semibold text-[#333] uppercase tracking-wide truncate">{col.label}</span>
+                      <span className={`text-[11px] font-semibold tabular-nums ${col.count}`}>{list.length}</span>
+                    </div>
                   </div>
-                  <div className="text-[14px] font-medium text-[#111] truncate">{t.subject}</div>
-                  <div className="text-[12px] text-[#888] mt-0.5 truncate">{t.message}</div>
-                  <div className="text-[10px] text-[#bbb] mt-1">{t.submittedBy} {t.submittedEmail && `· ${t.submittedEmail}`} · {timeAgo(t.createdAt)}</div>
+                  {/* Accent bar */}
+                  <div className="h-[3px] w-full" style={{ backgroundColor: col.bar }} />
+                  {/* Cards */}
+                  <div className="flex-1 p-2 space-y-2 min-h-[120px]">
+                    {list.length === 0 ? (
+                      <div className="text-[11px] text-[#bbb] italic text-center py-6 border border-dashed border-[#e5e5e5] rounded-lg">
+                        Drop here
+                      </div>
+                    ) : (
+                      list.map((t) => {
+                        const pb = priorityBadge(t.priority);
+                        const isDragging = draggingId === t.id;
+                        return (
+                          <div
+                            key={t.id}
+                            draggable
+                            onDragStart={() => handleDragStart(t.id)}
+                            onDragEnd={handleDragEnd}
+                            onClick={() => setSelectedTicket(t)}
+                            className={`group bg-white border border-[#eaeaea] rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-[#ddd] transition-all ${
+                              isDragging ? "opacity-40 rotate-[1deg]" : ""
+                            }`}
+                          >
+                            {/* Priority pill + ID */}
+                            <div className="flex items-center justify-between mb-1.5 gap-2">
+                              <span
+                                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-[2px] rounded"
+                                style={{ color: pb.color, backgroundColor: pb.bg }}
+                              >
+                                {pb.label}
+                              </span>
+                              <span className="text-[10px] text-[#bbb] font-mono truncate">#{t.id.slice(-5)}</span>
+                            </div>
+                            {/* Title */}
+                            <div className="text-[13px] font-semibold text-[#111] leading-snug mb-1 line-clamp-2">{t.subject}</div>
+                            {/* Message preview */}
+                            <div className="text-[11px] text-[#888] leading-relaxed line-clamp-2 mb-2.5">{t.message}</div>
+                            {/* Footer: avatar + time */}
+                            <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#f3f3f3]">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0">
+                                  {initialsOf(t.submittedBy)}
+                                </div>
+                                <span className="text-[10px] text-[#777] truncate">{t.submittedBy}</span>
+                              </div>
+                              <span className="text-[10px] text-[#bbb] flex-shrink-0">{timeAgo(t.createdAt)}</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" className="flex-shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            ))}
+              );
+            })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Ticket Detail Drawer */}
       {selectedTicket && (
