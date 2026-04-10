@@ -4,23 +4,32 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { getChannelIcon } from "@/components/ChannelBadge";
+import { reconcileAll, type RawReservation, type RawExpense } from "@/lib/reconcile";
 
 interface InHouseGuest { guest: string; property: string; channel: string; daysLeft: number; }
 interface NextArrival { guest: string; property: string; channel: string; daysAway: number; date: string; }
 interface Payment { balance: string; paidThisMonth: string; pending: string; forecast?: string; }
+
+function fmtCurrencyShort(n: number): string {
+  return "€" + Math.round(Math.abs(n)).toLocaleString("en-IE");
+}
 
 export default function DashboardPage() {
   const [inHouse, setInHouse] = useState<InHouseGuest[]>([]);
   const [nextArrivals, setNextArrivals] = useState<NextArrival[]>([]);
   const [payment, setPayment] = useState<Payment>({ balance: "€0", paidThisMonth: "€0", pending: "€0" });
   const [expenses, setExpenses] = useState("€0");
+  const [totalDeficit, setTotalDeficit] = useState(0);
+  const [propertiesOnHold, setPropertiesOnHold] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/today").then((r) => r.json()),
       fetch("/api/expenses").then((r) => r.json()).catch(() => ({ data: [] })),
-    ]).then(([todayData, expData]) => {
+      fetch("/api/reservations").then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch("/api/properties").then((r) => r.json()).catch(() => ({ data: [] })),
+    ]).then(([todayData, expData, resData, propData]) => {
       setInHouse(todayData.inHouse || []);
       setNextArrivals(todayData.nextArrivals || []);
       setPayment(todayData.payment || { balance: "€0", paidThisMonth: "€0", pending: "€0" });
@@ -29,6 +38,42 @@ export default function DashboardPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const monthExp = (expData.data || []).filter((e: any) => (e.date || "").startsWith(thisMonth)).reduce((s: number, e: any) => s + (e.amount || 0), 0);
       setExpenses(`€${monthExp.toLocaleString("en-IE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`);
+
+      // Run carry-forward reconciliation across all properties to detect deficits.
+      // Skip-automation properties are excluded so they don't affect the balance.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allProps: any[] = propData.data || [];
+      const skipNames = allProps
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((p: any) => p.skipAutomation === true)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((p: any) => (p.name || "").trim().toLowerCase())
+        .filter(Boolean);
+      const isSkipped = (name: string): boolean => {
+        const n = (name || "").trim().toLowerCase();
+        if (!n) return false;
+        return skipNames.some((s: string) => s === n || s.startsWith(n) || n.startsWith(s));
+      };
+
+      const eligibleReservations: RawReservation[] = (resData.data || [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((r: any) => !isSkipped(r.property || ""));
+      const eligibleExpenses: RawExpense[] = (expData.data || [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((e: any) => !isSkipped(e.property || ""));
+
+      const { finalDeficit } = reconcileAll(eligibleReservations, eligibleExpenses);
+      let total = 0;
+      let count = 0;
+      for (const propName of Object.keys(finalDeficit)) {
+        const d = finalDeficit[propName];
+        if (d > 0) {
+          total += d;
+          count++;
+        }
+      }
+      setTotalDeficit(total);
+      setPropertiesOnHold(count);
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
@@ -46,11 +91,28 @@ export default function DashboardPage() {
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
-          <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Balance</span>
-          <p className="text-[22px] font-bold text-[#111] mt-1">{payment.balance}</p>
-          <p className="text-[11px] text-[#aaa] mt-0.5">Payout pending</p>
-        </Link>
+        {totalDeficit > 0 ? (
+          <Link
+            href="/finances/payouts"
+            className="bg-white border border-[#80020E] rounded-xl p-4 hover:shadow-sm hover:bg-[#FBF6F6] transition-all"
+          >
+            <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Balance</span>
+            <p className="flex items-center gap-1.5 text-[13px] font-semibold text-[#80020E] mt-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#80020E]" />
+              On hold
+            </p>
+            <p className="text-[22px] font-bold text-[#80020E] mt-0.5">−{fmtCurrencyShort(totalDeficit)}</p>
+            <p className="text-[11px] text-[#aaa] mt-0.5">
+              Payouts paused{propertiesOnHold > 1 ? ` · ${propertiesOnHold} properties` : ""}
+            </p>
+          </Link>
+        ) : (
+          <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
+            <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Balance</span>
+            <p className="text-[22px] font-bold text-[#111] mt-1">{payment.balance}</p>
+            <p className="text-[11px] text-[#aaa] mt-0.5">Payout pending</p>
+          </Link>
+        )}
         <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
           <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Paid Out</span>
           <p className="text-[22px] font-bold text-[#111] mt-1">{payment.paidThisMonth}</p>

@@ -270,7 +270,13 @@ export default function PropertyDetailPage() {
   [reservations]);
 
   const totalEarnings = useMemo(() => reservations.reduce((s, r) => s + (r.ownerPayout || 0), 0), [reservations]);
-  const pendingBalance = useMemo(() => reservations.filter((r) => r.payoutStatus === "Pending").reduce((s, r) => s + (r.ownerPayout || 0), 0), [reservations]);
+  // Owner balance = Completed reservations awaiting payout (NOT future/upcoming pending bookings)
+  const pendingBalance = useMemo(
+    () => reservations
+      .filter((r) => r.status === "Completed" && r.payoutStatus === "Pending")
+      .reduce((s, r) => s + (r.ownerPayout || 0), 0),
+    [reservations]
+  );
 
   // Carry-forward deficit reconciliation for THIS property.
   // Walks reservations in checkout order, applying expenses + carry-forward.
