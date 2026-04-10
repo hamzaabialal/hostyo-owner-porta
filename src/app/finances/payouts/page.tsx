@@ -25,6 +25,7 @@ interface PayoutRow {
   nights: number;
   status: string;
   payoutStatus: string;
+  payoutError: string;
   gross: number;
   platformFee: number;
   cleaning: number;
@@ -34,8 +35,31 @@ interface PayoutRow {
   ownerPayout: number;
 }
 
+// Distill a long error log down to its core failure reason
+function extractErrorReason(raw: string): string {
+  if (!raw) return "Unknown error — check Notion for details.";
+  const text = String(raw).trim();
+  // Try to find the first line containing a typical error indicator
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const keywords = /(error|failed|invalid|missing|reject|declined|insufficient|unauthor|forbidden|timeout|not\s*found|unsupported)/i;
+  const hit = lines.find((l) => keywords.test(l)) || lines[0] || text;
+  // Strip stack-trace prefixes / common noise
+  let reason = hit
+    .replace(/^.*?(Error|Exception)[: ]\s*/i, "")
+    .replace(/\s+at\s+.+$/i, "")
+    .replace(/^\W+/, "")
+    .trim();
+  // Cap at 200 chars
+  if (reason.length > 200) reason = reason.slice(0, 200) + "…";
+  return reason || text.slice(0, 200);
+}
+
 function fmtCurrency(n: number): string {
   return "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function stopPropagation(ev: { stopPropagation: () => void }): void {
+  ev.stopPropagation();
 }
 
 
@@ -46,19 +70,37 @@ export default function PayoutsPage() {
   const [filterProperty, setFilterProperty] = useState("");
   const [filterPayoutStatus, setFilterPayoutStatus] = useState("");
   const [search, setSearch] = useState("");
+  const [errorModal, setErrorModal] = useState<PayoutRow | null>(null);
 
   useEffect(() => {
     Promise.all([
       fetchData("reservations", "/api/reservations"),
       fetchData("expenses", "/api/expenses"),
-    ]).then(([resResult, expResult]: unknown[]) => {
+      fetchData("properties", "/api/properties"),
+    ]).then(([resResult, expResult, propResult]: unknown[]) => {
       const resData = resResult as { data?: any[] };
       const expData = expResult as { data?: any[] };
+      const propData = propResult as { data?: any[] };
       const allExpenses = expData?.data || [];
+      const allProperties = propData?.data || [];
+
+      // Build a set of property names that are flagged Skip Automation
+      const skipNames = allProperties
+        .filter((p: any) => p.skipAutomation === true)
+        .map((p: any) => (p.name || "").trim().toLowerCase())
+        .filter(Boolean);
+
+      const isSkipped = (name: string): boolean => {
+        const n = (name || "").trim().toLowerCase();
+        if (!n) return false;
+        return skipNames.some((s: string) => s === n || s.startsWith(n) || n.startsWith(s));
+      };
 
       if (resData.data) {
-        // Only show completed reservations in payouts
-        const completed = resData.data.filter((r: any) => r.status === "Completed");
+        // Only show completed reservations in payouts, excluding skip-automation properties
+        const completed = resData.data.filter(
+          (r: any) => r.status === "Completed" && !isSkipped(r.property || "")
+        );
         const mapped: PayoutRow[] = completed.map((r: any, i: number) => {
           // Find linked expenses for this reservation — only Paid/Approved
           const ref = r.ref || "";
@@ -79,6 +121,7 @@ export default function PayoutsPage() {
             nights: r.nights || 0,
             status: r.status || "Completed",
             payoutStatus: r.payoutStatus || "Pending",
+            payoutError: r.payoutError || "",
             gross: r.grossAmount || 0,
             platformFee: r.platformFee || 0,
             cleaning: r.cleaning || 0,
@@ -139,13 +182,13 @@ export default function PayoutsPage() {
       {/* Warning: Errored Payouts */}
       {erroredPayouts.length > 0 && (
         <div className="bg-[#F6EDED] border border-[#E8D8D8] rounded-xl p-4 mb-5 flex items-start gap-3">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7A5252" strokeWidth="2" className="flex-shrink-0 mt-0.5">
-            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          <div>
+          <div className="w-9 h-9 rounded-full bg-[#E8D8D8] flex items-center justify-center flex-shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7A5252" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div className="min-w-0">
             <div className="text-[13px] font-semibold text-[#7A5252] mb-1">{erroredPayouts.length} failed payout{erroredPayouts.length !== 1 ? "s" : ""}</div>
             <div className="text-[12px] text-[#7A5252]/80">
-              These payouts have errors and need attention. Total: {fmtCurrency(erroredPayouts.reduce((s: number, r: PayoutRow) => s + r.ownerPayout, 0))}
+              These payouts have errors and need attention. Total: {fmtCurrency(erroredPayouts.reduce((s: number, r: PayoutRow) => s + r.ownerPayout, 0))}. Click any errored row below to see the reason.
             </div>
           </div>
         </div>
@@ -239,17 +282,34 @@ export default function PayoutsPage() {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const isOverdueDate = payByDate && r.payoutStatus === "Pending" && payByDate < today;
-                const isOverdue = isErrored || isOverdueDate;
                 return (
-                  <tr key={r.id} className={`border-b border-[#f3f3f3] hover:bg-[#f9f9f9] ${isErrored ? "bg-[#F6EDED]/30" : isOverdueDate ? "bg-[#F6F1E6]/30" : ""}`}>
+                  <tr
+                    key={r.id}
+                    onClick={() => { if (isErrored) setErrorModal(r); }}
+                    className={`border-b border-[#f3f3f3] hover:bg-[#f9f9f9] ${isErrored ? "bg-[#F6EDED]/30 cursor-pointer" : isOverdueDate ? "bg-[#F6F1E6]/30" : ""}`}
+                  >
                     <td className="px-3.5 py-3">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                         <span className={`pill pill-${r.payoutStatus.toLowerCase().replace(/\s+/g, "-")}`}>{r.payoutStatus}</span>
-                        {isOverdue && (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF5A5F" strokeWidth="2" className="flex-shrink-0">
-                            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                        {isErrored ? (
+                          <button
+                            type="button"
+                            onClick={(ev) => { stopPropagation(ev); setErrorModal(r); }}
+                            title="View error reason"
+                            className="w-5 h-5 rounded-full bg-[#F6EDED] border border-[#E8D8D8] flex items-center justify-center flex-shrink-0 hover:bg-[#EFD8D8] transition-colors"
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#B7484F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="12" y1="8" x2="12" y2="13"/>
+                              <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                          </button>
+                        ) : isOverdueDate ? (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D4A843" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
                           </svg>
-                        )}
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-3.5 py-3">
@@ -294,6 +354,71 @@ export default function PayoutsPage() {
           </table>
         </div>
       </div>
+
+      {/* Error detail modal */}
+      {errorModal && (
+        <div
+          onClick={() => setErrorModal(null)}
+          className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={stopPropagation}
+            className="bg-white rounded-2xl border border-[#eaeaea] shadow-xl w-full max-w-[480px] overflow-hidden"
+          >
+            <div className="px-5 py-4 border-b border-[#eaeaea] flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-[#F6EDED] border border-[#E8D8D8] flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B7484F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14px] font-semibold text-[#111]">Payout failed</div>
+                <div className="text-[12px] text-[#888] truncate">{errorModal.guest} · {errorModal.property}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setErrorModal(null)}
+                className="text-[#bbb] hover:text-[#666] flex-shrink-0"
+                title="Close"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#999] mb-1">Reason</div>
+                <div className="text-[13px] text-[#111] leading-relaxed">
+                  {extractErrorReason(errorModal.payoutError)}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[#f0f0f0]">
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-[#999] mb-1">Reference</div>
+                  <div className="text-[12px] text-[#333] truncate">{errorModal.ref || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-[#999] mb-1">Owner Payout</div>
+                  <div className="text-[12px] text-[#333] tabular-nums">{fmtCurrency(errorModal.ownerPayout)}</div>
+                </div>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-[#eaeaea] bg-[#fafafa] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setErrorModal(null)}
+                className="h-[36px] px-4 rounded-lg text-[12px] font-semibold text-white bg-[#80020E] hover:bg-[#6b010c] transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

@@ -29,6 +29,8 @@ interface Expense {
   amount: number;
   status: string;
   proof: string[];
+  photos?: string[];
+  receipts?: string[];
   deducted: boolean;
   causedHold: boolean;
 }
@@ -781,46 +783,65 @@ function ExpensesPageInner() {
             exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`);
           } else {
             const fmt = (n: number) => options.currency ? `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : n.toFixed(2);
+            // Render a media item — image or PDF placeholder. Sized to fill its grid cell.
+            const renderMedia = (url: string, i: number, label: string): string => {
+              const isPdf = /\.pdf/i.test(url);
+              if (isPdf) {
+                const fname = url.split("/").pop() || `${label} ${i + 1}`;
+                return `<div style="display:flex;align-items:center;gap:8px;border:1px solid #e5e5e5;border-radius:8px;padding:14px;background:#fafafa;min-height:80px">
+                  <span style="font-size:10px;font-weight:700;color:#80020E;background:#F6EDED;padding:3px 7px;border-radius:4px">PDF</span>
+                  <span style="font-size:10px;color:#555;word-break:break-all">${fname}</span>
+                </div>`;
+              }
+              return `<img src="${url}" style="width:100%;height:100%;max-height:240px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e5;display:block" />`;
+            };
+
+            const renderMediaSection = (title: string, urls: string[], emptyText: string): string => {
+              if (!urls || urls.length === 0) {
+                return `<div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">${title}</div>
+                  <div style="color:#bbb;font-size:10px;font-style:italic;margin-bottom:14px">${emptyText}</div>`;
+              }
+              // Auto-fit grid: at least 200px wide, expand to fill row evenly. Cap at 3 per row.
+              const items = urls.map((u, i) => `<div style="height:240px">${renderMedia(u, i, title)}</div>`).join("");
+              return `<div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">${title}</div>
+                <div style="display:grid;grid-template-columns:repeat(${Math.min(urls.length, 3)}, 1fr);gap:10px;margin-bottom:14px">${items}</div>`;
+            };
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const expenseCards = filtered.map((r: any) => {
-              const proofItems = (r.proof && r.proof.length > 0)
-                ? r.proof.map((url: string, i: number) => {
-                    const isPdf = url.match(/\.pdf/i);
-                    if (isPdf) {
-                      const fname = url.split("/").pop() || `File ${i + 1}`;
-                      return `<div style="display:inline-flex;align-items:center;gap:8px;border:1px solid #e5e5e5;border-radius:8px;padding:10px 14px;background:#fafafa">
-                        <span style="font-size:10px;font-weight:700;color:#80020E;background:#F6EDED;padding:2px 6px;border-radius:4px">PDF</span>
-                        <span style="font-size:10px;color:#555">${fname}</span>
-                      </div>`;
-                    }
-                    return `<img src="${url}" style="height:140px;width:auto;max-width:200px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e5" />`;
-                  }).join("")
-                : '<div style="color:#bbb;font-size:10px;font-style:italic">No receipts attached</div>';
+              // Prefer the split arrays from the API; fall back to `proof` (legacy) as receipts.
+              const receipts: string[] = (r.receipts && r.receipts.length > 0)
+                ? r.receipts
+                : (r.photos && r.photos.length > 0 ? [] : (r.proof || []));
+              const photos: string[] = r.photos || [];
 
               const desc = r.description || "";
               const statusDot = r.status === "Approved" || r.status === "Paid" ? "#2F6B57" : r.status === "In Review" ? "#8A6A2E" : "#999";
 
-              return `<div style="page-break-inside:avoid;padding:28px 0;border-bottom:1px solid #eee">
+              return `<div style="page-break-inside:avoid;page-break-after:always;padding:24px 0">
                 <div style="font-size:15px;font-weight:700;color:#111;margin-bottom:2px">${r.category || "Expense"} ${desc ? "— " + desc : ""}</div>
-                <div style="font-size:11px;color:#999;margin-bottom:14px">${r.date || ""}</div>
-                <div style="font-size:28px;font-weight:700;color:#111;margin-bottom:3px">${fmt(r.amount)}</div>
-                <div style="font-size:10px;color:#aaa;margin-bottom:16px">incl. VAT</div>
-                <table style="width:auto;font-size:12px;border-collapse:collapse;margin-bottom:16px">
-                  <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Category</td><td style="color:#111;font-weight:500;padding:4px 0">${r.category || "—"}</td></tr>
-                  <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Vendor</td><td style="color:#111;font-weight:500;padding:4px 0">${r.vendor || "—"}</td></tr>
-                  <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Status</td><td style="padding:4px 0"><span style="color:${statusDot};font-weight:600">● ${r.status || "—"}</span></td></tr>
-                  <tr><td style="color:#999;padding:4px 16px 4px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Property</td><td style="color:#111;font-weight:500;padding:4px 0">${r.property || "—"}</td></tr>
+                <div style="font-size:11px;color:#999;margin-bottom:12px">${r.date || ""}</div>
+                <div style="font-size:26px;font-weight:700;color:#111;margin-bottom:2px">${fmt(r.amount)}</div>
+                <div style="font-size:10px;color:#aaa;margin-bottom:14px">incl. VAT</div>
+                <table style="width:auto;font-size:12px;border-collapse:collapse;margin-bottom:12px">
+                  <tr><td style="color:#999;padding:3px 16px 3px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Category</td><td style="color:#111;font-weight:500;padding:3px 0">${r.category || "—"}</td></tr>
+                  <tr><td style="color:#999;padding:3px 16px 3px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Vendor</td><td style="color:#111;font-weight:500;padding:3px 0">${r.vendor || "—"}</td></tr>
+                  <tr><td style="color:#999;padding:3px 16px 3px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Status</td><td style="padding:3px 0"><span style="color:${statusDot};font-weight:600">● ${r.status || "—"}</span></td></tr>
+                  <tr><td style="color:#999;padding:3px 16px 3px 0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Property</td><td style="color:#111;font-weight:500;padding:3px 0">${r.property || "—"}</td></tr>
                 </table>
-                ${desc ? `<div style="font-size:12px;color:#666;font-style:italic;line-height:1.5;margin-bottom:16px">${desc}</div>` : ""}
-                <div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Receipt / Invoice</div>
-                <div style="display:flex;gap:10px;flex-wrap:wrap">${proofItems}</div>
+                ${desc ? `<div style="font-size:12px;color:#666;font-style:italic;line-height:1.5;margin-bottom:14px">${desc}</div>` : ""}
+                ${renderMediaSection("Receipt / Invoice", receipts, "No receipt attached")}
+                ${renderMediaSection("Photo Evidence", photos, "No photo evidence attached")}
               </div>`;
             }).join("");
 
             const html = `<!DOCTYPE html><html><head><title>Expense Report</title>
               <style>
                 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px 48px;color:#111;max-width:900px;margin:0 auto}
-                @media print{body{padding:24px 32px}img{max-height:140px!important}}
+                @media print{
+                  body{padding:24px 32px}
+                  @page{size:A4;margin:14mm}
+                }
               </style></head><body>
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #eee">
                 <div>
