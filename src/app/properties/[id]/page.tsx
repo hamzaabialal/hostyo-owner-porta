@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import ChannelBadge from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
 import { getDocuments, addDocument, removeDocument, formatFileSize, type PropertyDocument } from "@/lib/documents";
+import { reconcileProperty } from "@/lib/reconcile";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -271,6 +272,28 @@ export default function PropertyDetailPage() {
   const totalEarnings = useMemo(() => reservations.reduce((s, r) => s + (r.ownerPayout || 0), 0), [reservations]);
   const pendingBalance = useMemo(() => reservations.filter((r) => r.payoutStatus === "Pending").reduce((s, r) => s + (r.ownerPayout || 0), 0), [reservations]);
 
+  // Carry-forward deficit reconciliation for THIS property.
+  // Walks reservations in checkout order, applying expenses + carry-forward.
+  const reconciledRows = useMemo(() => {
+    if (!property) return [];
+    return reconcileProperty(property.name || "", reservations, expenses);
+  }, [property, reservations, expenses]);
+
+  const currentDeficit = useMemo(() => {
+    if (reconciledRows.length === 0) return 0;
+    return reconciledRows[reconciledRows.length - 1].deficitAfter;
+  }, [reconciledRows]);
+
+  const heldReservationsCount = useMemo(
+    () => reconciledRows.filter((r) => r.isOnHold).length,
+    [reconciledRows]
+  );
+
+  const totalReleasedToOwner = useMemo(
+    () => reconciledRows.reduce((s, r) => s + r.paidToOwner, 0),
+    [reconciledRows]
+  );
+
   // In-house guest (checked in, not checked out)
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -306,10 +329,30 @@ export default function PropertyDetailPage() {
       </button>
 
       {/* Property header */}
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-[20px] font-bold text-[#111] mb-1">{property.name}</h1>
         {location && <div className="text-[13px] text-[#888]">{location}</div>}
       </div>
+
+      {/* Carry-forward deficit warning */}
+      {currentDeficit > 0 && (
+        <div className="bg-[#FBF1E2] border border-[#E8DDC7] rounded-xl p-4 mb-5 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-full bg-[#F1E3C5] flex items-center justify-center flex-shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="6" y="5" width="4" height="14" rx="1"/>
+              <rect x="14" y="5" width="4" height="14" rx="1"/>
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-semibold text-[#8A6A2E] mb-1">Owner balance is negative — payouts on hold</div>
+            <div className="text-[12px] text-[#8A6A2E]/80">
+              Current carry-forward deficit: <strong>{fmtCurrency(currentDeficit)}</strong>.
+              {heldReservationsCount > 0 && ` ${heldReservationsCount} reservation${heldReservationsCount !== 1 ? "s" : ""} affected.`}
+              {" "}Future reservation payouts will be applied automatically until the balance recovers.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-0 border-b border-[#eaeaea] mb-6 overflow-x-auto">
@@ -510,11 +553,16 @@ export default function PropertyDetailPage() {
         return (
           <div className="space-y-5">
             {/* Summary cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatBox label="Total Expenses" value={fmtCurrency(totalExp)} sub="This month" />
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <StatBox label="Total Expenses" value={fmtCurrency(totalExp)} sub="All time" />
               <StatBox label="In Review" value={fmtCurrency(inReviewTotal)} sub={`${inReview.length} expenses`} />
               <StatBox label="Paid" value={fmtCurrency(paidTotal)} sub={`${paid.length} expenses`} />
-              <StatBox label="Net Balance" value={fmtCurrency(netBalance)} sub="After expenses" />
+              <StatBox label="Net Balance" value={fmtCurrency(netBalance)} sub="Earnings − expenses" />
+              <StatBox
+                label="Owner Balance"
+                value={currentDeficit > 0 ? `-${fmtCurrency(currentDeficit)}` : fmtCurrency(totalReleasedToOwner)}
+                sub={currentDeficit > 0 ? "Deficit — payouts on hold" : "Cleared & paid out"}
+              />
             </div>
 
             {/* Expense table */}
