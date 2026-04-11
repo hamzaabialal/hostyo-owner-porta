@@ -79,6 +79,30 @@ export default function PayoutsPage() {
   const [filterPayoutStatus, setFilterPayoutStatus] = useState("");
   const [search, setSearch] = useState("");
   const [errorModal, setErrorModal] = useState<PayoutRow | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+
+  const handleSyncBalances = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/properties/sync-balances", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setSyncResult(`Synced ${data.updated} of ${data.total} properties (${data.skipped} skipped).`);
+      } else {
+        setSyncResult(`Sync failed: ${data.error || "Unknown error"}`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      setSyncResult(`Sync failed: ${msg}`);
+    } finally {
+      setSyncing(false);
+      // Clear the message after 6 seconds
+      setTimeout(() => setSyncResult(null), 6000);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -219,7 +243,30 @@ export default function PayoutsPage() {
   return (
     <AppShell title="Payouts">
       <MobileTabs tabs={FINANCE_TABS} />
-      <div className="text-[13px] text-[#888] mb-5 -mt-1 hidden md:block">Track all payouts, fees and deductions.</div>
+      <div className="flex items-center justify-between gap-3 mb-5 -mt-1 flex-wrap">
+        <div className="text-[13px] text-[#888] hidden md:block">Track all payouts, fees and deductions.</div>
+        <div className="flex items-center gap-3 ml-auto">
+          {syncResult && (
+            <span className="text-[11px] text-[#666] bg-[#f5f5f5] border border-[#eaeaea] rounded-lg px-2.5 py-1.5">
+              {syncResult}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleSyncBalances}
+            disabled={syncing}
+            title="Recalculate every property's balance and write it back to the Notion Properties database"
+            className="flex items-center gap-1.5 h-[34px] px-3 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-all disabled:opacity-50 disabled:cursor-wait bg-white"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={syncing ? "animate-spin" : ""}>
+              <polyline points="23 4 23 10 17 10"/>
+              <polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            </svg>
+            {syncing ? "Syncing..." : "Sync balances"}
+          </button>
+        </div>
+      </div>
 
       {/* Warning: Errored Payouts */}
       {erroredPayouts.length > 0 && (

@@ -133,7 +133,7 @@ function computeBalance(
   return Number(pendingOwed.toFixed(2));
 }
 
-export async function POST() {
+async function runSync() {
   if (!DB.properties || !DB.reservations || !DB.expenses) {
     return NextResponse.json(
       { ok: false, error: "Required Notion databases are not configured." },
@@ -210,4 +210,24 @@ export async function POST() {
       { status: 500 }
     );
   }
+}
+
+// Manual trigger from the UI (admin-only) — also usable via curl/Postman
+export async function POST() {
+  return runSync();
+}
+
+/**
+ * Vercel Cron entry point.
+ * Vercel Cron only invokes GET handlers, and includes a Bearer token from
+ * the CRON_SECRET environment variable. We reject any GET that doesn't
+ * present the correct secret so the endpoint can't be hit anonymously.
+ */
+export async function GET(req: Request) {
+  const auth = req.headers.get("authorization") || "";
+  const expected = `Bearer ${process.env.CRON_SECRET || ""}`;
+  if (!process.env.CRON_SECRET || auth !== expected) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  return runSync();
 }
