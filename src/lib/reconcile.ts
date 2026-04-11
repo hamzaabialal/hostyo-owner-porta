@@ -175,20 +175,27 @@ export function reconcileProperty(
   const results: ReconciledReservation[] = [];
   let queueCursor = 0; // walks the propertyLevelQueue as expenses get consumed
 
+  // Property-level Paid expenses are an additional source of deficit. They are
+  // applied to whichever reservation comes next chronologically. We walk a queue
+  // of them in date order and consume each one exactly once.
+  // Note: Notion's `Owner Payout` field is already net of any expenses linked
+  // directly to the reservation (reservation.expenses field + linked expense rows),
+  // so we MUST NOT subtract those again or we'd be double-counting. We only
+  // subtract property-level (unlinked) Paid expenses on top.
+
   for (const r of sorted) {
     const ownerPayoutRaw = r.ownerPayout || 0;
     const managementFee = r.managementFee || 0;
 
-    // Source 1: built-in Expenses field on the reservation
+    // For traceability only — these are already baked into ownerPayoutRaw by Notion.
     const reservationExpenseField = r.expenses || 0;
-
-    // Source 2: linked expense rows
     const refKey = (r.ref || "").slice(0, 10).toLowerCase();
     const linkedRows = refKey ? (linkedByRef.get(refKey) || []) : [];
     const linkedExpensesTotal = linkedRows.reduce((s, e) => s + (e.amount || 0), 0);
 
-    // Source 3: property-level expenses dated on or before this reservation's checkout
-    // that haven't been consumed yet. Walk the queue from current cursor.
+    // The only thing we ADD to the deduction here are property-level expenses
+    // (no Reservation ID) that are dated on or before this reservation's checkout
+    // and haven't been consumed by an earlier reservation yet.
     const checkoutDate = r.checkout || "";
     const appliedExpenseIds: string[] = [];
     let propertyExpensesApplied = 0;
@@ -202,11 +209,11 @@ export function reconcileProperty(
       queueCursor++;
     }
 
-    const totalExpenses =
-      reservationExpenseField + linkedExpensesTotal + propertyExpensesApplied;
+    // The reservation's own expenses are already in ownerPayoutRaw. We only
+    // subtract property-level expenses on top.
+    const totalExpenses = propertyExpensesApplied;
 
-    // Gross owner payout minus all this reservation's expenses minus any deficit
-    // carried from previous reservations.
+    // Carry-forward deficit from prior reservations on this property
     const deficitBefore = carryDeficit;
     const netPayout = ownerPayoutRaw - totalExpenses - deficitBefore;
 
@@ -230,10 +237,23 @@ export function reconcileProperty(
       appliedToDeficit = Math.min(deficitBefore, availableAfterOwnExpenses);
       deficitAfter = -netPayout; // magnitude of the new deficit
       isOnHold = true;
-      holdReason =
-        deficitBefore > 0
-          ? `€${deficitAfter.toFixed(2)} deficit — carried from prior reservation (€${deficitBefore.toFixed(2)}) + new expenses (€${totalExpenses.toFixed(2)}) exceed owner payout (€${ownerPayoutRaw.toFixed(2)}).`
-          : `€${deficitAfter.toFixed(2)} deficit — expenses (€${totalExpenses.toFixed(2)}) exceed owner payout (€${ownerPayoutRaw.toFixed(2)}) for this reservation.`;
+
+      // Build a human-readable hold reason that distinguishes the three causes:
+      //   (a) reservation itself produced a negative owner payout,
+      //   (b) property-level expense pushed it negative,
+      //   (c) carried deficit from an earlier reservation.
+      const reasons: string[] = [];
+      if (ownerPayoutRaw < 0) {
+        reasons.push(`reservation owner payout is negative (€${ownerPayoutRaw.toFixed(2)})`);
+      }
+      if (propertyExpensesApplied > 0) {
+        reasons.push(`property expenses applied (€${propertyExpensesApplied.toFixed(2)})`);
+      }
+      if (deficitBefore > 0) {
+        reasons.push(`prior carry-forward deficit (€${deficitBefore.toFixed(2)})`);
+      }
+      const causes = reasons.length > 0 ? reasons.join(" + ") : `expenses exceed owner payout`;
+      holdReason = `€${deficitAfter.toFixed(2)} deficit — ${causes}.`;
     }
 
     carryDeficit = deficitAfter;
