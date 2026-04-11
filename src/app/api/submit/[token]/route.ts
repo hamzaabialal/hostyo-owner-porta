@@ -265,6 +265,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       invalidate("expenses");
     } catch { /* ignore */ }
 
+    // Refresh the affected property's Balance in Notion immediately so the
+    // owner balance reflects this newly-submitted expense without waiting
+    // for the daily cron.
+    if (propertyName) {
+      try {
+        const { syncPropertyBalances } = await import("@/lib/sync-balances");
+        await syncPropertyBalances([propertyName]);
+      } catch { /* best effort — never block the vendor submission */ }
+    }
+
     return NextResponse.json({ ok: true, expenseId });
   } catch (error: any) {
     console.error("Submit POST error:", error?.message);

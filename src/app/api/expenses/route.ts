@@ -102,6 +102,12 @@ export async function POST(req: Request) {
     const { invalidate } = await import("@/lib/cache");
     invalidate("expenses");
 
+    // Refresh the affected property's Balance in Notion immediately
+    if (property) {
+      const { syncPropertyBalances } = await import("@/lib/sync-balances");
+      await syncPropertyBalances([property]);
+    }
+
     return NextResponse.json({ ok: true, expenseId });
   } catch (error: any) {
     console.error("Create expense error:", error?.message || error);
