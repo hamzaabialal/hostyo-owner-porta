@@ -292,11 +292,6 @@ export default function PropertyDetailPage() {
     return reconciledRows[reconciledRows.length - 1].deficitAfter;
   }, [reconciledRows]);
 
-  const heldReservationsCount = useMemo(
-    () => reconciledRows.filter((r) => r.isOnHold).length,
-    [reconciledRows]
-  );
-
   const totalReleasedToOwner = useMemo(
     () => reconciledRows.reduce((s, r) => s + r.paidToOwner, 0),
     [reconciledRows]
@@ -342,25 +337,7 @@ export default function PropertyDetailPage() {
         {location && <div className="text-[13px] text-[#888]">{location}</div>}
       </div>
 
-      {/* Carry-forward deficit warning */}
-      {currentDeficit > 0 && (
-        <div className="bg-[#FBF1E2] border border-[#E8DDC7] rounded-xl p-4 mb-5 flex items-start gap-3">
-          <div className="w-9 h-9 rounded-full bg-[#F1E3C5] flex items-center justify-center flex-shrink-0">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="6" y="5" width="4" height="14" rx="1"/>
-              <rect x="14" y="5" width="4" height="14" rx="1"/>
-            </svg>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-semibold text-[#8A6A2E] mb-1">Owner balance is negative — payouts on hold</div>
-            <div className="text-[12px] text-[#8A6A2E]/80">
-              Current carry-forward deficit: <strong>{fmtCurrency(currentDeficit)}</strong>.
-              {heldReservationsCount > 0 && ` ${heldReservationsCount} reservation${heldReservationsCount !== 1 ? "s" : ""} affected.`}
-              {" "}Future reservation payouts will be applied automatically until the balance recovers.
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Deficit warning removed — balance is shown inline on the stat card */}
 
       {/* Tabs */}
       <div className="flex gap-0 border-b border-[#eaeaea] mb-6 overflow-x-auto">
@@ -443,7 +420,11 @@ export default function PropertyDetailPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <StatBox label="Total Reservations" value={reservations.length} sub="All time" />
             <StatBox label="Total Earnings" value={fmtCurrencyShort(totalEarnings)} sub="All time" />
-            <StatBox label="Current Balance" value={fmtCurrencyShort(pendingBalance)} sub="Payout pending" />
+            <StatBox
+              label="Current Balance"
+              value={`${pendingBalance < 0 ? "−" : ""}€${Math.abs(Math.round(pendingBalance)).toLocaleString("en-IE")}`}
+              sub={pendingBalance < 0 ? "On hold" : "Payout pending"}
+            />
           </div>
 
           {/* Property Details */}
