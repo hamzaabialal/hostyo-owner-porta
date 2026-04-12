@@ -185,6 +185,9 @@ export default function PayoutsPage() {
         });
         setData(mapped);
       }
+
+      // Auto-sync all property balances to Notion in the background
+      fetch("/api/properties/sync-balances", { method: "POST" }).catch(() => {});
     }).catch(console.error)
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps

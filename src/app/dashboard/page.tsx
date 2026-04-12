@@ -82,6 +82,10 @@ export default function DashboardPage() {
       }
       setTotalDeficit(total);
       setPropertiesOnHold(count);
+
+      // Auto-sync all property balances to Notion in the background.
+      // Runs silently on every dashboard load so Notion is always up to date.
+      fetch("/api/properties/sync-balances", { method: "POST" }).catch(() => {});
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
