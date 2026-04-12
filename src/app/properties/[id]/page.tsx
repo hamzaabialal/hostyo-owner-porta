@@ -279,13 +279,14 @@ export default function PropertyDetailPage() {
       .reduce((s, r) => s + (r.ownerPayout || 0), 0);
 
     // Step 2: subtract property-level Paid expenses (no Reservation ID)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     const propExpenseTotal = expenses
       .filter((e: any) =>
-        !(e.reservation || "").trim() && // no reservation link = property-level
+        !(e.reservation || "").trim() &&
         (e.status || "").toLowerCase() === "paid"
       )
       .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    /* eslint-enable @typescript-eslint/no-explicit-any */
 
     return payoutSum - propExpenseTotal;
   }, [reservations, expenses]);
