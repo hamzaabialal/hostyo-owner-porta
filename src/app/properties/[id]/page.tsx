@@ -292,11 +292,6 @@ export default function PropertyDetailPage() {
     return reconciledRows[reconciledRows.length - 1].deficitAfter;
   }, [reconciledRows]);
 
-  const heldReservationsCount = useMemo(
-    () => reconciledRows.filter((r) => r.isOnHold).length,
-    [reconciledRows]
-  );
-
   const totalReleasedToOwner = useMemo(
     () => reconciledRows.reduce((s, r) => s + r.paidToOwner, 0),
     [reconciledRows]
