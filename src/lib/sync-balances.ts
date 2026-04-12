@@ -116,6 +116,7 @@ function mapExpense(page: any): RawExpense {
 function computeBalance(
   propertyName: string,
   reservations: RawReservation[],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _expenses: RawExpense[]
 ): number {
   const pendingSum = reservations
