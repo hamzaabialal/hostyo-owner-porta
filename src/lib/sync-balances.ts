@@ -11,12 +11,15 @@
  *   - POST /api/submit/[token]               (after a vendor submits work)
  *
  * Single source of truth for "what is the current owner balance for each
- * property" — calls reconcileProperty() and writes the result to the
- * `Balance` number column in the Notion Properties database.
+ * property" — computes the simple balance formula and writes the result to
+ * the `Balance` number column in the Notion Properties database.
+ *
+ * Balance = Σ(Owner Payout where Status=Completed AND Payout Status=Pending)
+ *         − Σ(Paid property-level expenses with no Reservation ID)
  */
 import notion from "@/lib/notion";
 import { queryDatabase, getProp, DB } from "@/lib/notion";
-import { reconcileProperty, type RawReservation, type RawExpense } from "@/lib/reconcile";
+import { type RawReservation, type RawExpense } from "@/lib/reconcile";
 import { invalidate } from "@/lib/cache";
 
 function normalizeKey(s: string): string {
@@ -97,31 +100,44 @@ function mapExpense(page: any): RawExpense {
 }
 
 /**
- * Compute the live balance for one property using the same reconciliation
- * walker the UI uses. Returns:
- *   positive number = amount currently owed to the owner (paid out + cleared)
- *   negative number = current carry-forward deficit (payouts on hold)
- *   zero            = nothing pending
+ * Compute the live balance for one property.
+ *
+ * Simple formula (from client spec):
+ *   Balance = Σ(Owner Payout) where Status = Completed AND Payout Status = Pending
+ *          − Σ(amount) of property-level Paid expenses (Reservation ID is empty)
+ *
+ * Positive = owed to the owner (payout pending)
+ * Negative = deficit (payouts on hold, carry-forward until recovered)
+ * Zero     = nothing pending
+ *
+ * The carry-forward reconciliation walker is NOT used here — that's for the
+ * Payouts page per-reservation breakdown. This function is a pure sum used
+ * for the Notion Balance column so the payout automation can read it.
  */
 function computeBalance(
   propertyName: string,
   reservations: RawReservation[],
   expenses: RawExpense[]
 ): number {
-  const rows = reconcileProperty(propertyName, reservations, expenses);
-  if (rows.length === 0) return 0;
+  // Step 1: Sum of Owner Payout for Completed + Pending reservations on this property
+  const pendingSum = reservations
+    .filter((r) =>
+      isSameProperty(r.property || "", propertyName) &&
+      (r.status || "") === "Completed" &&
+      (r.payoutStatus || "") === "Pending"
+    )
+    .reduce((s, r) => s + (r.ownerPayout || 0), 0);
 
-  const last = rows[rows.length - 1];
-  // If a deficit exists, that's the negative balance
-  if (last.deficitAfter > 0) return -Number(last.deficitAfter.toFixed(2));
+  // Step 2: Subtract property-level Paid expenses (no Reservation ID)
+  const propExpenseTotal = expenses
+    .filter((e) =>
+      isSameProperty(e.property || "", propertyName) &&
+      !(e.reservation || "").trim() && // property-level only (no reservation link)
+      (e.status || "").toLowerCase() === "paid"
+    )
+    .reduce((s, e) => s + (e.amount || 0), 0);
 
-  // Otherwise, the balance is the sum of paidToOwner from reservations whose
-  // payout status is still Pending (i.e. money owed but not yet released by
-  // the 3-day automation).
-  const pendingOwed = rows
-    .filter((r) => r.originalPayoutStatus === "Pending")
-    .reduce((s, r) => s + r.paidToOwner, 0);
-  return Number(pendingOwed.toFixed(2));
+  return Number((pendingSum - propExpenseTotal).toFixed(2));
 }
 
 export interface SyncResult {
