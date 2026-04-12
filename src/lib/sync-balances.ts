@@ -186,8 +186,11 @@ export async function syncAllPropertyBalances(): Promise<SyncResult> {
 
       const balance = computeBalance(propertyName, propRes, propExp);
 
-      const currentBalance = Number(getProp(page, "Balance") || 0);
-      if (Math.abs(currentBalance - balance) < 0.005) {
+      // Read the current value — treat null/undefined as "never set" so we
+      // always write on the first sync even if the balance is 0.
+      const rawBalance = getProp(page, "Balance");
+      const currentBalance = rawBalance === null || rawBalance === undefined ? null : Number(rawBalance);
+      if (currentBalance !== null && Math.abs(currentBalance - balance) < 0.005) {
         results.push({ property: propertyName, balance, updated: false });
         continue;
       }
@@ -270,8 +273,9 @@ export async function syncPropertyBalances(propertyNames: string[]): Promise<voi
 
       const balance = computeBalance(canonicalName, propRes, propExp);
 
-      const currentBalance = Number(getProp(page, "Balance") || 0);
-      if (Math.abs(currentBalance - balance) < 0.005) continue;
+      const rawBal = getProp(page, "Balance");
+      const currentBalance = rawBal === null || rawBal === undefined ? null : Number(rawBal);
+      if (currentBalance !== null && Math.abs(currentBalance - balance) < 0.005) continue;
 
       try {
         await notion.pages.update({
