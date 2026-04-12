@@ -39,9 +39,8 @@ export default function DashboardPage() {
       const monthExp = (expData.data || []).filter((e: any) => (e.date || "").startsWith(thisMonth)).reduce((s: number, e: any) => s + (e.amount || 0), 0);
       setExpenses(`€${monthExp.toLocaleString("en-IE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`);
 
-      // Simple balance formula per property (same as Notion sync):
-      // Balance = Σ(Owner Payout where Status=Completed AND Payout Status=Pending)
-      //         − Σ(Paid property-level expenses with no Reservation ID)
+      // Balance per property = Σ(Owner Payout where Status=Completed AND Payout Status=Pending)
+      // No expense subtraction — expenses are handled at payout time, not in the balance.
       // Skip-automation properties are excluded.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allProps: any[] = propData.data || [];
@@ -59,13 +58,9 @@ export default function DashboardPage() {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allRes: any[] = (resData.data || []).filter((r: any) => !isSkipped(r.property || ""));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const allExp: any[] = (expData.data || []).filter((e: any) => !isSkipped(e.property || ""));
 
-      // Group by property name (lowercase key)
+      // Group by property — sum completed+pending owner payouts only
       const balanceByProp: Record<string, number> = {};
-
-      // Add completed+pending owner payouts
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const r of allRes) {
         if (r.status === "Completed" && r.payoutStatus === "Pending") {
@@ -73,17 +68,6 @@ export default function DashboardPage() {
           if (!key) continue;
           balanceByProp[key] = (balanceByProp[key] || 0) + (r.ownerPayout || 0);
         }
-      }
-
-      // Subtract property-level Paid expenses (no Reservation ID)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const e of allExp) {
-        const resId = (e.reservation || "").trim();
-        if (resId) continue; // reservation-linked → skip
-        if ((e.status || "").toLowerCase() !== "paid") continue;
-        const key = (e.property || "").trim().toLowerCase();
-        if (!key) continue;
-        balanceByProp[key] = (balanceByProp[key] || 0) - (e.amount || 0);
       }
 
       // Sum up deficits across all properties

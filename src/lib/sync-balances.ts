@@ -102,24 +102,23 @@ function mapExpense(page: any): RawExpense {
 /**
  * Compute the live balance for one property.
  *
- * Simple formula (from client spec):
+ * Formula (from client spec):
  *   Balance = Σ(Owner Payout) where Status = Completed AND Payout Status = Pending
- *          − Σ(amount) of property-level Paid expenses (Reservation ID is empty)
+ *
+ * That's it — no expense subtraction here. The Owner Payout field in Notion
+ * is already net of reservation-linked expenses. Property-level expenses are
+ * handled at payout time by the carry-forward logic, not in this balance.
  *
  * Positive = owed to the owner (payout pending)
- * Negative = deficit (payouts on hold, carry-forward until recovered)
+ * Negative = one or more reservations have negative owner payouts (deficit)
  * Zero     = nothing pending
- *
- * The carry-forward reconciliation walker is NOT used here — that's for the
- * Payouts page per-reservation breakdown. This function is a pure sum used
- * for the Notion Balance column so the payout automation can read it.
  */
 function computeBalance(
   propertyName: string,
   reservations: RawReservation[],
-  expenses: RawExpense[]
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _expenses: RawExpense[]
 ): number {
-  // Step 1: Sum of Owner Payout for Completed + Pending reservations on this property
   const pendingSum = reservations
     .filter((r) =>
       isSameProperty(r.property || "", propertyName) &&
@@ -128,16 +127,7 @@ function computeBalance(
     )
     .reduce((s, r) => s + (r.ownerPayout || 0), 0);
 
-  // Step 2: Subtract property-level Paid expenses (no Reservation ID)
-  const propExpenseTotal = expenses
-    .filter((e) =>
-      isSameProperty(e.property || "", propertyName) &&
-      !(e.reservation || "").trim() && // property-level only (no reservation link)
-      (e.status || "").toLowerCase() === "paid"
-    )
-    .reduce((s, e) => s + (e.amount || 0), 0);
-
-  return Number((pendingSum - propExpenseTotal).toFixed(2));
+  return Number(pendingSum.toFixed(2));
 }
 
 export interface SyncResult {
