@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { getChannelIcon } from "@/components/ChannelBadge";
-import { reconcileAll, type RawReservation, type RawExpense } from "@/lib/reconcile";
+// No reconciliation walker needed — simple balance formula used directly
 
 interface InHouseGuest { guest: string; property: string; channel: string; daysLeft: number; }
 interface NextArrival { guest: string; property: string; channel: string; daysAway: number; date: string; }
@@ -39,8 +39,10 @@ export default function DashboardPage() {
       const monthExp = (expData.data || []).filter((e: any) => (e.date || "").startsWith(thisMonth)).reduce((s: number, e: any) => s + (e.amount || 0), 0);
       setExpenses(`€${monthExp.toLocaleString("en-IE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`);
 
-      // Run carry-forward reconciliation across all properties to detect deficits.
-      // Skip-automation properties are excluded so they don't affect the balance.
+      // Simple balance formula per property (same as Notion sync):
+      // Balance = Σ(Owner Payout where Status=Completed AND Payout Status=Pending)
+      //         − Σ(Paid property-level expenses with no Reservation ID)
+      // Skip-automation properties are excluded.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allProps: any[] = propData.data || [];
       const skipNames = allProps
@@ -55,20 +57,42 @@ export default function DashboardPage() {
         return skipNames.some((s: string) => s === n || s.startsWith(n) || n.startsWith(s));
       };
 
-      const eligibleReservations: RawReservation[] = (resData.data || [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((r: any) => !isSkipped(r.property || ""));
-      const eligibleExpenses: RawExpense[] = (expData.data || [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((e: any) => !isSkipped(e.property || ""));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allRes: any[] = (resData.data || []).filter((r: any) => !isSkipped(r.property || ""));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allExp: any[] = (expData.data || []).filter((e: any) => !isSkipped(e.property || ""));
 
-      const { finalDeficit } = reconcileAll(eligibleReservations, eligibleExpenses);
+      // Group by property name (lowercase key)
+      const balanceByProp: Record<string, number> = {};
+
+      // Add completed+pending owner payouts
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const r of allRes) {
+        if (r.status === "Completed" && r.payoutStatus === "Pending") {
+          const key = (r.property || "").trim().toLowerCase();
+          if (!key) continue;
+          balanceByProp[key] = (balanceByProp[key] || 0) + (r.ownerPayout || 0);
+        }
+      }
+
+      // Subtract property-level Paid expenses (no Reservation ID)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const e of allExp) {
+        const resId = (e.reservation || "").trim();
+        if (resId) continue; // reservation-linked → skip
+        if ((e.status || "").toLowerCase() !== "paid") continue;
+        const key = (e.property || "").trim().toLowerCase();
+        if (!key) continue;
+        balanceByProp[key] = (balanceByProp[key] || 0) - (e.amount || 0);
+      }
+
+      // Sum up deficits across all properties
       let total = 0;
       let count = 0;
-      for (const propName of Object.keys(finalDeficit)) {
-        const d = finalDeficit[propName];
-        if (d > 0) {
-          total += d;
+      for (const key of Object.keys(balanceByProp)) {
+        const bal = balanceByProp[key];
+        if (bal < 0) {
+          total += Math.abs(bal);
           count++;
         }
       }

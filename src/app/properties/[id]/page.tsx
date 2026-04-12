@@ -270,13 +270,26 @@ export default function PropertyDetailPage() {
   [reservations]);
 
   const totalEarnings = useMemo(() => reservations.reduce((s, r) => s + (r.ownerPayout || 0), 0), [reservations]);
-  // Owner balance = Completed reservations awaiting payout (NOT future/upcoming pending bookings)
-  const pendingBalance = useMemo(
-    () => reservations
+  // Owner balance = Σ(Owner Payout where Completed + Pending) − Σ(Paid property-level expenses)
+  // Same formula used by the Notion sync and the Dashboard.
+  const pendingBalance = useMemo(() => {
+    // Step 1: sum of completed+pending owner payouts
+    const payoutSum = reservations
       .filter((r) => r.status === "Completed" && r.payoutStatus === "Pending")
-      .reduce((s, r) => s + (r.ownerPayout || 0), 0),
-    [reservations]
-  );
+      .reduce((s, r) => s + (r.ownerPayout || 0), 0);
+
+    // Step 2: subtract property-level Paid expenses (no Reservation ID)
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const propExpenseTotal = expenses
+      .filter((e: any) =>
+        !(e.reservation || "").trim() &&
+        (e.status || "").toLowerCase() === "paid"
+      )
+      .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+
+    return payoutSum - propExpenseTotal;
+  }, [reservations, expenses]);
 
   // Carry-forward deficit reconciliation for THIS property.
   // Walks reservations in checkout order, applying expenses + carry-forward.
