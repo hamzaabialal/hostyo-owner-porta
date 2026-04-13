@@ -81,6 +81,7 @@ export default function PayoutsPage() {
   const [errorModal, setErrorModal] = useState<PayoutRow | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [dismissedBanners, setDismissedBanners] = useState<Record<string, boolean>>({});
 
   const handleSyncBalances = async () => {
     if (syncing) return;
@@ -203,12 +204,14 @@ export default function PayoutsPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return data.filter((r) => {
-      if (filterProperty && r.property !== filterProperty) return false;
-      if (filterPayoutStatus && r.payoutStatus !== filterPayoutStatus) return false;
-      if (q && !r.guest.toLowerCase().includes(q) && !r.ref.toLowerCase().includes(q)) return false;
-      return true;
-    });
+    return data
+      .filter((r) => {
+        if (filterProperty && r.property !== filterProperty) return false;
+        if (filterPayoutStatus && r.payoutStatus !== filterPayoutStatus) return false;
+        if (q && !r.guest.toLowerCase().includes(q) && !r.ref.toLowerCase().includes(q)) return false;
+        return true;
+      })
+      .sort((a: PayoutRow, b: PayoutRow) => (b.checkOut || "").localeCompare(a.checkOut || "")); // Most recent first
   }, [data, filterProperty, filterPayoutStatus, search]);
 
   // Summary stats
@@ -272,47 +275,56 @@ export default function PayoutsPage() {
       </div>
 
       {/* Warning: Errored Payouts */}
-      {erroredPayouts.length > 0 && (
+      {erroredPayouts.length > 0 && !dismissedBanners.errored && (
         <div className="bg-[#F6EDED] border border-[#E8D8D8] rounded-xl p-4 mb-5 flex items-start gap-3">
           <div className="w-9 h-9 rounded-full bg-[#E8D8D8] flex items-center justify-center flex-shrink-0">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7A5252" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="text-[13px] font-semibold text-[#7A5252] mb-1">{erroredPayouts.length} failed payout{erroredPayouts.length !== 1 ? "s" : ""}</div>
             <div className="text-[12px] text-[#7A5252]/80">
               These payouts have errors and need attention. Total: {fmtCurrency(erroredPayouts.reduce((s: number, r: PayoutRow) => s + r.ownerPayout, 0))}. Click any errored row below to see the reason.
             </div>
           </div>
+          <button onClick={() => setDismissedBanners((p) => ({ ...p, errored: true }))} className="p-1 text-[#7A5252]/50 hover:text-[#7A5252] transition-colors flex-shrink-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       )}
 
       {/* Warning: On Hold Payouts */}
-      {onHoldPayouts.length > 0 && (
+      {onHoldPayouts.length > 0 && !dismissedBanners.onhold && (
         <div className="bg-[#FBF1E2] border border-[#E8DDC7] rounded-xl p-4 mb-5 flex items-start gap-3">
           <div className="w-9 h-9 rounded-full bg-[#F1E3C5] flex items-center justify-center flex-shrink-0">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="text-[13px] font-semibold text-[#8A6A2E] mb-1">{onHoldPayouts.length} payout{onHoldPayouts.length !== 1 ? "s" : ""} on hold</div>
             <div className="text-[12px] text-[#8A6A2E]/80">
-              Outstanding deficit being recovered: <strong>{fmtCurrency(totalDeficitOutstanding)}</strong>. Future reservation payouts are being applied against it automatically. Click any on-hold row to see the reason.
+              Outstanding deficit being recovered: {fmtCurrency(totalDeficitOutstanding)}. Future reservation payouts are being applied against it automatically.
             </div>
           </div>
+          <button onClick={() => setDismissedBanners((p) => ({ ...p, onhold: true }))} className="p-1 text-[#8A6A2E]/50 hover:text-[#8A6A2E] transition-colors flex-shrink-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       )}
 
       {/* Warning: Pending Payouts */}
-      {overduePending.length > 0 && (
+      {overduePending.length > 0 && !dismissedBanners.pending && (
         <div className="bg-[#F6F1E6] border border-[#E8DDC7] rounded-xl p-4 mb-5 flex items-start gap-3">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2" className="flex-shrink-0 mt-0.5">
             <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
           </svg>
-          <div>
+          <div className="flex-1">
             <div className="text-[13px] font-semibold text-[#8A6A2E] mb-1">{overduePending.length} pending payout{overduePending.length !== 1 ? "s" : ""}</div>
             <div className="text-[12px] text-[#8A6A2E]/80">
               Completed reservations awaiting payout. Total: {fmtCurrency(overduePending.reduce((s: number, r: PayoutRow) => s + r.ownerPayout, 0))}
             </div>
           </div>
+          <button onClick={() => setDismissedBanners((p) => ({ ...p, pending: true }))} className="p-1 text-[#8A6A2E]/50 hover:text-[#8A6A2E] transition-colors flex-shrink-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       )}
 
@@ -401,7 +413,7 @@ export default function PayoutsPage() {
                     <td className="px-3.5 py-3">
                       <div className="flex items-center gap-2">
                         <span className={`pill pill-${r.payoutStatus.toLowerCase().replace(/\s+/g, "-")}`}>{r.payoutStatus}</span>
-                        {isErrored ? (
+                        {isErrored && (
                           <button
                             type="button"
                             onClick={(ev) => { stopPropagation(ev); setErrorModal(r); }}
@@ -413,25 +425,7 @@ export default function PayoutsPage() {
                               <line x1="12" y1="17" x2="12.01" y2="17"/>
                             </svg>
                           </button>
-                        ) : isOnHold ? (
-                          <button
-                            type="button"
-                            onClick={(ev) => { stopPropagation(ev); setErrorModal(r); }}
-                            title="View hold reason"
-                            className="w-5 h-5 rounded-full bg-[#FBF1E2] border border-[#E8DDC7] flex items-center justify-center flex-shrink-0 hover:bg-[#F3E4C2] transition-colors"
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="6" y="5" width="4" height="14" rx="1"/>
-                              <rect x="14" y="5" width="4" height="14" rx="1"/>
-                            </svg>
-                          </button>
-                        ) : isOverdueDate ? (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D4A843" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="12" y1="8" x2="12" y2="12"/>
-                            <line x1="12" y1="16" x2="12.01" y2="16"/>
-                          </svg>
-                        ) : null}
+                        )}
                       </div>
                     </td>
                     <td className="px-3.5 py-3">

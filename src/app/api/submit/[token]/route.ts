@@ -265,14 +265,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       invalidate("expenses");
     } catch { /* ignore */ }
 
-    // Refresh the affected property's Balance in Notion immediately so the
-    // owner balance reflects this newly-submitted expense without waiting
-    // for the daily cron.
+    // Refresh the affected property's Balance in Notion immediately
     if (propertyName) {
       try {
         const { syncPropertyBalances } = await import("@/lib/sync-balances");
         await syncPropertyBalances([propertyName]);
-      } catch { /* best effort — never block the vendor submission */ }
+      } catch { /* best effort */ }
+    }
+
+    // Sync Expenses column on the linked reservation in Notion
+    if (reservationRef) {
+      try {
+        const { syncReservationExpenses } = await import("@/lib/sync-balances");
+        await syncReservationExpenses(reservationRef);
+      } catch { /* best effort */ }
     }
 
     return NextResponse.json({ ok: true, expenseId });

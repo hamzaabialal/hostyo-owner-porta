@@ -422,8 +422,8 @@ export default function PropertyDetailPage() {
             <StatBox label="Total Earnings" value={fmtCurrencyShort(totalEarnings)} sub="All time" />
             <StatBox
               label="Current Balance"
-              value={`${pendingBalance < 0 ? "−" : ""}€${Math.abs(Math.round(pendingBalance)).toLocaleString("en-IE")}`}
-              sub={pendingBalance < 0 ? "On hold" : "Payout pending"}
+              value={`${pendingBalance < 0 ? "−" : ""}€${Math.abs(pendingBalance).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              sub={pendingBalance < 0 ? "On hold" : pendingBalance === 0 ? "No pending payouts" : "Payout pending"}
             />
           </div>
 
@@ -494,39 +494,92 @@ export default function PropertyDetailPage() {
       )}
 
       {/* ═══ Earnings Tab ═══ */}
-      {tab === "earnings" && (
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StatBox label="Total Earnings" value={fmtCurrency(totalEarnings)} sub="All time" />
-            <StatBox label="Paid Out" value={fmtCurrency(reservations.filter((r) => r.payoutStatus === "Paid").reduce((s, r) => s + (r.ownerPayout || 0), 0))} sub="Completed payouts" />
-            <StatBox label="Pending Balance" value={fmtCurrency(pendingBalance)} sub="Awaiting payout" />
-          </div>
+      {tab === "earnings" && (() => {
+        // Build a lookup from reconciled data so we can show adjusted amounts
+        const reconMap = new Map<string, { paidToOwner: number; appliedToDeficit: number; deficitAfter: number; isOnHold: boolean; totalExpenses: number }>();
+        for (const row of reconciledRows) {
+          // Key by ref (reservation code) for matching
+          if (row.ref) reconMap.set(row.ref, row);
+        }
 
-          <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#f0f0f0]">
-              <h3 className="text-[13px] font-semibold text-[#111]">Payout History</h3>
+        // Total paid out = sum of ownerPayout for Paid reservations
+        /* eslint-disable @typescript-eslint/no-explicit-any */
+        const paidOut = reservations
+          .filter((r: any) => r.payoutStatus === "Paid")
+          .reduce((s: number, r: any) => s + (r.ownerPayout || 0), 0);
+
+        // All completed reservations sorted by checkout (most recent first)
+        const completedRes = [...reservations]
+          .filter((r: any) => r.status === "Completed" || r.payoutStatus === "Paid")
+        /* eslint-enable @typescript-eslint/no-explicit-any */
+          .sort((a, b) => (b.checkout || "").localeCompare(a.checkout || ""));
+
+        return (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatBox label="Total Earnings" value={fmtCurrency(totalEarnings)} sub="All time" />
+              <StatBox label="Paid Out" value={fmtCurrency(paidOut)} sub="Completed payouts" />
+              <StatBox
+                label="Current Balance"
+                value={`${pendingBalance < 0 ? "−" : ""}${fmtCurrency(Math.abs(pendingBalance))}`}
+                sub={pendingBalance < 0 ? "On hold" : pendingBalance === 0 ? "No pending payouts" : "Awaiting payout"}
+              />
+              {currentDeficit > 0 && (
+                <StatBox label="Carry-forward Deficit" value={`−${fmtCurrency(currentDeficit)}`} sub="Applied from next payout" />
+              )}
             </div>
-            {propReservations.filter((r) => r.ownerPayout > 0).length === 0 ? (
-              <div className="p-6 text-center text-[13px] text-[#999]">No earnings yet for this property.</div>
-            ) : (
-              <div className="divide-y divide-[#f3f3f3]">
-                {propReservations.filter((r) => r.ownerPayout > 0).slice(0, 15).map((r, i) => (
-                  <div key={i} className="flex items-center justify-between px-5 py-3 text-[13px]">
-                    <div>
-                      <span className="font-medium text-[#111]">{r.guest}</span>
-                      <span className="text-[#999] ml-2 text-[12px]">{fmtDateFull(r.checkout)}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
-                      <span className="font-semibold text-[#111] tabular-nums w-[80px] text-right">{fmtCurrency(r.ownerPayout || 0)}</span>
-                    </div>
-                  </div>
-                ))}
+
+            <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#f0f0f0]">
+                <h3 className="text-[13px] font-semibold text-[#111]">Payout History</h3>
               </div>
-            )}
+              {completedRes.length === 0 ? (
+                <div className="p-6 text-center text-[13px] text-[#999]">No earnings yet for this property.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr className="bg-[#fafafa]">
+                        {["Guest", "Checkout", "Status", "Owner Payout", "Expenses", "Applied to Deficit", "Paid Out"].map((h) => (
+                          <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-[#999] border-b border-[#eaeaea] whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {completedRes.map((r, i) => {
+                        const recon = r.ref ? reconMap.get(r.ref) : undefined;
+                        const ownerPayout = r.ownerPayout || 0;
+                        const expApplied = recon ? recon.totalExpenses : 0;
+                        const appliedToDeficit = recon ? recon.appliedToDeficit : 0;
+                        const paidToOwner = recon ? recon.paidToOwner : (r.payoutStatus === "Paid" ? ownerPayout : 0);
+                        const isHeld = recon ? recon.isOnHold : false;
+                        const effectiveStatus = isHeld ? "On Hold" : r.payoutStatus;
+                        return (
+                          <tr key={i} className="border-b border-[#f3f3f3] hover:bg-[#f9f9f9]">
+                            <td className="px-4 py-3 font-medium text-[#111]">{r.guest}</td>
+                            <td className="px-4 py-3 text-[#666] text-[12px]">{fmtDateFull(r.checkout)}</td>
+                            <td className="px-4 py-3"><span className={statusPillClass(effectiveStatus)}>{effectiveStatus}</span></td>
+                            <td className="px-4 py-3 tabular-nums">{ownerPayout < 0 ? <span className="text-[#B7484F]">−{fmtCurrency(Math.abs(ownerPayout))}</span> : fmtCurrency(ownerPayout)}</td>
+                            <td className="px-4 py-3 tabular-nums text-[#7A5252]">{expApplied > 0 ? `−${fmtCurrency(expApplied)}` : "—"}</td>
+                            <td className="px-4 py-3 tabular-nums text-[#8A6A2E]">{appliedToDeficit > 0 ? `−${fmtCurrency(appliedToDeficit)}` : "—"}</td>
+                            <td className="px-4 py-3 tabular-nums font-semibold">
+                              {paidToOwner > 0 ? (
+                                <span className="text-[#2F6B57]">{fmtCurrency(paidToOwner)}</span>
+                              ) : (
+                                <span className="text-[#bbb]">€0.00</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ═══ Expenses Tab ═══ */}
       {tab === "expenses" && (() => {

@@ -144,27 +144,19 @@ export function reconcileProperty(
   reservations: RawReservation[],
   expenses: RawExpense[]
 ): ReconciledReservation[] {
-  // Filter expenses down to this property only
+  // Build a lookup of linked expenses per reservation (for traceability display only)
   const propertyExpenses = expenses.filter(
     (e) => isSameProperty(e.property || "", propertyName) && isCountedExpense(e.status)
   );
-
-  // Split: reservation-linked vs unlinked (property-level)
   const linkedByRef = new Map<string, RawExpense[]>();
-  const propertyLevelQueue: RawExpense[] = [];
   for (const exp of propertyExpenses) {
     const resRef = (exp.reservation || "").trim();
     if (resRef) {
       const key = resRef.slice(0, 10).toLowerCase();
       if (!linkedByRef.has(key)) linkedByRef.set(key, []);
       linkedByRef.get(key)!.push(exp);
-    } else {
-      propertyLevelQueue.push(exp);
     }
   }
-
-  // Sort property-level expenses by date so they're consumed in order
-  propertyLevelQueue.sort((a, b) => compareDate(a.date, b.date));
 
   // Sort reservations chronologically by checkout date (the date payout would fire)
   const sorted = [...reservations]
@@ -173,15 +165,11 @@ export function reconcileProperty(
 
   let carryDeficit = 0;
   const results: ReconciledReservation[] = [];
-  let queueCursor = 0; // walks the propertyLevelQueue as expenses get consumed
 
-  // Property-level Paid expenses are an additional source of deficit. They are
-  // applied to whichever reservation comes next chronologically. We walk a queue
-  // of them in date order and consume each one exactly once.
-  // Note: Notion's `Owner Payout` field is already net of any expenses linked
-  // directly to the reservation (reservation.expenses field + linked expense rows),
-  // so we MUST NOT subtract those again or we'd be double-counting. We only
-  // subtract property-level (unlinked) Paid expenses on top.
+  // The carry-forward walk uses ONLY Notion's Owner Payout values. Notion already
+  // calculates Owner Payout net of any linked expenses. Property-level expenses
+  // affect the Balance field separately (computed in sync-balances.ts) but are NOT
+  // applied on top of individual reservation payouts here — doing so would double-count.
 
   for (const r of sorted) {
     const ownerPayoutRaw = r.ownerPayout || 0;
@@ -192,30 +180,13 @@ export function reconcileProperty(
     const refKey = (r.ref || "").slice(0, 10).toLowerCase();
     const linkedRows = refKey ? (linkedByRef.get(refKey) || []) : [];
     const linkedExpensesTotal = linkedRows.reduce((s, e) => s + (e.amount || 0), 0);
-
-    // The only thing we ADD to the deduction here are property-level expenses
-    // (no Reservation ID) that are dated on or before this reservation's checkout
-    // and haven't been consumed by an earlier reservation yet.
-    const checkoutDate = r.checkout || "";
     const appliedExpenseIds: string[] = [];
-    let propertyExpensesApplied = 0;
-    while (
-      queueCursor < propertyLevelQueue.length &&
-      compareDate(propertyLevelQueue[queueCursor].date, checkoutDate) <= 0
-    ) {
-      const e = propertyLevelQueue[queueCursor];
-      propertyExpensesApplied += e.amount || 0;
-      appliedExpenseIds.push(e.id);
-      queueCursor++;
-    }
-
-    // The reservation's own expenses are already in ownerPayoutRaw. We only
-    // subtract property-level expenses on top.
-    const totalExpenses = propertyExpensesApplied;
+    const propertyExpensesApplied = 0;
+    const totalExpenses = 0;
 
     // Carry-forward deficit from prior reservations on this property
     const deficitBefore = carryDeficit;
-    const netPayout = ownerPayoutRaw - totalExpenses - deficitBefore;
+    const netPayout = ownerPayoutRaw - deficitBefore;
 
     let paidToOwner = 0;
     let appliedToDeficit = 0;
@@ -290,115 +261,6 @@ export function reconcileProperty(
       isOnHold,
       holdReason,
     });
-  }
-
-  // ── Drain any remaining (unconsumed) property-level expenses ─────────────
-  // If a property-level expense is dated AFTER the last completed reservation's
-  // checkout, the loop above never reaches it. Without this drain step, those
-  // expenses would silently disappear from the balance. We attribute them to
-  // the most recent reservation (or create a synthetic placeholder row if there
-  // are no completed reservations at all) so they're properly reflected as a
-  // carry-forward deficit.
-  if (queueCursor < propertyLevelQueue.length) {
-    const leftover = propertyLevelQueue.slice(queueCursor);
-    const leftoverTotal = leftover.reduce((s, e) => s + (e.amount || 0), 0);
-    const leftoverIds = leftover.map((e) => e.id);
-
-    if (results.length > 0) {
-      // Attribute leftover expenses to the most recent reservation. This keeps
-      // the deficit chain attached to a real row in the timeline.
-      const last = results[results.length - 1];
-      const newPropertyExpensesApplied = last.propertyExpensesApplied + leftoverTotal;
-      const newAppliedExpenseIds = [...last.appliedExpenseIds, ...leftoverIds];
-      const newTotalExpenses = last.totalExpenses + leftoverTotal;
-
-      // Recompute the net for the last row including these leftovers.
-      // The deficit "before" this row is the deficit that *entered* this row
-      // (which is unchanged), and we just subtract leftoverTotal on top.
-      const newNetPayout = last.netPayout - leftoverTotal;
-
-      let newPaidToOwner: number;
-      let newAppliedToDeficit: number;
-      let newDeficitAfter: number;
-      let newIsOnHold: boolean;
-      let newHoldReason: string;
-
-      if (newNetPayout >= 0) {
-        newPaidToOwner = newNetPayout;
-        newAppliedToDeficit = last.deficitBefore;
-        newDeficitAfter = 0;
-        newIsOnHold = false;
-        newHoldReason = "";
-      } else {
-        newPaidToOwner = 0;
-        const availableAfterOwnExpenses = Math.max(0, last.ownerPayoutRaw - newTotalExpenses);
-        newAppliedToDeficit = Math.min(last.deficitBefore, availableAfterOwnExpenses);
-        newDeficitAfter = -newNetPayout;
-        newIsOnHold = true;
-        const reasons: string[] = [];
-        if (last.ownerPayoutRaw < 0) {
-          reasons.push(`reservation owner payout is negative (€${last.ownerPayoutRaw.toFixed(2)})`);
-        }
-        if (newPropertyExpensesApplied > 0) {
-          reasons.push(`property expenses applied (€${newPropertyExpensesApplied.toFixed(2)})`);
-        }
-        if (last.deficitBefore > 0) {
-          reasons.push(`prior carry-forward deficit (€${last.deficitBefore.toFixed(2)})`);
-        }
-        const causes = reasons.length > 0 ? reasons.join(" + ") : `expenses exceed owner payout`;
-        newHoldReason = `€${newDeficitAfter.toFixed(2)} deficit — ${causes}.`;
-      }
-
-      results[results.length - 1] = {
-        ...last,
-        propertyExpensesApplied: newPropertyExpensesApplied,
-        appliedExpenseIds: newAppliedExpenseIds,
-        totalExpenses: newTotalExpenses,
-        netPayout: newNetPayout,
-        paidToOwner: newPaidToOwner,
-        appliedToDeficit: newAppliedToDeficit,
-        deficitAfter: newDeficitAfter,
-        isOnHold: newIsOnHold,
-        holdReason: newHoldReason,
-      };
-    } else {
-      // No completed reservations on this property at all → create a synthetic
-      // placeholder row so the leftover deficit is still represented in the
-      // returned chain. Display fields are intentionally minimal.
-      const lastExp = leftover[leftover.length - 1];
-      results.push({
-        id: `synthetic-${propertyName}`,
-        ref: "",
-        property: (propertyName || "").trim(),
-        guest: "(property expenses)",
-        checkin: lastExp.date || "",
-        checkout: lastExp.date || "",
-        status: "Completed",
-        originalPayoutStatus: "Pending",
-
-        grossAmount: 0,
-        platformFee: 0,
-        managementFee: 0,
-        vat: 0,
-        cleaning: 0,
-        ownerPayoutRaw: 0,
-
-        reservationExpenseField: 0,
-        linkedExpensesTotal: 0,
-        propertyExpensesApplied: leftoverTotal,
-        appliedExpenseIds: leftoverIds,
-        totalExpenses: leftoverTotal,
-
-        deficitBefore: 0,
-        netPayout: -leftoverTotal,
-        appliedToDeficit: 0,
-        paidToOwner: 0,
-        deficitAfter: leftoverTotal,
-
-        isOnHold: true,
-        holdReason: `€${leftoverTotal.toFixed(2)} deficit — property expenses logged with no reservation to absorb them.`,
-      });
-    }
   }
 
   return results;
