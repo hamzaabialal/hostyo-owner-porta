@@ -439,7 +439,9 @@ export default function PayoutsPage() {
                     <td className="px-3.5 py-3 tabular-nums text-[#7A5252]">-{fmtCurrency(r.managementFee)}</td>
                     <td className="px-3.5 py-3 tabular-nums text-[#7A5252]">-{fmtCurrency(r.vat)}</td>
                     <td className="px-3.5 py-3 tabular-nums text-[#7A5252]">{r.expenses > 0 ? `-${fmtCurrency(r.expenses)}` : "—"}</td>
-                    <td className="px-3.5 py-3 tabular-nums font-semibold text-[#111]">{fmtCurrency(r.ownerPayout)}</td>
+                    <td className={`px-3.5 py-3 tabular-nums font-semibold ${r.ownerPayout < 0 ? "text-[#B7484F]" : "text-[#111]"}`}>
+                      {r.ownerPayout < 0 ? `−${fmtCurrency(Math.abs(r.ownerPayout))}` : fmtCurrency(r.ownerPayout)}
+                    </td>
                     <td className="px-3.5 py-3 tabular-nums text-[#8A6A2E]" title="Amount applied to clear a prior carry-forward deficit">
                       {r.appliedToDeficit > 0 ? `-${fmtCurrency(r.appliedToDeficit)}` : "—"}
                     </td>
@@ -480,7 +482,7 @@ export default function PayoutsPage() {
                   <td className="px-3.5 py-3 tabular-nums text-[#7A5252]">-{fmtCurrency(totalMgmtFee)}</td>
                   <td className="px-3.5 py-3 tabular-nums text-[#7A5252]">-{fmtCurrency(totalVat)}</td>
                   <td className="px-3.5 py-3 tabular-nums text-[#7A5252]">{filtered.reduce((s, r) => s + r.expenses, 0) > 0 ? `-${fmtCurrency(filtered.reduce((s, r) => s + r.expenses, 0))}` : "—"}</td>
-                  <td className="px-3.5 py-3 tabular-nums">{fmtCurrency(filtered.reduce((s: number, r: PayoutRow) => s + r.ownerPayout, 0))}</td>
+                  {(() => { const t = filtered.reduce((s: number, r: PayoutRow) => s + r.ownerPayout, 0); return <td className={`px-3.5 py-3 tabular-nums ${t < 0 ? "text-[#B7484F]" : ""}`}>{t < 0 ? `−${fmtCurrency(Math.abs(t))}` : fmtCurrency(t)}</td>; })()}
                   <td className="px-3.5 py-3 tabular-nums text-[#8A6A2E]">{totalAppliedToDeficit > 0 ? `-${fmtCurrency(totalAppliedToDeficit)}` : "—"}</td>
                   <td className="px-3.5 py-3 tabular-nums text-[#2F6B57] font-bold">{fmtCurrency(filtered.reduce((s: number, r: PayoutRow) => s + r.paidToOwner, 0))}</td>
                   <td className="px-3.5 py-3 tabular-nums text-[#B7484F]">{totalDeficitOutstanding > 0 ? `-${fmtCurrency(totalDeficitOutstanding)}` : "—"}</td>
