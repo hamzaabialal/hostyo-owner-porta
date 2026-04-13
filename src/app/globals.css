@@ -16,6 +16,13 @@ body {
   color: #111;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
+@media (max-width: 767px) {
+  input, select, textarea { font-size: 16px !important; }
 }
 
 /* Scrollbar */

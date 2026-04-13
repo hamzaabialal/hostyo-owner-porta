@@ -10,8 +10,8 @@ interface InHouseGuest { guest: string; property: string; channel: string; daysL
 interface NextArrival { guest: string; property: string; channel: string; daysAway: number; date: string; }
 interface Payment { balance: string; paidThisMonth: string; pending: string; forecast?: string; }
 
-function fmtCurrencyShort(n: number): string {
-  return "€" + Math.round(Math.abs(n)).toLocaleString("en-IE");
+function fmtBalance(n: number): string {
+  return "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function DashboardPage() {
@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const [expenses, setExpenses] = useState("€0");
   const [totalDeficit, setTotalDeficit] = useState(0);
   const [propertiesOnHold, setPropertiesOnHold] = useState(0);
+  const [computedBalance, setComputedBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -83,6 +84,10 @@ export default function DashboardPage() {
       setTotalDeficit(total);
       setPropertiesOnHold(count);
 
+      // Net balance across all non-skip properties
+      const netBalance = Object.values(balanceByProp).reduce((s, b) => s + b, 0);
+      setComputedBalance(netBalance);
+
       // Auto-sync all property balances to Notion in the background.
       // Runs silently on every dashboard load so Notion is always up to date.
       fetch("/api/properties/sync-balances", { method: "POST" }).catch(() => {});
@@ -103,28 +108,23 @@ export default function DashboardPage() {
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {totalDeficit > 0 ? (
-          <Link
-            href="/finances/payouts"
-            className="bg-white border border-[#80020E] rounded-xl p-4 hover:shadow-sm hover:bg-[#FBF6F6] transition-all"
-          >
-            <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Balance</span>
-            <p className="flex items-center gap-1.5 text-[13px] font-semibold text-[#80020E] mt-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#80020E]" />
-              On hold
-            </p>
-            <p className="text-[22px] font-bold text-[#80020E] mt-0.5">−{fmtCurrencyShort(totalDeficit)}</p>
-            <p className="text-[11px] text-[#aaa] mt-0.5">
-              Payouts paused{propertiesOnHold > 1 ? ` · ${propertiesOnHold} properties` : ""}
-            </p>
-          </Link>
-        ) : (
-          <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
-            <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Balance</span>
-            <p className="text-[22px] font-bold text-[#111] mt-1">{payment.balance}</p>
-            <p className="text-[11px] text-[#aaa] mt-0.5">Payout pending</p>
-          </Link>
-        )}
+        <Link
+          href={totalDeficit > 0 ? "/finances/payouts" : "/finances"}
+          className={`bg-white border rounded-xl p-4 hover:shadow-sm transition-all ${totalDeficit > 0 ? "border-[#80020E] hover:bg-[#FBF6F6]" : "border-[#eaeaea] hover:border-[#ddd]"}`}
+        >
+          <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Balance</span>
+          <p className={`text-[22px] font-bold mt-1 ${computedBalance < 0 ? "text-[#80020E]" : "text-[#111]"}`}>
+            {computedBalance < 0 ? "−" : ""}{fmtBalance(Math.abs(computedBalance))}
+          </p>
+          <p className="text-[11px] text-[#aaa] mt-0.5">
+            {totalDeficit > 0
+              ? `On hold · ${propertiesOnHold} propert${propertiesOnHold !== 1 ? "ies" : "y"}`
+              : computedBalance === 0
+                ? "No pending payouts"
+                : "Payout pending"
+            }
+          </p>
+        </Link>
         <Link href="/finances" className="bg-white border border-[#eaeaea] rounded-xl p-4 hover:shadow-sm hover:border-[#ddd] transition-all">
           <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Paid Out</span>
           <p className="text-[22px] font-bold text-[#111] mt-1">{payment.paidThisMonth}</p>

@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     const { Client } = await import("@notionhq/client");
     const notion = new Client({ auth: process.env.NOTION_API_KEY });
     const body = await req.json();
-    const { property, category, status, amount, vendor, notes } = body;
+    const { property, category, status, amount, vendor, notes, reservation } = body;
 
     const expenseId = `EXP-${Date.now()}`;
     const today = new Date().toISOString().split("T")[0];
@@ -92,6 +92,7 @@ export async function POST(req: Request) {
     if (amount !== undefined) properties["Amount"] = { rich_text: [{ text: { content: String(parseFloat(amount) || 0) } }] };
     if (vendor) properties["Vendor Name"] = { rich_text: [{ text: { content: vendor } }] };
     if (notes) properties["Description"] = { rich_text: [{ text: { content: notes } }] };
+    if (reservation) properties["Reservation ID"] = { rich_text: [{ text: { content: reservation } }] };
 
     await notion.pages.create({
       parent: { database_id: DB.expenses },
@@ -106,6 +107,12 @@ export async function POST(req: Request) {
     if (property) {
       const { syncPropertyBalances } = await import("@/lib/sync-balances");
       await syncPropertyBalances([property]);
+    }
+
+    // If expense is linked to a reservation, sync the Expenses column on that reservation
+    if (reservation) {
+      const { syncReservationExpenses } = await import("@/lib/sync-balances");
+      await syncReservationExpenses(reservation);
     }
 
     return NextResponse.json({ ok: true, expenseId });

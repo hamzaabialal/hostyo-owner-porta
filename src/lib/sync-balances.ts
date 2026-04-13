@@ -295,3 +295,74 @@ export async function syncPropertyBalances(propertyNames: string[]): Promise<voi
     console.error("syncPropertyBalances error:", error?.message || error);
   }
 }
+
+/**
+ * Sync the Expenses column on a Reservation page in Notion.
+ *
+ * Given a reservation reference code, sums all linked expenses from the
+ * Expenses DB (where Reservation ID contains this ref) that have status
+ * Paid or Approved, and writes the total back to the reservation's
+ * `Expenses` number field.
+ *
+ * Called after any expense create/update/delete that has a Reservation ID.
+ */
+export async function syncReservationExpenses(reservationRef: string): Promise<void> {
+  if (!reservationRef || !DB.reservations || !DB.expenses) return;
+
+  const ref = reservationRef.trim();
+  if (!ref) return;
+
+  try {
+    // Find the reservation page in Notion by its Reservation Code
+    const reservationPages = await queryDatabase(DB.reservations, {
+      property: "Reservation Code",
+      rich_text: { contains: ref.slice(0, 10) },
+    });
+
+    if (reservationPages.length === 0) return;
+
+    // Find all linked expenses for this reservation
+    const expensePages = await queryDatabase(DB.expenses);
+    const refKey = ref.slice(0, 10).toLowerCase();
+    let total = 0;
+    for (const ep of expensePages) {
+      const expRef = (getProp(ep, "Reservation ID") || "").trim();
+      if (!expRef) continue;
+      if (!expRef.toLowerCase().includes(refKey)) continue;
+      const status = (getProp(ep, "Status ") || getProp(ep, "Status") || "").toLowerCase();
+      if (status === "paid" || status === "approved") {
+        // Read amount — handle both number and rich_text types
+        const amtProp = (ep as any).properties?.["Amount"];
+        let amount = 0;
+        if (amtProp?.type === "number") amount = amtProp.number || 0;
+        else if (amtProp?.type === "rich_text") {
+          const raw = amtProp.rich_text?.[0]?.plain_text || "0";
+          amount = parseFloat(raw.replace(/[^0-9.\-]/g, "")) || 0;
+        } else if (amtProp?.type === "formula" && amtProp.formula?.type === "number") {
+          amount = amtProp.formula.number || 0;
+        }
+        total += amount;
+      }
+    }
+
+    // Write the total to the reservation's Expenses field.
+    // Try as number first, fall back to rich_text if the field type differs.
+    const reservationPage = reservationPages[0] as any;
+    const currentExpenses = getProp(reservationPage, "Expenses") || 0;
+    if (Math.abs(Number(currentExpenses) - total) < 0.005) return; // no change
+
+    try {
+      await notion.pages.update({
+        page_id: reservationPage.id,
+        properties: { Expenses: { number: total } },
+      });
+    } catch (numErr: any) {
+      // If Expenses is a formula or different type, log and skip
+      console.error("syncReservationExpenses: could not write Expenses as number:", numErr?.message);
+    }
+
+    invalidate("reservations");
+  } catch (error: any) {
+    console.error("syncReservationExpenses error:", error?.message || error);
+  }
+}

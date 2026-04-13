@@ -17,7 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta name="color-scheme" content="light only" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
       </head>
       <body><AuthProvider><DataProvider>{children}</DataProvider></AuthProvider></body>
     </html>

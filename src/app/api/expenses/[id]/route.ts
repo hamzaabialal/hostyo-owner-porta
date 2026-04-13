@@ -14,19 +14,22 @@ const notion = new Client({ auth: process.env.NOTION_API_KEY });
  * an update can move an expense from one property to another, in which case
  * BOTH properties' balances need refreshing.
  */
-async function getExpensePropertyNames(expenseId: string): Promise<string[]> {
+async function getExpenseInfo(expenseId: string): Promise<{ properties: string[]; reservationRef: string }> {
   try {
     const page: any = await notion.pages.retrieve({ page_id: expenseId });
     const prop = page.properties?.["Property"];
-    if (!prop) return [];
-    if (prop.type === "select") return prop.select?.name ? [prop.select.name] : [];
-    if (prop.type === "rich_text") {
-      const txt = prop.rich_text?.[0]?.plain_text;
-      return txt ? [txt] : [];
-    }
-    return [];
+    const properties: string[] = [];
+    if (prop?.type === "select" && prop.select?.name) properties.push(prop.select.name);
+    else if (prop?.type === "rich_text" && prop.rich_text?.[0]?.plain_text) properties.push(prop.rich_text[0].plain_text);
+
+    const resProp = page.properties?.["Reservation ID"];
+    let reservationRef = "";
+    if (resProp?.type === "rich_text") reservationRef = resProp.rich_text?.[0]?.plain_text || "";
+    else if (resProp?.type === "title") reservationRef = resProp.title?.[0]?.plain_text || "";
+
+    return { properties, reservationRef: reservationRef.trim() };
   } catch {
-    return [];
+    return { properties: [], reservationRef: "" };
   }
 }
 
@@ -34,9 +37,9 @@ async function getExpensePropertyNames(expenseId: string): Promise<string[]> {
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    // Capture the property BEFORE the edit so we know to sync it even if
+    // Capture info BEFORE the edit so we know to sync even if
     // the edit moves the expense to a different property.
-    const oldProperties = await getExpensePropertyNames(id);
+    const oldInfo = await getExpenseInfo(id);
 
     const body = await req.json();
     const properties: any = {};
@@ -89,12 +92,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     invalidate("expenses");
 
     // Refresh affected property balances in Notion immediately.
-    // We sync BOTH the old property and (if the body changed it) the new one.
     const newProperty = body.property as string | undefined;
-    const propsToSync = [...oldProperties];
+    const propsToSync = [...oldInfo.properties];
     if (newProperty && !propsToSync.includes(newProperty)) propsToSync.push(newProperty);
     if (propsToSync.length > 0) {
       await syncPropertyBalances(propsToSync);
+    }
+
+    // Sync the Expenses column on the linked reservation (if any)
+    const resRef = oldInfo.reservationRef || (body.reservation as string | undefined) || "";
+    if (resRef) {
+      const { syncReservationExpenses } = await import("@/lib/sync-balances");
+      await syncReservationExpenses(resRef);
     }
 
     return NextResponse.json({ ok: true });
@@ -109,8 +118,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    // Capture property BEFORE deletion so we know which balance to refresh
-    const propertyNames = await getExpensePropertyNames(id);
+    // Capture info BEFORE deletion so we know which balance + reservation to refresh
+    const delInfo = await getExpenseInfo(id);
 
     await notion.pages.update({ page_id: id, archived: true });
 
@@ -118,8 +127,14 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     invalidate("expenses");
 
     // Refresh affected property balance in Notion immediately
-    if (propertyNames.length > 0) {
-      await syncPropertyBalances(propertyNames);
+    if (delInfo.properties.length > 0) {
+      await syncPropertyBalances(delInfo.properties);
+    }
+
+    // Sync the Expenses column on the linked reservation (if any)
+    if (delInfo.reservationRef) {
+      const { syncReservationExpenses } = await import("@/lib/sync-balances");
+      await syncReservationExpenses(delInfo.reservationRef);
     }
 
     return NextResponse.json({ ok: true });

@@ -5,11 +5,11 @@ const logoImages: Record<string, string> = {
   "Airbnb": "/ota-logos/airbnb.avif",
   "Booking.com": "/ota-logos/booking.svg",
   "Expedia": "/ota-logos/expedia.ico",
-  "Direct": "/hostyo-logo.png",
 };
 
-// Logos that need a dark background (white icons)
+// Logos that need a dark background (white icons on accent circle)
 const logoDarkBg: Record<string, string> = {
+  "Direct": "/property-icons/hostyo-11.png",
   "BookingSite": "/property-icons/hostyo-11.png",
 };
 
