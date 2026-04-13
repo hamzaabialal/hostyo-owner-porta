@@ -199,17 +199,22 @@ export default function PayoutsPage() {
   [data]);
 
   const payoutStatusOptions = useMemo(() => {
-    // Normalize status values to prevent duplicates like "On Hold" vs "On hold"
+    // Always show these statuses in the filter, even if no rows currently have them
+    const allStatuses = ["On Hold", "Errored", "Paid", "Pending"];
+    // Also add any other statuses found in the data (normalized)
     const normalize = (s: string): string => {
       const lower = s.toLowerCase().trim();
       if (lower === "on hold") return "On Hold";
-      if (lower === "errored" || lower.includes("error")) return "Errored";
+      if (lower === "errored" || lower.includes("error") || lower.includes("fail")) return "Errored";
       if (lower === "paid" || lower === "withdrawn") return "Paid";
       if (lower === "pending") return "Pending";
       return s;
     };
-    const unique = new Set(data.map((r: PayoutRow) => normalize(r.payoutStatus)));
-    return Array.from(unique).filter(Boolean).sort().map((s) => ({ value: s, label: s }));
+    for (const r of data) {
+      const n = normalize(r.payoutStatus);
+      if (n && !allStatuses.includes(n)) allStatuses.push(n);
+    }
+    return allStatuses.sort().map((s) => ({ value: s, label: s }));
   }, [data]);
 
   const filtered = useMemo(() => {
