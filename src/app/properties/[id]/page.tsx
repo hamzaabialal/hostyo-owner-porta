@@ -470,8 +470,11 @@ export default function PropertyDetailPage() {
               </thead>
               <tbody>
                 {propReservations.map((r, i) => {
-                  const deductions = (r.platformFee || 0) + (r.managementFee || 0) + (r.cleaning || 0);
-                  const expectedBy = r.checkout ? (() => { const d = new Date(r.checkout + "T00:00:00"); d.setDate(d.getDate() + 7); return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); })() : "—";
+                  const gross = r.grossAmount || r.gross || 0;
+                  const payout = r.ownerPayout || 0;
+                  // Deductions = everything between gross and owner payout
+                  const deductions = gross - payout;
+                  const expectedBy = r.checkout ? (() => { const d = new Date(r.checkout + "T00:00:00"); d.setDate(d.getDate() + 3); return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); })() : "—";
                   return (
                   <tr key={i} className="border-b border-[#f0f0f0] hover:bg-[#f9f9f9]">
                     <td className="px-4 py-3"><span className={statusPillClass(r.status)}>{r.status}</span></td>
@@ -480,9 +483,11 @@ export default function PropertyDetailPage() {
                       {r.ref && <div className="text-[11px] text-[#999] mt-0.5">{r.ref}</div>}
                     </td>
                     <td className="px-4 py-3"><ChannelBadge channel={r.channel} compact /></td>
-                    <td className="px-4 py-3 tabular-nums text-[#111]">{fmtCurrency(r.grossAmount || r.gross || 0)}</td>
-                    <td className="px-4 py-3 tabular-nums text-[#666]">{fmtCurrency(deductions)}</td>
-                    <td className="px-4 py-3 font-semibold tabular-nums text-[#111]">{fmtCurrency(r.ownerPayout || 0)}</td>
+                    <td className="px-4 py-3 tabular-nums text-[#111]">{fmtCurrency(gross)}</td>
+                    <td className="px-4 py-3 tabular-nums text-[#7A5252]">−{fmtCurrency(deductions)}</td>
+                    <td className={`px-4 py-3 font-semibold tabular-nums ${payout < 0 ? "text-[#B7484F]" : "text-[#111]"}`}>
+                      {payout < 0 ? `−${fmtCurrency(Math.abs(payout))}` : fmtCurrency(payout)}
+                    </td>
                     <td className="px-4 py-3 text-[#666]">{expectedBy}</td>
                   </tr>
                   );
