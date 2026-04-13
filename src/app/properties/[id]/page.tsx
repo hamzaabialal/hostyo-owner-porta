@@ -601,8 +601,8 @@ export default function PropertyDetailPage() {
             {/* Summary cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <StatBox label="Total Expenses" value={fmtCurrency(totalExp)} sub={`${expenses.length} expenses`} />
-              <StatBox label="Reservation Linked" value={fmtCurrency(reservationLinkedExp.reduce((s: number, e: any) => s + (e.amount || 0), 0))} sub={`${reservationLinkedExp.length} expenses`} />
-              <StatBox label="Property Level" value={fmtCurrency(propertyLevelExp.reduce((s: number, e: any) => s + (e.amount || 0), 0))} sub={`${propertyLevelExp.length} expenses`} />
+              <StatBox label="Reservation Linked" value={fmtCurrency(reservationLinkedExp.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0))} sub={`${reservationLinkedExp.length} expenses`} />
+              <StatBox label="Property Level" value={fmtCurrency(propertyLevelExp.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0))} sub={`${propertyLevelExp.length} expenses`} />
               <StatBox
                 label="Current Balance"
                 value={`${pendingBalance < 0 ? "−" : ""}${fmtCurrency(Math.abs(pendingBalance))}`}
