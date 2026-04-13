@@ -22,7 +22,6 @@ export default function DashboardPage() {
   const [totalDeficit, setTotalDeficit] = useState(0);
   const [propertiesOnHold, setPropertiesOnHold] = useState(0);
   const [computedBalance, setComputedBalance] = useState(0);
-  const [computedPositiveBalance, setComputedPositiveBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -85,17 +84,9 @@ export default function DashboardPage() {
       setTotalDeficit(total);
       setPropertiesOnHold(count);
 
-      // Compute the total positive balance across all non-skip properties
-      // (same formula as Notion sync: Σ Completed+Pending Owner Payout).
-      let positiveBalance = 0;
-      for (const key of Object.keys(balanceByProp)) {
-        const bal = balanceByProp[key];
-        if (bal > 0) positiveBalance += bal;
-      }
-      // Also sum negative balances for the overall net
+      // Net balance across all non-skip properties
       const netBalance = Object.values(balanceByProp).reduce((s, b) => s + b, 0);
       setComputedBalance(netBalance);
-      setComputedPositiveBalance(positiveBalance);
 
       // Auto-sync all property balances to Notion in the background.
       // Runs silently on every dashboard load so Notion is always up to date.
