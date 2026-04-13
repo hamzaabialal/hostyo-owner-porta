@@ -233,10 +233,22 @@ export default function PayoutsPage() {
     () => filtered.reduce((s: number, r: PayoutRow) => s + r.appliedToDeficit, 0),
     [filtered]
   );
-  const totalDeficitOutstanding = useMemo(
-    () => onHoldPayouts.reduce((s: number, r: PayoutRow) => s + r.deficitAfter, 0),
-    [onHoldPayouts]
-  );
+  // deficitAfter is a running total per property, so summing all rows would
+  // double-count. Instead, take the LAST (highest) deficit per property — that's
+  // the actual outstanding amount for each property, then sum across properties.
+  const totalDeficitOutstanding = useMemo(() => {
+    const byProp: Record<string, number> = {};
+    for (const r of filtered) {
+      if (r.deficitAfter > 0) {
+        const key = (r.property || "").toLowerCase();
+        // Keep the highest deficit per property (the latest in the chain)
+        if (!byProp[key] || r.deficitAfter > byProp[key]) {
+          byProp[key] = r.deficitAfter;
+        }
+      }
+    }
+    return Object.values(byProp).reduce((s, d) => s + d, 0);
+  }, [filtered]);
 
   if (loading) {
     return (
