@@ -173,14 +173,18 @@ function AccordionDetail({ r }: { r: Reservation }) {
               </div>
               <div className="flex justify-between items-center py-2.5">
                 <span className="text-[11px] text-[#999]">Payout status</span>
-                <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
+                {(() => {
+                  // If owner payout is negative, the payout should be on hold regardless of what Notion says
+                  const effectiveStatus = (r.ownerPayout || 0) < 0 && r.payoutStatus === "Pending" ? "On Hold" : r.payoutStatus;
+                  return <span className={statusPillClass(effectiveStatus)}>{effectiveStatus}</span>;
+                })()}
               </div>
               <div className="flex justify-between items-center py-2.5">
                 <span className="text-[11px] text-[#999]">Expected by</span>
                 <span className="text-[12px] font-medium text-[#555]">{(() => {
                   if (!r.checkOut) return "—";
                   const co = new Date(r.checkOut + "T00:00:00");
-                  co.setDate(co.getDate() + 7);
+                  co.setDate(co.getDate() + 3);
                   return co.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
                 })()}</span>
               </div>
