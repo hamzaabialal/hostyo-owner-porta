@@ -198,16 +198,33 @@ export default function PayoutsPage() {
     Array.from(new Set(data.map((r) => r.property))).filter(Boolean).sort().map((p) => ({ value: p, label: p })),
   [data]);
 
-  const payoutStatusOptions = useMemo(() =>
-    Array.from(new Set(data.map((r) => r.payoutStatus))).filter(Boolean).sort().map((s) => ({ value: s, label: s })),
-  [data]);
+  const payoutStatusOptions = useMemo(() => {
+    // Normalize status values to prevent duplicates like "On Hold" vs "On hold"
+    const normalize = (s: string): string => {
+      const lower = s.toLowerCase().trim();
+      if (lower === "on hold") return "On Hold";
+      if (lower === "errored" || lower.includes("error")) return "Errored";
+      if (lower === "paid" || lower === "withdrawn") return "Paid";
+      if (lower === "pending") return "Pending";
+      return s;
+    };
+    const unique = new Set(data.map((r: PayoutRow) => normalize(r.payoutStatus)));
+    return Array.from(unique).filter(Boolean).sort().map((s) => ({ value: s, label: s }));
+  }, [data]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return data
       .filter((r) => {
         if (filterProperty && r.property !== filterProperty) return false;
-        if (filterPayoutStatus && r.payoutStatus !== filterPayoutStatus) return false;
+        if (filterPayoutStatus) {
+          // Match using case-insensitive comparison so "On Hold" filter catches "On hold" rows
+          const filterLower = filterPayoutStatus.toLowerCase();
+          const statusLower = r.payoutStatus.toLowerCase();
+          if (filterLower === "errored") {
+            if (!statusLower.includes("error") && !statusLower.includes("fail")) return false;
+          } else if (filterLower !== statusLower) return false;
+        }
         if (q && !r.guest.toLowerCase().includes(q) && !r.ref.toLowerCase().includes(q)) return false;
         return true;
       })

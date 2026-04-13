@@ -225,29 +225,18 @@ function PropertyCard({ property: p, onClick }: { property: Property; onClick: (
           <img src={p.coverUrl} alt={p.name} className="w-full h-full object-cover transition-transform group-hover:scale-[1.02]" onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextElementSibling?.classList.remove("hidden"); }} />
         ) : null}
         <svg className={p.coverUrl ? "hidden" : ""} width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        <div className="absolute top-3 left-3"><span className={statusPillClass(p.status)}>{p.status}</span></div>
       </div>
       <div className="p-4">
         <div className="text-[15px] font-semibold text-[#111] mb-0.5 truncate">{p.name || "Untitled"}</div>
         <div className="text-[12px] text-[#888] mb-2 truncate">{displayLocation}</div>
-        {/* Type + Capacity row */}
-        <div className="flex items-center gap-2 text-[11px] text-[#999] mb-2.5">
-          {p.propertyType && <span className="bg-[#f5f5f5] px-2 py-0.5 rounded font-medium text-[#666]">{p.propertyType}</span>}
-          {p.bedrooms > 0 && <span>{p.bedrooms} bed{p.bedrooms !== 1 ? "s" : ""}</span>}
-          {p.bathrooms > 0 && <><span className="text-[#ddd]">&middot;</span><span>{p.bathrooms} bath{p.bathrooms !== 1 ? "s" : ""}</span></>}
-          {p.maxGuests > 0 && <><span className="text-[#ddd]">&middot;</span><span>{p.maxGuests} guest{p.maxGuests !== 1 ? "s" : ""}</span></>}
+        <div className="flex items-center justify-between">
+          <span className={statusPillClass(p.status)}>{p.status}</span>
+          <div className="flex items-center gap-1.5">
+            {p.connectedChannels.slice(0, 3).map((ch) => (
+              <ChannelBadge key={ch} channel={ch} compact />
+            ))}
+          </div>
         </div>
-        {/* Channels + price */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {p.connectedChannels.slice(0, 3).map((ch) => (
-            <ChannelBadge key={ch} channel={ch} compact />
-          ))}
-          {p.price > 0 && <span className="ml-auto text-[12px] font-semibold text-[#111]">€{p.price}/night</span>}
-        </div>
-        {/* Draft resume action */}
-        {p.status === "Draft" && (
-          <div className="mt-2.5 text-[11px] font-medium text-accent">Continue setup →</div>
-        )}
       </div>
     </button>
   );
@@ -260,7 +249,7 @@ function PropertyRow({ property: p, onClick }: { property: Property; onClick: ()
   const displayLocation = [p.city, p.country].filter(Boolean).join(", ") || p.address || "—";
   return (
     <button onClick={onClick} className="w-full flex items-center gap-4 bg-white border border-[#eaeaea] rounded-xl p-3.5 text-left transition-all hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-[#ddd] group">
-      <div className="w-[80px] h-[56px] rounded-lg bg-[#f5f5f5] flex items-center justify-center flex-shrink-0 overflow-hidden">
+      <div className="w-[48px] h-[48px] rounded-lg bg-[#f5f5f5] flex items-center justify-center flex-shrink-0 overflow-hidden">
         {p.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={p.coverUrl} alt={p.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextElementSibling?.classList.remove("hidden"); }} />
@@ -269,21 +258,9 @@ function PropertyRow({ property: p, onClick }: { property: Property; onClick: ()
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[14px] font-semibold text-[#111] truncate">{p.name || "Untitled"}</div>
-        <div className="text-[12px] text-[#888] mt-0.5 flex items-center gap-1.5">
-          <span>{displayLocation}</span>
-          {p.propertyType && <><span className="text-[#ddd]">&middot;</span><span>{p.propertyType}</span></>}
-        </div>
+        <div className="text-[12px] text-[#888] mt-0.5 truncate">{displayLocation}</div>
+        <div className="mt-1"><span className={statusPillClass(p.status)}>{p.status}</span></div>
       </div>
-      <div className="hidden lg:flex items-center gap-3 text-[12px] text-[#777] flex-shrink-0">
-        {p.bedrooms > 0 && <span>{p.bedrooms} bed{p.bedrooms !== 1 ? "s" : ""}</span>}
-        {p.bathrooms > 0 && <span>{p.bathrooms} bath{p.bathrooms !== 1 ? "s" : ""}</span>}
-        {p.maxGuests > 0 && <span>{p.maxGuests} guest{p.maxGuests !== 1 ? "s" : ""}</span>}
-      </div>
-      <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
-        {p.connectedChannels.slice(0, 2).map((ch) => (<ChannelBadge key={ch} channel={ch} compact />))}
-      </div>
-      {p.price > 0 && <div className="hidden lg:block text-[13px] font-semibold text-[#111] flex-shrink-0 w-[90px] text-right">€{p.price}</div>}
-      <div className="flex-shrink-0"><span className={statusPillClass(p.status)}>{p.status}</span></div>
       <div className="text-[#ccc] group-hover:text-[#999] transition-colors flex-shrink-0"><ChevronIcon /></div>
     </button>
   );

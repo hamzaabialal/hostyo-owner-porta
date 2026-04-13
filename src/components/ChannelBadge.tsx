@@ -37,7 +37,7 @@ function ChannelLogo({ channel, size = 16 }: { channel: string; size?: number })
   const darkBgSrc = logoDarkBg[normalized];
   if (darkBgSrc) {
     return (
-      <span className="inline-flex items-center justify-center rounded-full flex-shrink-0" style={{ width: size, height: size, backgroundColor: "#80020E" }}>
+      <span className="inline-flex items-center justify-center rounded-sm flex-shrink-0" style={{ width: size, height: size, backgroundColor: "#80020E" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={darkBgSrc} alt={normalized} className="object-contain" style={{ width: size * 0.65, height: size * 0.65 }} />
       </span>
