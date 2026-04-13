@@ -557,7 +557,7 @@ export default function PropertyDetailPage() {
                         const expApplied = recon ? recon.totalExpenses : 0;
                         const appliedToDeficit = recon ? recon.appliedToDeficit : 0;
                         const paidToOwner = recon ? recon.paidToOwner : (r.payoutStatus === "Paid" ? ownerPayout : 0);
-                        const isHeld = recon ? recon.isOnHold : false;
+                        const isHeld = recon ? recon.isOnHold : (ownerPayout < 0 && r.payoutStatus === "Pending");
                         const effectiveStatus = isHeld ? "On Hold" : r.payoutStatus;
                         return (
                           <tr key={i} className="border-b border-[#f3f3f3] hover:bg-[#f9f9f9]">
