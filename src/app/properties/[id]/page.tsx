@@ -292,10 +292,7 @@ export default function PropertyDetailPage() {
     return reconciledRows[reconciledRows.length - 1].deficitAfter;
   }, [reconciledRows]);
 
-  const totalReleasedToOwner = useMemo(
-    () => reconciledRows.reduce((s, r) => s + r.paidToOwner, 0),
-    [reconciledRows]
-  );
+  // totalReleasedToOwner removed — balance is now computed from pendingBalance
 
   // In-house guest (checked in, not checked out)
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
@@ -589,28 +586,42 @@ export default function PropertyDetailPage() {
       {/* ═══ Expenses Tab ═══ */}
       {tab === "expenses" && (() => {
         const totalExp = expenses.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const inReview = expenses.filter((e: any) => e.status === "In Review");
-        const inReviewTotal = inReview.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const paid = expenses.filter((e: any) => e.status === "Paid" || e.status === "Approved");
-        const paidTotal = paid.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0);
-        const netBalance = totalEarnings - totalExp;
+
+        // Split expenses by type for display
+        /* eslint-disable @typescript-eslint/no-explicit-any */
+        const propertyLevelExp = expenses.filter((e: any) => !(e.reservation || "").trim());
+        const reservationLinkedExp = expenses.filter((e: any) => !!(e.reservation || "").trim());
+        const propertyLevelPaidTotal = propertyLevelExp
+          .filter((e: any) => (e.status || "").toLowerCase() === "paid")
+          .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+        /* eslint-enable @typescript-eslint/no-explicit-any */
 
         return (
           <div className="space-y-5">
             {/* Summary cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <StatBox label="Total Expenses" value={fmtCurrency(totalExp)} sub="All time" />
-              <StatBox label="In Review" value={fmtCurrency(inReviewTotal)} sub={`${inReview.length} expenses`} />
-              <StatBox label="Paid" value={fmtCurrency(paidTotal)} sub={`${paid.length} expenses`} />
-              <StatBox label="Net Balance" value={fmtCurrency(netBalance)} sub="Earnings − expenses" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatBox label="Total Expenses" value={fmtCurrency(totalExp)} sub={`${expenses.length} expenses`} />
+              <StatBox label="Reservation Linked" value={fmtCurrency(reservationLinkedExp.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0))} sub={`${reservationLinkedExp.length} expenses`} />
+              <StatBox label="Property Level" value={fmtCurrency(propertyLevelExp.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0))} sub={`${propertyLevelExp.length} expenses`} />
               <StatBox
-                label="Owner Balance"
-                value={currentDeficit > 0 ? `-${fmtCurrency(currentDeficit)}` : fmtCurrency(totalReleasedToOwner)}
-                sub={currentDeficit > 0 ? "Deficit — payouts on hold" : "Cleared & paid out"}
+                label="Current Balance"
+                value={`${pendingBalance < 0 ? "−" : ""}${fmtCurrency(Math.abs(pendingBalance))}`}
+                sub={pendingBalance < 0 ? "On hold" : pendingBalance === 0 ? "No pending payouts" : "Payout pending"}
               />
             </div>
+
+            {/* Property-level expense impact notice */}
+            {propertyLevelPaidTotal > 0 && (
+              <div className="bg-[#F6F1E6] border border-[#E8DDC7] rounded-xl p-4 flex items-start gap-3">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2" className="flex-shrink-0 mt-0.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <div className="text-[12px] text-[#8A6A2E]">
+                  <strong>{fmtCurrency(propertyLevelPaidTotal)}</strong> in paid property-level expenses are deducted from the owner balance.
+                  These are not linked to any specific reservation — they reduce the overall payout due to the owner.
+                </div>
+              </div>
+            )}
 
             {/* Expense table */}
             <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
@@ -628,14 +639,16 @@ export default function PropertyDetailPage() {
                   <table className="w-full border-collapse text-[13px]">
                     <thead>
                       <tr className="bg-white">
-                        {["Status", "Created", "Vendor", "Category", "Amount"].map((h) => (
+                        {["Status", "Type", "Created", "Vendor", "Category", "Amount"].map((h) => (
                           <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-[#999] border-b border-[#eaeaea]">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      {expenses.map((exp: any, i: number) => (
+                      {/* eslint-disable @typescript-eslint/no-explicit-any */}
+                      {expenses.map((exp: any, i: number) => {
+                        const isPropertyLevel = !(exp.reservation || "").trim();
+                        return (
                         <tr key={i} className="border-b border-[#f3f3f3] hover:bg-[#f9f9f9] cursor-pointer" onClick={() => { window.location.href = `/finances/expenses?open=${exp.id}`; }}>
                           <td className="px-4 py-3">
                             <span className="flex items-center gap-1.5 text-[12px]">
@@ -643,12 +656,21 @@ export default function PropertyDetailPage() {
                               {exp.status || "—"}
                             </span>
                           </td>
+                          <td className="px-4 py-3">
+                            {isPropertyLevel ? (
+                              <span className="text-[10px] font-semibold text-[#8A6A2E] bg-[#FBF1E2] px-1.5 py-0.5 rounded uppercase tracking-wider">Property</span>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-[#4A4360] bg-[#EEEAF5] px-1.5 py-0.5 rounded uppercase tracking-wider">Reservation</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-[#666]">{exp.date || "—"}</td>
                           <td className="px-4 py-3 text-[#111] font-medium">{exp.vendor || "—"}</td>
                           <td className="px-4 py-3 text-[#666]">{exp.category || "—"}</td>
                           <td className="px-4 py-3 font-semibold text-[#7A5252] tabular-nums">-{fmtCurrency(exp.amount || 0)}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
+                      {/* eslint-enable @typescript-eslint/no-explicit-any */}
                     </tbody>
                     <tfoot>
                       <tr className="bg-[#fafafa]">
@@ -657,9 +679,11 @@ export default function PropertyDetailPage() {
                         <td className="px-4 py-3 font-bold text-[#7A5252] tabular-nums">-{fmtCurrency(totalExp)}</td>
                       </tr>
                       <tr className="bg-[#fafafa]">
-                        <td colSpan={3} />
-                        <td className="px-4 py-3 text-[11px] font-semibold text-[#999] uppercase">Net Balance</td>
-                        <td className="px-4 py-3 font-bold text-[#111] tabular-nums">{fmtCurrency(netBalance)}</td>
+                        <td colSpan={4} />
+                        <td className="px-4 py-3 text-[11px] font-semibold text-[#999] uppercase">Owner Balance</td>
+                        <td className={`px-4 py-3 font-bold tabular-nums ${pendingBalance < 0 ? "text-[#B7484F]" : "text-[#111]"}`}>
+                          {pendingBalance < 0 ? `−${fmtCurrency(Math.abs(pendingBalance))}` : fmtCurrency(pendingBalance)}
+                        </td>
                       </tr>
                     </tfoot>
                   </table>
