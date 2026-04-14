@@ -417,21 +417,16 @@ export async function syncDeficitAdjustments(
     const reservations: RawReservation[] = reservationPages.map(mapReservation);
     const expenses: RawExpense[] = expensePages.map(mapExpense);
 
-    // Build skip-automation set
-    const skipNames = new Set(
-      propertyPages
-        .filter((p: any) => getProp(p, "Skip Automation") === true)
-        .map((p: any) => normalizeKey(getProp(p, "Name") || ""))
-        .filter(Boolean)
-    );
+    // Build skip-automation list
+    const skipNames = propertyPages
+      .filter((p: any) => getProp(p, "Skip Automation") === true)
+      .map((p: any) => normalizeKey(getProp(p, "Name") || ""))
+      .filter(Boolean);
 
     const isSkipped = (name: string): boolean => {
       const n = normalizeKey(name);
       if (!n) return false;
-      for (const s of skipNames) {
-        if (s === n || s.startsWith(n) || n.startsWith(s)) return true;
-      }
-      return false;
+      return skipNames.some((s: string) => s === n || s.startsWith(n) || n.startsWith(s));
     };
 
     // Filter to eligible data
