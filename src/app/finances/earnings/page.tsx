@@ -173,7 +173,15 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
           </div>
           <div>
             <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wide mb-3">Payout</div>
-            <InfoItem label="Total Payout" value={fmtCurrency(row.net)} accent />
+            {row.deficitAdjustment !== 0 ? (
+              <>
+                <InfoItem label="Owner Payout" value={fmtCurrency(row.net)} />
+                <InfoItem label="Deficit Deduction" value={fmtCurrency(row.deficitAdjustment)} />
+                <InfoItem label="Paid to Owner" value={fmtCurrency(row.net + row.deficitAdjustment)} accent />
+              </>
+            ) : (
+              <InfoItem label="Total Payout" value={fmtCurrency(row.net)} accent />
+            )}
             <div className="flex items-center justify-between py-2.5 border-b border-[#f3f3f3]">
               <span className="text-[12px] text-[#999]">Payout status</span>
               <span className={statusPillFinance(row.payoutStatus)}>{row.payoutStatus}</span>
@@ -223,7 +231,15 @@ export default function FinancesEarningsPage() {
             cleaning: -(r.cleaning || 0),
             expenses: -(r.expenses || 0),
             net: r.ownerPayout || 0,
-            payoutStatus: (r.ownerPayout || 0) < 0 && (r.payoutStatus || "Pending") === "Pending" ? "On Hold" : (r.payoutStatus || "Pending"),
+            payoutStatus: (() => {
+              const raw = r.payoutStatus || "Pending";
+              if (raw !== "Pending") return raw;
+              // Negative payout → on hold
+              if ((r.ownerPayout || 0) < 0) return "On Hold";
+              // Deficit adjustment that fully consumes the payout → on hold
+              if ((r.deficitAdjustment || 0) < 0 && (r.ownerPayout || 0) + (r.deficitAdjustment || 0) <= 0) return "On Hold";
+              return raw;
+            })(),
             payoutDate: r.checkout || "",
             checkoutDate: (r.checkout || "").split("T")[0],
             deficitAdjustment: r.deficitAdjustment || 0,

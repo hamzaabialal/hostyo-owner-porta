@@ -77,6 +77,7 @@ async function fetchReservations() {
       payoutError: prop(page, "Error Reason") || prop(page, "Payout Error") || prop(page, "Error Message") || prop(page, "Error") || "",
       deficitAdjustment: prop(page, "Deficit Adjustment") || 0,
       deficitSource: prop(page, "Deficit Source") || "",
+      adjustedPayout: prop(page, "Adjusted Payout") || 0,
       adults: prop(page, "Adults") || 0,
       children: prop(page, "Children") || 0,
       infants: prop(page, "Infants") || 0,

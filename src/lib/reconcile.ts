@@ -171,10 +171,25 @@ export function reconcileProperty(
     }
   }
 
-  // Sort reservations chronologically by checkout date (the date payout would fire)
+  // Sort reservations chronologically by checkout date (the date payout would fire).
+  // Completed reservations come first (they've already happened and their payouts are
+  // real), then non-completed ones (In-House, Pending, etc.) are included so the
+  // deficit can be projected onto them — making the adjustment visible immediately.
+  const completedStatuses = ["completed"];
   const sorted = [...reservations]
-    .filter((r) => (r.status || "") === "Completed")
-    .sort((a, b) => compareDate(a.checkout, b.checkout));
+    .filter((r) => {
+      const s = (r.status || "").toLowerCase();
+      // Exclude cancelled reservations — they won't produce a payout
+      return s !== "cancelled";
+    })
+    .sort((a, b) => {
+      const aCompleted = completedStatuses.includes((a.status || "").toLowerCase()) ? 0 : 1;
+      const bCompleted = completedStatuses.includes((b.status || "").toLowerCase()) ? 0 : 1;
+      // Completed first, then non-completed
+      if (aCompleted !== bCompleted) return aCompleted - bCompleted;
+      // Within same group, sort by checkout date
+      return compareDate(a.checkout, b.checkout);
+    });
 
   let carryDeficit = 0;
   // Track the chain of deficit sources so we can attribute adjustments

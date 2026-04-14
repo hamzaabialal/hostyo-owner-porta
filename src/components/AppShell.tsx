@@ -92,6 +92,16 @@ export default function AppShell({ title, children }: { title: string; children:
         const er = expResult as { data?: unknown[] };
         seedNotifications(rr.data || [], er.data || []);
       }).catch(() => {});
+
+      // Auto-sync balances + deficit adjustments in the background.
+      // Throttled: only runs once per 10-minute window per browser session.
+      const SYNC_KEY = "hostyo_last_auto_sync";
+      const lastSync = Number(sessionStorage.getItem(SYNC_KEY) || "0");
+      const TEN_MINUTES = 10 * 60 * 1000;
+      if (Date.now() - lastSync > TEN_MINUTES) {
+        sessionStorage.setItem(SYNC_KEY, String(Date.now()));
+        fetch("/api/properties/sync-balances", { method: "POST" }).catch(() => {});
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
