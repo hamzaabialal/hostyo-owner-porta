@@ -76,6 +76,9 @@ function AccordionDetail({ r }: { r: Reservation }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [linkedExpenses, setLinkedExpenses] = useState<any[]>([]);
   const [expensesLoaded, setExpensesLoaded] = useState(false);
+  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [deficitExpenses, setDeficitExpenses] = useState<any[]>([]);
 
   const netEarnings = r.gross + r.platformFee + r.hostyoFee + r.cleaningFee + r.expensesTotal;
 
@@ -89,11 +92,31 @@ function AccordionDetail({ r }: { r: Reservation }) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const linked = all.filter((e: any) => e.reservation && r.ref && e.reservation.includes(r.ref.slice(0, 10)));
           setLinkedExpenses(linked);
+
+          // Parse deficit sources for the adjustment tooltip
+          if (r.deficitSource) {
+            const src = r.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
+            const parts = src.split(" | ").filter(Boolean).map((part) => {
+              const match = part.match(/^(.+?):\s*€([\d.]+)/);
+              if (match) {
+                const refKey = match[1].trim().slice(0, 10).toLowerCase();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const matched = all.filter((e: any) => e.reservation && e.reservation.toLowerCase().includes(refKey));
+                if (matched.length > 0) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  return matched.map((e: any) => ({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 }));
+                }
+                return [{ name: match[1].trim(), amount: parseFloat(match[2]) }];
+              }
+              return [{ name: part.trim(), amount: 0 }];
+            }).flat();
+            setDeficitExpenses(parts);
+          }
         })
         .catch(() => {})
         .finally(() => setExpensesLoaded(true));
     }
-  }, [tab, expensesLoaded, r.ref]);
+  }, [tab, expensesLoaded, r.ref, r.deficitSource]);
 
   // Calculate total from linked expenses
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,38 +191,39 @@ function AccordionDetail({ r }: { r: Reservation }) {
                 <FinRow label="Expenses" value={fmtCurrency(-(linkedExpensesTotal || Math.abs(r.expensesTotal || 0)))} neg />
               )}
               {r.deficitAdjustment !== 0 && (
-                <div className="pt-2 mt-2 border-t border-dashed border-[#f0f0f0]">
-                  <FinRow label="Deficit adjustment" value={fmtCurrency(r.deficitAdjustment)} neg />
-                  {r.deficitSource && (
-                    <div className="text-[10px] text-[#8A6A2E] mt-1 ml-1 leading-relaxed italic">
-                      {r.deficitSource}
+                <div className="relative">
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-[12px] text-[#999] flex items-center gap-1">
+                      Adjustment
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setAdjustmentOpen(!adjustmentOpen); }}
+                        className="w-[14px] h-[14px] rounded-full border border-[#ccc] flex items-center justify-center text-[#999] hover:text-[#666] hover:border-[#999] transition-colors"
+                      >
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="0.5" fill="currentColor"/></svg>
+                      </button>
+                    </span>
+                    <span className="text-[13px] font-semibold text-[#D4A843] tabular-nums">{fmtCurrency(r.deficitAdjustment)}</span>
+                  </div>
+                  {adjustmentOpen && deficitExpenses.length > 0 && (
+                    <div className="absolute right-0 top-full mt-1 bg-white border border-[#e2e2e2] rounded-lg shadow-lg z-10 py-1.5 min-w-[220px]">
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      {deficitExpenses.map((exp: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between px-3 py-1.5 text-[12px]">
+                          <span className="text-[#555]">{exp.name}</span>
+                          <span className="text-[#111] font-medium tabular-nums ml-3">{fmtCurrency(-(exp.amount || 0))}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               )}
             </div>
             <div className="px-5 py-4 bg-gradient-to-r from-[#80020E]/5 to-[#80020E]/[0.02] border-t border-[#80020E]/10">
-              {r.deficitAdjustment !== 0 ? (
-                <>
-                  <div className="flex justify-between items-center py-2.5">
-                    <span className="text-[13px] text-[#666]">Owner Payout</span>
-                    <span className="text-[14px] text-[#666] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2.5">
-                    <span className="text-[13px] text-[#8A6A2E]">Deficit Deduction</span>
-                    <span className="text-[14px] font-semibold text-[#B7484F] tabular-nums">{fmtCurrency(r.deficitAdjustment)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2.5 border-t border-[#80020E]/10">
-                    <span className="text-[13px] font-bold text-[#111]">Paid to Owner</span>
-                    <span className="text-[18px] font-bold text-[#111] tabular-nums">{fmtCurrency((r.ownerPayout || netEarnings) + r.deficitAdjustment)}</span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex justify-between items-center py-2.5">
-                  <span className="text-[13px] font-bold text-[#111]">Total Payout</span>
-                  <span className="text-[18px] font-bold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
-                </div>
-              )}
+              <div className="flex justify-between items-center py-2.5">
+                <span className="text-[13px] font-bold text-[#111]">Owner payout</span>
+                <span className="text-[18px] font-bold text-[#111] tabular-nums">{fmtCurrency(r.deficitAdjustment !== 0 ? (r.ownerPayout || netEarnings) + r.deficitAdjustment : (r.ownerPayout || netEarnings))}</span>
+              </div>
               <div className="flex justify-between items-center py-2.5">
                 <span className="text-[11px] text-[#999]">Payout status</span>
                 <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>

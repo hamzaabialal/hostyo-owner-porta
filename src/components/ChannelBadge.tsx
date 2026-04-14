@@ -5,12 +5,12 @@ const logoImages: Record<string, string> = {
   "Airbnb": "/ota-logos/airbnb.avif",
   "Booking.com": "/ota-logos/booking.svg",
   "Expedia": "/ota-logos/expedia.ico",
-  "Direct": "/hostyo-logo.png",
-  "BookingSite": "/hostyo-logo.png",
 };
 
-// Logos that need a dark background (white icons on accent circle)
-const logoDarkBg: Record<string, string> = {
+// Logos rendered inside a clipped square container (icon has whitespace that needs cropping)
+const logoScaled: Record<string, string> = {
+  "Direct": "/hostyo-logo.png",
+  "BookingSite": "/hostyo-logo.png",
 };
 
 const logoFallbacks: Record<string, { bg: string; letter: string }> = {
@@ -33,13 +33,13 @@ function normalizeChannel(channel: string): string {
 function ChannelLogo({ channel, size = 16 }: { channel: string; size?: number }) {
   const normalized = normalizeChannel(channel);
 
-  // White icon on dark background (e.g. BookingSite)
-  const darkBgSrc = logoDarkBg[normalized];
-  if (darkBgSrc) {
+  // Logo with whitespace — render in a clipped container, scaled up to fill
+  const scaledSrc = logoScaled[normalized];
+  if (scaledSrc) {
     return (
-      <span className="inline-flex items-center justify-center rounded-sm flex-shrink-0" style={{ width: size, height: size, backgroundColor: "#80020E" }}>
+      <span className="inline-flex items-center justify-center rounded-sm flex-shrink-0 overflow-hidden" style={{ width: size, height: size }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={darkBgSrc} alt={normalized} className="object-contain" style={{ width: size * 0.65, height: size * 0.65 }} />
+        <img src={scaledSrc} alt={normalized} className="object-cover" style={{ width: size * 1.55, height: size * 1.55 }} />
       </span>
     );
   }

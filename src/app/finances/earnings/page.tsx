@@ -100,6 +100,9 @@ function exportCSV(rows: EarningRow[], filename: string) {
 /* ------------------------------------------------------------------ */
 function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void }) {
   const [linkedExpensesTotal, setLinkedExpensesTotal] = useState(0);
+  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [deficitExpenses, setDeficitExpenses] = useState<any[]>([]);
 
   // Fetch linked expenses for this reservation
   useEffect(() => {
@@ -113,11 +116,40 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const total = linked.reduce((s: number, e: any) => s + (e.amount || 0), 0);
         setLinkedExpensesTotal(total);
+
+        // Parse deficit sources to show in tooltip
+        if (row.deficitSource) {
+          // Extract expense info from the deficit source string for tooltip display
+          // Format: "Deficit recovery from: REF: €amount (desc) | REF: €amount (desc)"
+          const src = row.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
+          const parts = src.split(" | ").filter(Boolean).map((part) => {
+            const match = part.match(/^(.+?):\s*€([\d.]+)/);
+            if (match) {
+              // Try to find the actual expense names from the expense data
+              const refKey = match[1].trim().slice(0, 10).toLowerCase();
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const matchedExpenses = all.filter((e: any) =>
+                e.reservation && e.reservation.toLowerCase().includes(refKey)
+              );
+              if (matchedExpenses.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return matchedExpenses.map((e: any) => ({
+                  name: e.vendor || e.category || "Expense",
+                  amount: e.amount || 0,
+                }));
+              }
+              return [{ name: match[1].trim(), amount: parseFloat(match[2]) }];
+            }
+            return [{ name: part.trim(), amount: 0 }];
+          }).flat();
+          setDeficitExpenses(parts);
+        }
       })
       .catch(() => {});
-  }, [row.ref]);
+  }, [row.ref, row.deficitSource]);
 
   const expensesAmount = linkedExpensesTotal > 0 ? linkedExpensesTotal : Math.abs(row.expenses || 0);
+  const adjustedPayout = row.deficitAdjustment !== 0 ? row.net + row.deficitAdjustment : row.net;
 
   function InfoItem({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
     return (
@@ -161,27 +193,37 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
             {row.vat !== 0 && <InfoItem label="VAT 19%" value={fmtCurrency(row.vat)} />}
             {expensesAmount > 0 && <InfoItem label="Expenses" value={fmtCurrency(-expensesAmount)} />}
             {row.deficitAdjustment !== 0 && (
-              <>
-                <InfoItem label="Deficit adjustment" value={fmtCurrency(row.deficitAdjustment)} />
-                {row.deficitSource && (
-                  <div className="text-[10px] text-[#8A6A2E] py-1.5 leading-relaxed italic border-b border-[#f3f3f3]">
-                    {row.deficitSource}
+              <div className="relative">
+                <div className="flex items-center justify-between py-2.5 border-b border-[#f3f3f3]">
+                  <span className="text-[12px] text-[#999] flex items-center gap-1">
+                    Adjustment
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setAdjustmentOpen(!adjustmentOpen); }}
+                      className="w-[14px] h-[14px] rounded-full border border-[#ccc] flex items-center justify-center text-[#999] hover:text-[#666] hover:border-[#999] transition-colors"
+                    >
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="0.5" fill="currentColor"/></svg>
+                    </button>
+                  </span>
+                  <span className="text-[13px] font-medium text-[#D4A843]">{fmtCurrency(row.deficitAdjustment)}</span>
+                </div>
+                {adjustmentOpen && deficitExpenses.length > 0 && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-[#e2e2e2] rounded-lg shadow-lg z-10 py-1.5 min-w-[200px]">
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {deficitExpenses.map((exp: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-1.5 text-[12px]">
+                        <span className="text-[#555]">{exp.name}</span>
+                        <span className="text-[#111] font-medium tabular-nums ml-3">{fmtCurrency(-(exp.amount || 0))}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
           <div>
             <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wide mb-3">Payout</div>
-            {row.deficitAdjustment !== 0 ? (
-              <>
-                <InfoItem label="Owner Payout" value={fmtCurrency(row.net)} />
-                <InfoItem label="Deficit Deduction" value={fmtCurrency(row.deficitAdjustment)} />
-                <InfoItem label="Paid to Owner" value={fmtCurrency(row.net + row.deficitAdjustment)} accent />
-              </>
-            ) : (
-              <InfoItem label="Total Payout" value={fmtCurrency(row.net)} accent />
-            )}
+            <InfoItem label="Owner payout" value={fmtCurrency(adjustedPayout)} accent />
             <div className="flex items-center justify-between py-2.5 border-b border-[#f3f3f3]">
               <span className="text-[12px] text-[#999]">Payout status</span>
               <span className={statusPillFinance(row.payoutStatus)}>{row.payoutStatus}</span>
