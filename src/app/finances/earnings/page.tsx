@@ -119,30 +119,32 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
 
         // Parse deficit sources to show in tooltip
         if (row.deficitSource) {
-          // Extract expense info from the deficit source string for tooltip display
-          // Format: "Deficit recovery from: REF: €amount (desc) | REF: €amount (desc)"
+          // Format: "Deficit recovery from: REF: €amount (Cat · Vendor · €amt; Cat · Vendor · €amt) | ..."
           const src = row.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
-          const parts = src.split(" | ").filter(Boolean).map((part) => {
-            const match = part.match(/^(.+?):\s*€([\d.]+)/);
-            if (match) {
-              // Try to find the actual expense names from the expense data
-              const refKey = match[1].trim().slice(0, 10).toLowerCase();
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const matchedExpenses = all.filter((e: any) =>
-                e.reservation && e.reservation.toLowerCase().includes(refKey)
-              );
-              if (matchedExpenses.length > 0) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                return matchedExpenses.map((e: any) => ({
-                  name: e.vendor || e.category || "Expense",
-                  amount: e.amount || 0,
-                }));
+          const entries: { name: string; amount: number }[] = [];
+          for (const part of src.split(" | ").filter(Boolean)) {
+            // Extract the parenthetical expense descriptions if present
+            const parenMatch = part.match(/\((.+)\)\s*$/);
+            if (parenMatch) {
+              // Parse each semicolon-separated expense: "Category · Vendor · €amount"
+              for (const desc of parenMatch[1].split(";")) {
+                const segments = desc.trim().split(" · ").map((s) => s.trim());
+                const amtSeg = segments.find((s) => s.startsWith("€"));
+                const vendor = segments.find((s) => !s.startsWith("€") && segments.indexOf(s) > 0) || segments[0] || "Expense";
+                entries.push({
+                  name: vendor,
+                  amount: amtSeg ? parseFloat(amtSeg.replace("€", "")) : 0,
+                });
               }
-              return [{ name: match[1].trim(), amount: parseFloat(match[2]) }];
+            } else {
+              // No parenthetical — fallback to ref: €amount
+              const match = part.match(/^(.+?):\s*€([\d.]+)/);
+              if (match) {
+                entries.push({ name: match[1].trim(), amount: parseFloat(match[2]) });
+              }
             }
-            return [{ name: part.trim(), amount: 0 }];
-          }).flat();
-          setDeficitExpenses(parts);
+          }
+          setDeficitExpenses(entries);
         }
       })
       .catch(() => {});
@@ -455,7 +457,7 @@ export default function FinancesEarningsPage() {
                       <td className="px-4 py-3.5"><ChannelBadge channel={r.channel} /></td>
                       <td className="px-4 py-3.5 text-[#111] tabular-nums whitespace-nowrap">{fmtCurrency(r.gross)}</td>
                       <td className="px-4 py-3.5 text-[#666] tabular-nums whitespace-nowrap">{fmtCurrency(deductions)}</td>
-                      <td className="px-4 py-3.5 font-semibold text-[#111] tabular-nums whitespace-nowrap">{fmtCurrency(r.net)}</td>
+                      <td className="px-4 py-3.5 font-semibold text-[#111] tabular-nums whitespace-nowrap">{fmtCurrency(r.deficitAdjustment !== 0 ? r.net + r.deficitAdjustment : r.net)}</td>
                       <td className="px-4 py-3.5 text-[#666] whitespace-nowrap">{expectedBy}</td>
                     </tr>
                   );

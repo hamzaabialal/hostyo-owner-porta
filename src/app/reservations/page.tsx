@@ -94,23 +94,30 @@ function AccordionDetail({ r }: { r: Reservation }) {
           setLinkedExpenses(linked);
 
           // Parse deficit sources for the adjustment tooltip
+          // Format: "Deficit recovery from: REF: €amount (Cat · Vendor · €amt; Cat · Vendor · €amt) | ..."
           if (r.deficitSource) {
             const src = r.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
-            const parts = src.split(" | ").filter(Boolean).map((part) => {
-              const match = part.match(/^(.+?):\s*€([\d.]+)/);
-              if (match) {
-                const refKey = match[1].trim().slice(0, 10).toLowerCase();
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const matched = all.filter((e: any) => e.reservation && e.reservation.toLowerCase().includes(refKey));
-                if (matched.length > 0) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  return matched.map((e: any) => ({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 }));
+            const entries: { name: string; amount: number }[] = [];
+            for (const part of src.split(" | ").filter(Boolean)) {
+              const parenMatch = part.match(/\((.+)\)\s*$/);
+              if (parenMatch) {
+                for (const desc of parenMatch[1].split(";")) {
+                  const segments = desc.trim().split(" · ").map((s) => s.trim());
+                  const amtSeg = segments.find((s) => s.startsWith("€"));
+                  const vendor = segments.find((s) => !s.startsWith("€") && segments.indexOf(s) > 0) || segments[0] || "Expense";
+                  entries.push({
+                    name: vendor,
+                    amount: amtSeg ? parseFloat(amtSeg.replace("€", "")) : 0,
+                  });
                 }
-                return [{ name: match[1].trim(), amount: parseFloat(match[2]) }];
+              } else {
+                const match = part.match(/^(.+?):\s*€([\d.]+)/);
+                if (match) {
+                  entries.push({ name: match[1].trim(), amount: parseFloat(match[2]) });
+                }
               }
-              return [{ name: part.trim(), amount: 0 }];
-            }).flat();
-            setDeficitExpenses(parts);
+            }
+            setDeficitExpenses(entries);
           }
         })
         .catch(() => {})
@@ -788,7 +795,7 @@ function ReservationsContent() {
                   </td>
                   <td className="px-4 py-3.5 tabular-nums text-[#111]">{fmtCurrency(r.gross || 0)}</td>
                   <td className="px-4 py-3.5 tabular-nums text-[#666]">{fmtCurrency(deductions)}</td>
-                  <td className="px-4 py-3.5 font-semibold tabular-nums text-[#111]">{fmtCurrency(r.ownerPayout || 0)}</td>
+                  <td className="px-4 py-3.5 font-semibold tabular-nums text-[#111]">{fmtCurrency(r.deficitAdjustment !== 0 ? (r.ownerPayout || 0) + r.deficitAdjustment : (r.ownerPayout || 0))}</td>
                   <td className="px-4 py-3.5 text-[#666]">{expectedBy}</td>
                 </tr>
                 {isOpen && (
