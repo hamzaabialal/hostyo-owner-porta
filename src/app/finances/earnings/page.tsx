@@ -38,6 +38,7 @@ interface EarningRow {
   checkoutDate: string;
   deficitAdjustment: number;
   deficitSource: string;
+  adjustedPayout: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -117,25 +118,50 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
         const total = linked.reduce((s: number, e: any) => s + (e.amount || 0), 0);
         setLinkedExpensesTotal(total);
 
-        // Build tooltip: find the actual expenses that caused the deficit.
-        // Extract reservation refs from the deficit source string, then look up
-        // their linked expenses from the full expense list by vendor name.
-        if (row.deficitSource && row.deficitAdjustment !== 0) {
-          const src = row.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
-          // Extract all reservation refs mentioned in the source
-          const refMatches = src.match(/[\w-]{10,}/g) || [];
+        // Build tooltip: find the expenses that caused the deficit.
+        // First try matching by reservation refs in the deficit source.
+        // If none found (property-level expenses), find all paid/approved
+        // expenses for the same property that aren't linked to this reservation.
+        if (row.deficitAdjustment !== 0) {
           const entries: { name: string; amount: number }[] = [];
-          for (const ref of refMatches) {
-            const refKey = ref.slice(0, 10).toLowerCase();
+
+          // Try reservation-ref lookup first
+          if (row.deficitSource) {
+            const src = row.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
+            const refMatches = src.match(/\d-\d{9,}/g) || [];
+            for (const ref of refMatches) {
+              const refKey = ref.slice(0, 10).toLowerCase();
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const matched = all.filter((e: any) =>
+                e.reservation && e.reservation.toLowerCase().includes(refKey)
+              );
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              for (const e of matched) {
+                entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
+              }
+            }
+          }
+
+          // Fallback: if no expenses found by ref, find property-level expenses
+          if (entries.length === 0 && row.property) {
+            const propLower = row.property.toLowerCase();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const matched = all.filter((e: any) =>
-              e.reservation && e.reservation.toLowerCase().includes(refKey)
-            );
+            const propExpenses = all.filter((e: any) => {
+              if (!e.property) return false;
+              const eProp = e.property.toLowerCase();
+              if (!(eProp === propLower || eProp.startsWith(propLower) || propLower.startsWith(eProp))) return false;
+              const status = (e.status || "").toLowerCase();
+              if (status !== "paid" && status !== "approved") return false;
+              // Exclude expenses linked to THIS reservation
+              if (e.reservation && row.ref && e.reservation.includes(row.ref.slice(0, 10))) return false;
+              return true;
+            });
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            for (const e of matched) {
+            for (const e of propExpenses) {
               entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
             }
           }
+
           setDeficitExpenses(entries);
         }
       })
@@ -143,7 +169,7 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
   }, [row.ref, row.deficitSource]);
 
   const expensesAmount = linkedExpensesTotal > 0 ? linkedExpensesTotal : Math.abs(row.expenses || 0);
-  const adjustedPayout = row.deficitAdjustment !== 0 ? row.net + row.deficitAdjustment : row.net;
+  const adjustedPayout = row.adjustedPayout > 0 ? row.adjustedPayout : (row.deficitAdjustment !== 0 ? row.net + row.deficitAdjustment : row.net);
 
   function InfoItem({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
     return (
@@ -280,6 +306,7 @@ export default function FinancesEarningsPage() {
             checkoutDate: (r.checkout || "").split("T")[0],
             deficitAdjustment: r.deficitAdjustment || 0,
             deficitSource: r.deficitSource || "",
+            adjustedPayout: r.adjustedPayout || 0,
           }));
           setData(mapped);
         }
@@ -415,7 +442,7 @@ export default function FinancesEarningsPage() {
                   </div>
                   <div>
                     <span className="text-[11px] text-[#999]">Net </span>
-                    <span className="text-[13px] font-semibold text-accent">{fmtCurrency(r.deficitAdjustment !== 0 ? r.net + r.deficitAdjustment : r.net)}</span>
+                    <span className="text-[13px] font-semibold text-accent">{fmtCurrency(r.adjustedPayout > 0 ? r.adjustedPayout : (r.deficitAdjustment !== 0 ? r.net + r.deficitAdjustment : r.net))}</span>
                   </div>
                 </div>
               </div>
@@ -449,7 +476,7 @@ export default function FinancesEarningsPage() {
                       <td className="px-4 py-3.5"><ChannelBadge channel={r.channel} /></td>
                       <td className="px-4 py-3.5 text-[#111] tabular-nums whitespace-nowrap">{fmtCurrency(r.gross)}</td>
                       <td className="px-4 py-3.5 text-[#666] tabular-nums whitespace-nowrap">{fmtCurrency(deductions)}</td>
-                      <td className="px-4 py-3.5 font-semibold text-[#111] tabular-nums whitespace-nowrap">{fmtCurrency(r.deficitAdjustment !== 0 ? r.net + r.deficitAdjustment : r.net)}</td>
+                      <td className="px-4 py-3.5 font-semibold text-[#111] tabular-nums whitespace-nowrap">{fmtCurrency(r.adjustedPayout > 0 ? r.adjustedPayout : (r.deficitAdjustment !== 0 ? r.net + r.deficitAdjustment : r.net))}</td>
                       <td className="px-4 py-3.5 text-[#666] whitespace-nowrap">{expectedBy}</td>
                     </tr>
                   );

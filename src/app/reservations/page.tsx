@@ -33,6 +33,7 @@ interface Reservation {
   payoutStatus: string;
   deficitAdjustment: number;
   deficitSource: string;
+  adjustedPayout: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -93,22 +94,46 @@ function AccordionDetail({ r }: { r: Reservation }) {
           const linked = all.filter((e: any) => e.reservation && r.ref && e.reservation.includes(r.ref.slice(0, 10)));
           setLinkedExpenses(linked);
 
-          // Build tooltip: find the actual expenses that caused the deficit.
-          if (r.deficitSource && r.deficitAdjustment !== 0) {
-            const src = r.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
-            const refMatches = src.match(/[\w-]{10,}/g) || [];
+          // Build tooltip: find the expenses that caused the deficit.
+          if (r.deficitAdjustment !== 0) {
             const entries: { name: string; amount: number }[] = [];
-            for (const ref of refMatches) {
-              const refKey = ref.slice(0, 10).toLowerCase();
+
+            // Try reservation-ref lookup first
+            if (r.deficitSource) {
+              const src = r.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
+              const refMatches = src.match(/\d-\d{9,}/g) || [];
+              for (const ref of refMatches) {
+                const refKey = ref.slice(0, 10).toLowerCase();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const matched = all.filter((e: any) =>
+                  e.reservation && e.reservation.toLowerCase().includes(refKey)
+                );
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (const e of matched) {
+                  entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
+                }
+              }
+            }
+
+            // Fallback: property-level expenses
+            if (entries.length === 0 && r.property) {
+              const propLower = r.property.toLowerCase();
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const matched = all.filter((e: any) =>
-                e.reservation && e.reservation.toLowerCase().includes(refKey)
-              );
+              const propExpenses = all.filter((e: any) => {
+                if (!e.property) return false;
+                const eProp = e.property.toLowerCase();
+                if (!(eProp === propLower || eProp.startsWith(propLower) || propLower.startsWith(eProp))) return false;
+                const status = (e.status || "").toLowerCase();
+                if (status !== "paid" && status !== "approved") return false;
+                if (e.reservation && r.ref && e.reservation.includes(r.ref.slice(0, 10))) return false;
+                return true;
+              });
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              for (const e of matched) {
+              for (const e of propExpenses) {
                 entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
               }
             }
+
             setDeficitExpenses(entries);
           }
         })
@@ -221,7 +246,7 @@ function AccordionDetail({ r }: { r: Reservation }) {
             <div className="px-5 py-4 bg-gradient-to-r from-[#80020E]/5 to-[#80020E]/[0.02] border-t border-[#80020E]/10">
               <div className="flex justify-between items-center py-2.5">
                 <span className="text-[13px] font-bold text-[#111]">Owner payout</span>
-                <span className="text-[18px] font-bold text-[#111] tabular-nums">{fmtCurrency(r.deficitAdjustment !== 0 ? (r.ownerPayout || netEarnings) + r.deficitAdjustment : (r.ownerPayout || netEarnings))}</span>
+                <span className="text-[18px] font-bold text-[#111] tabular-nums">{fmtCurrency(r.adjustedPayout > 0 ? r.adjustedPayout : (r.deficitAdjustment !== 0 ? (r.ownerPayout || netEarnings) + r.deficitAdjustment : (r.ownerPayout || netEarnings)))}</span>
               </div>
               <div className="flex justify-between items-center py-2.5">
                 <span className="text-[11px] text-[#999]">Payout status</span>
@@ -499,6 +524,7 @@ function ReservationsContent() {
             })(),
             deficitAdjustment: r.deficitAdjustment || 0,
             deficitSource: r.deficitSource || "",
+            adjustedPayout: r.adjustedPayout || 0,
           }));
           setData(mapped);
         }
@@ -716,12 +742,15 @@ function ReservationsContent() {
                     {fmtDateShort(r.checkIn)} → {fmtDateShort(r.checkOut)} · {r.nights} night{r.nights !== 1 ? "s" : ""} · {r.guests} guest{r.guests !== 1 ? "s" : ""}
                   </div>
                   {/* Payout */}
-                  {r.ownerPayout > 0 && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[14px] font-semibold text-[#111]">{fmtCurrency(r.ownerPayout)}</span>
-                      <span className="text-[11px] text-[#999]">· {r.payoutStatus} payout</span>
-                    </div>
-                  )}
+                  {(() => {
+                    const displayPayout = r.adjustedPayout > 0 ? r.adjustedPayout : (r.deficitAdjustment !== 0 ? r.ownerPayout + r.deficitAdjustment : r.ownerPayout);
+                    return displayPayout > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[14px] font-semibold text-[#111]">{fmtCurrency(displayPayout)}</span>
+                        <span className="text-[11px] text-[#999]">· {r.payoutStatus} payout</span>
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
                 {/* Accordion expansion */}
                 <div className={`overflow-hidden transition-all duration-200 ease-in-out ${isOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"}`}>
@@ -787,7 +816,7 @@ function ReservationsContent() {
                   </td>
                   <td className="px-4 py-3.5 tabular-nums text-[#111]">{fmtCurrency(r.gross || 0)}</td>
                   <td className="px-4 py-3.5 tabular-nums text-[#666]">{fmtCurrency(deductions)}</td>
-                  <td className="px-4 py-3.5 font-semibold tabular-nums text-[#111]">{fmtCurrency(r.deficitAdjustment !== 0 ? (r.ownerPayout || 0) + r.deficitAdjustment : (r.ownerPayout || 0))}</td>
+                  <td className="px-4 py-3.5 font-semibold tabular-nums text-[#111]">{fmtCurrency(r.adjustedPayout > 0 ? r.adjustedPayout : (r.deficitAdjustment !== 0 ? (r.ownerPayout || 0) + r.deficitAdjustment : (r.ownerPayout || 0)))}</td>
                   <td className="px-4 py-3.5 text-[#666]">{expectedBy}</td>
                 </tr>
                 {isOpen && (
