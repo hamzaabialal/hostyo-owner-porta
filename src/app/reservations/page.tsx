@@ -93,28 +93,20 @@ function AccordionDetail({ r }: { r: Reservation }) {
           const linked = all.filter((e: any) => e.reservation && r.ref && e.reservation.includes(r.ref.slice(0, 10)));
           setLinkedExpenses(linked);
 
-          // Parse deficit sources for the adjustment tooltip
-          // Format: "Deficit recovery from: REF: €amount (Cat · Vendor · €amt; Cat · Vendor · €amt) | ..."
-          if (r.deficitSource) {
+          // Build tooltip: find the actual expenses that caused the deficit.
+          if (r.deficitSource && r.deficitAdjustment !== 0) {
             const src = r.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
+            const refMatches = src.match(/[\w-]{10,}/g) || [];
             const entries: { name: string; amount: number }[] = [];
-            for (const part of src.split(" | ").filter(Boolean)) {
-              const parenMatch = part.match(/\((.+)\)\s*$/);
-              if (parenMatch) {
-                for (const desc of parenMatch[1].split(";")) {
-                  const segments = desc.trim().split(" · ").map((s) => s.trim());
-                  const amtSeg = segments.find((s) => s.startsWith("€"));
-                  const vendor = segments.find((s) => !s.startsWith("€") && segments.indexOf(s) > 0) || segments[0] || "Expense";
-                  entries.push({
-                    name: vendor,
-                    amount: amtSeg ? parseFloat(amtSeg.replace("€", "")) : 0,
-                  });
-                }
-              } else {
-                const match = part.match(/^(.+?):\s*€([\d.]+)/);
-                if (match) {
-                  entries.push({ name: match[1].trim(), amount: parseFloat(match[2]) });
-                }
+            for (const ref of refMatches) {
+              const refKey = ref.slice(0, 10).toLowerCase();
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const matched = all.filter((e: any) =>
+                e.reservation && e.reservation.toLowerCase().includes(refKey)
+              );
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              for (const e of matched) {
+                entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
               }
             }
             setDeficitExpenses(entries);
