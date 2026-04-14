@@ -120,11 +120,14 @@ function computeBalance(
   _expenses: RawExpense[]
 ): number {
   const pendingSum = reservations
-    .filter((r) =>
-      isSameProperty(r.property || "", propertyName) &&
-      (r.status || "") === "Completed" &&
-      (r.payoutStatus || "") === "Pending"
-    )
+    .filter((r) => {
+      if (!isSameProperty(r.property || "", propertyName)) return false;
+      if ((r.status || "") !== "Completed") return false;
+      // Include both "Pending" and "On Hold" — on-hold payouts are still owed,
+      // just held for deficit recovery. Exclude "Paid", "Error", etc.
+      const ps = (r.payoutStatus || "").toLowerCase();
+      return ps === "pending" || ps === "on hold";
+    })
     .reduce((s, r) => s + (r.ownerPayout || 0), 0);
 
   return Number(pendingSum.toFixed(2));

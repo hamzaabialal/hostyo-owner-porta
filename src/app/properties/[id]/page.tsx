@@ -275,7 +275,11 @@ export default function PropertyDetailPage() {
   // This balance is a pure reflection of what Notion says the owner is owed.
   const pendingBalance = useMemo(
     () => reservations
-      .filter((r) => r.status === "Completed" && r.payoutStatus === "Pending")
+      .filter((r) => {
+        if (r.status !== "Completed") return false;
+        const ps = (r.payoutStatus || "").toLowerCase();
+        return ps === "pending" || ps === "on hold";
+      })
       .reduce((s, r) => s + (r.ownerPayout || 0), 0),
     [reservations]
   );

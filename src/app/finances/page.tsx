@@ -233,7 +233,11 @@ export default function FinancesOverviewPage() {
 
   const ownerBalance = useMemo(() =>
     reservations
-      .filter((r) => r.status === "Completed" && r.payoutStatus === "Pending")
+      .filter((r) => {
+        if (r.status !== "Completed") return false;
+        const ps = (r.payoutStatus || "").toLowerCase();
+        return ps === "pending" || ps === "on hold";
+      })
       .reduce((sum, r) => sum + (r.ownerPayout || 0), 0),
   [reservations]);
 
@@ -245,7 +249,10 @@ export default function FinancesOverviewPage() {
 
   const pendingPayment = useMemo(() =>
     reservations
-      .filter((r) => r.payoutStatus === "Pending")
+      .filter((r) => {
+        const ps = (r.payoutStatus || "").toLowerCase();
+        return ps === "pending" || ps === "on hold";
+      })
       .reduce((sum, r) => sum + (r.ownerPayout || 0), 0),
   [reservations]);
 
