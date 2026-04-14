@@ -140,7 +140,8 @@ function AccordionDetail({ r }: { r: Reservation }) {
         .catch(() => {})
         .finally(() => setExpensesLoaded(true));
     }
-  }, [tab, expensesLoaded, r.ref, r.deficitSource]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, expensesLoaded, r.ref, r.deficitSource, r.deficitAdjustment, r.property]);
 
   // Calculate total from linked expenses
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
