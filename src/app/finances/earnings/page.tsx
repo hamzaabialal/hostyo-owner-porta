@@ -279,11 +279,13 @@ export default function FinancesEarningsPage() {
       fetchData("expenses", "/api/expenses"),
     ]).then(([resResult, expResult]: unknown[]) => {
         const d = resResult as { data?: Record<string, unknown>[] };
-        const expData = expResult as { data?: any[] };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const expData = expResult as { data?: RawExpense[] };
         if (d.data) {
           // Run reconciliation to compute adjusted payouts client-side
           const allExpenses: RawExpense[] = (expData?.data || []) as RawExpense[];
-          const rawReservations: RawReservation[] = (d.data as any[]).map((r: any) => ({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const rawReservations: RawReservation[] = (d.data as Record<string, unknown>[]).map((r: any) => ({
             id: r.notionId || r.id,
             ref: r.ref || "",
             property: r.property || "",
