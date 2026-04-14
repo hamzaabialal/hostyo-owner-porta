@@ -64,7 +64,8 @@ export default function DashboardPage() {
       const balanceByProp: Record<string, number> = {};
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const r of allRes) {
-        if (r.status === "Completed" && r.payoutStatus === "Pending") {
+        const ps = (r.payoutStatus || "").toLowerCase();
+        if (r.status === "Completed" && (ps === "pending" || ps === "on hold")) {
           const key = (r.property || "").trim().toLowerCase();
           if (!key) continue;
           balanceByProp[key] = (balanceByProp[key] || 0) + (r.ownerPayout || 0);

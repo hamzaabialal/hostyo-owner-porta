@@ -136,7 +136,8 @@ async function fetchTodayData() {
 
     if (payoutStatus === "Paid" && checkout.startsWith(thisMonth)) paidThisMonth += ownerPayout;
     if (status === "In-House") balance += ownerPayout;
-    if (status === "Completed" && payoutStatus === "Pending") pendingPayment += ownerPayout;
+    const psLower = (payoutStatus || "").toLowerCase();
+    if (status === "Completed" && (psLower === "pending" || psLower === "on hold")) pendingPayment += ownerPayout;
     if (checkin > todayStr && status !== "Cancelled" && payoutStatus !== "Paid") forecast += ownerPayout;
 
     // In-house: checked in <= today && checkout >= today && not cancelled
