@@ -8,6 +8,7 @@ import DateRangePicker from "@/components/DateRangePicker";
 import ChannelBadge, { getChannelIcon, normalizeChannel } from "@/components/ChannelBadge";
 import ExportModal from "@/components/ExportModal";
 import { useData } from "@/lib/DataContext";
+import { reconcileAll, type RawReservation, type RawExpense } from "@/lib/reconcile";
 
 const FINANCE_TABS = [
   { label: "Overview", href: "/finances", exact: true },
@@ -273,41 +274,75 @@ export default function FinancesEarningsPage() {
   const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
-    fetchData("reservations", "/api/reservations")
-      .then((res: unknown) => {
-        const d = res as { data?: Record<string, unknown>[] };
+    Promise.all([
+      fetchData("reservations", "/api/reservations"),
+      fetchData("expenses", "/api/expenses"),
+    ]).then(([resResult, expResult]: unknown[]) => {
+        const d = resResult as { data?: Record<string, unknown>[] };
+        const expData = expResult as { data?: any[] };
         if (d.data) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mapped: EarningRow[] = d.data.map((r: any, i: number) => ({
-            id: i + 1,
-            date: (r.checkout || r.checkin || "").split("T")[0],
+          // Run reconciliation to compute adjusted payouts client-side
+          const allExpenses: RawExpense[] = (expData?.data || []) as RawExpense[];
+          const rawReservations: RawReservation[] = (d.data as any[]).map((r: any) => ({
+            id: r.notionId || r.id,
+            ref: r.ref || "",
             property: r.property || "",
             guest: r.guest || "",
-            ref: r.ref || "",
-            channel: r.channel || "Direct",
-            stayDates: `${fmtDateShort(r.checkin)} – ${fmtDateShort(r.checkout)}`,
-            gross: r.grossAmount || 0,
-            platformFee: -(r.platformFee || 0),
-            hostyoFee: -(r.managementFee || 0),
-            vat: -((r.managementFee || 0) * 0.19),
-            cleaning: -(r.cleaning || 0),
-            expenses: -(r.expenses || 0),
-            net: r.ownerPayout || 0,
-            payoutStatus: (() => {
-              const raw = r.payoutStatus || "Pending";
-              if (raw !== "Pending") return raw;
-              // Negative payout → on hold
-              if ((r.ownerPayout || 0) < 0) return "On Hold";
-              // Deficit adjustment that fully consumes the payout → on hold
-              if ((r.deficitAdjustment || 0) < 0 && (r.ownerPayout || 0) + (r.deficitAdjustment || 0) <= 0) return "On Hold";
-              return raw;
-            })(),
-            payoutDate: r.checkout || "",
-            checkoutDate: (r.checkout || "").split("T")[0],
-            deficitAdjustment: r.deficitAdjustment || 0,
-            deficitSource: r.deficitSource || "",
-            adjustedPayout: r.adjustedPayout || 0,
+            checkin: r.checkin || "",
+            checkout: r.checkout || "",
+            status: r.status || "Pending",
+            payoutStatus: r.payoutStatus || "Pending",
+            grossAmount: r.grossAmount || 0,
+            platformFee: r.platformFee || 0,
+            managementFee: r.managementFee || 0,
+            cleaning: r.cleaning || 0,
+            expenses: r.expenses || 0,
+            ownerPayout: r.ownerPayout || 0,
           }));
+          const { rows: reconciledRows } = reconcileAll(rawReservations, allExpenses);
+
+          // Build a lookup from reconciliation by reservation id
+          const reconById = new Map<string, (typeof reconciledRows)[0]>();
+          for (const rec of reconciledRows) {
+            reconById.set(String(rec.id), rec);
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mapped: EarningRow[] = (d.data as any[]).map((r: any, i: number) => {
+            const recon = reconById.get(String(r.notionId || r.id));
+            const reconPaidToOwner = recon ? recon.paidToOwner : null;
+            const reconApplied = recon ? recon.appliedToDeficit : 0;
+
+            return {
+              id: i + 1,
+              date: (r.checkout || r.checkin || "").split("T")[0],
+              property: r.property || "",
+              guest: r.guest || "",
+              ref: r.ref || "",
+              channel: r.channel || "Direct",
+              stayDates: `${fmtDateShort(r.checkin)} – ${fmtDateShort(r.checkout)}`,
+              gross: r.grossAmount || 0,
+              platformFee: -(r.platformFee || 0),
+              hostyoFee: -(r.managementFee || 0),
+              vat: -((r.managementFee || 0) * 0.19),
+              cleaning: -(r.cleaning || 0),
+              expenses: -(r.expenses || 0),
+              net: r.ownerPayout || 0,
+              payoutStatus: (() => {
+                const raw = r.payoutStatus || "Pending";
+                if (raw !== "Pending") return raw;
+                if (recon?.isOnHold) return "On Hold";
+                if ((r.ownerPayout || 0) < 0) return "On Hold";
+                if (reconApplied > 0 && reconPaidToOwner === 0) return "On Hold";
+                return raw;
+              })(),
+              payoutDate: r.checkout || "",
+              checkoutDate: (r.checkout || "").split("T")[0],
+              deficitAdjustment: reconApplied > 0 ? -reconApplied : (r.deficitAdjustment || 0),
+              deficitSource: r.deficitSource || (recon?.holdReason || ""),
+              adjustedPayout: reconPaidToOwner !== null ? reconPaidToOwner : (r.adjustedPayout || 0),
+            };
+          });
           setData(mapped);
         }
       })
