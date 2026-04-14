@@ -117,31 +117,23 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
         const total = linked.reduce((s: number, e: any) => s + (e.amount || 0), 0);
         setLinkedExpensesTotal(total);
 
-        // Parse deficit sources to show in tooltip
-        if (row.deficitSource) {
-          // Format: "Deficit recovery from: REF: €amount (Cat · Vendor · €amt; Cat · Vendor · €amt) | ..."
+        // Build tooltip: find the actual expenses that caused the deficit.
+        // Extract reservation refs from the deficit source string, then look up
+        // their linked expenses from the full expense list by vendor name.
+        if (row.deficitSource && row.deficitAdjustment !== 0) {
           const src = row.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
+          // Extract all reservation refs mentioned in the source
+          const refMatches = src.match(/[\w-]{10,}/g) || [];
           const entries: { name: string; amount: number }[] = [];
-          for (const part of src.split(" | ").filter(Boolean)) {
-            // Extract the parenthetical expense descriptions if present
-            const parenMatch = part.match(/\((.+)\)\s*$/);
-            if (parenMatch) {
-              // Parse each semicolon-separated expense: "Category · Vendor · €amount"
-              for (const desc of parenMatch[1].split(";")) {
-                const segments = desc.trim().split(" · ").map((s) => s.trim());
-                const amtSeg = segments.find((s) => s.startsWith("€"));
-                const vendor = segments.find((s) => !s.startsWith("€") && segments.indexOf(s) > 0) || segments[0] || "Expense";
-                entries.push({
-                  name: vendor,
-                  amount: amtSeg ? parseFloat(amtSeg.replace("€", "")) : 0,
-                });
-              }
-            } else {
-              // No parenthetical — fallback to ref: €amount
-              const match = part.match(/^(.+?):\s*€([\d.]+)/);
-              if (match) {
-                entries.push({ name: match[1].trim(), amount: parseFloat(match[2]) });
-              }
+          for (const ref of refMatches) {
+            const refKey = ref.slice(0, 10).toLowerCase();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const matched = all.filter((e: any) =>
+              e.reservation && e.reservation.toLowerCase().includes(refKey)
+            );
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const e of matched) {
+              entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
             }
           }
           setDeficitExpenses(entries);
@@ -423,7 +415,7 @@ export default function FinancesEarningsPage() {
                   </div>
                   <div>
                     <span className="text-[11px] text-[#999]">Net </span>
-                    <span className="text-[13px] font-semibold text-accent">{fmtCurrency(r.net)}</span>
+                    <span className="text-[13px] font-semibold text-accent">{fmtCurrency(r.deficitAdjustment !== 0 ? r.net + r.deficitAdjustment : r.net)}</span>
                   </div>
                 </div>
               </div>
