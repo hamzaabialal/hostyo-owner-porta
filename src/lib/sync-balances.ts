@@ -443,18 +443,15 @@ export async function syncDeficitAdjustments(
         )
       : Object.keys(byProperty);
 
-    // 1. Write adjustment data back to each reservation
+    // 1. Write adjustment data back to each reservation that has deficit activity
     for (const propName of propertiesToProcess) {
       const rows = byProperty[propName] || [];
       for (const row of rows) {
-        // Only write to reservations that have deficit activity
-        if (row.appliedToDeficit === 0 && row.deficitAfter === 0) continue;
+        // Skip rows with zero deficit activity
+        if (row.appliedToDeficit === 0 && row.deficitAfter === 0 && row.deficitBefore === 0) continue;
 
         // Find the Notion page for this reservation
-        const resPage = reservationPages.find((p: any) => {
-          const pageId = (p as any).id;
-          return pageId === row.id;
-        });
+        const resPage = reservationPages.find((p: any) => (p as any).id === row.id);
         if (!resPage) continue;
 
         // Build the adjustment description from deficit sources
@@ -471,32 +468,64 @@ export async function syncDeficitAdjustments(
           sourceDescription = `Deficit of €${row.deficitAfter.toFixed(2)} carried forward to next reservation.`;
         }
 
+        // Deficit Adjustment = negative amount deducted from this payout
+        const newAdj = row.appliedToDeficit > 0 ? -row.appliedToDeficit : 0;
+
+        // Adjusted Payout = what actually gets paid to the owner after deficit recovery.
+        // For held reservations (paidToOwner=0), this is 0.
+        // For recovering reservations, this is ownerPayout minus the deficit portion.
+        const adjustedPayout = Number(row.paidToOwner.toFixed(2));
+
+        // Determine the effective payout status:
+        //   - If the reconciliation says this row is on hold → "On Hold"
+        //   - If a deficit adjustment was applied → keep Pending (payout will happen at adjusted amount)
+        //   - Otherwise → leave as-is
+        let newPayoutStatus = "";
+        if (row.isOnHold && row.originalPayoutStatus === "Pending") {
+          newPayoutStatus = "On Hold";
+        }
+
         // Read current values to avoid unnecessary writes
         const currentAdj = getProp(resPage, "Deficit Adjustment") ?? null;
         const currentSrc = getProp(resPage, "Deficit Source") || "";
-        const newAdj = row.appliedToDeficit > 0 ? -row.appliedToDeficit : 0;
+        const currentAdjPayout = getProp(resPage, "Adjusted Payout") ?? null;
+        const currentPayoutStatus = getProp(resPage, "Payout Status") || "";
 
-        if (
-          currentAdj !== null &&
-          Math.abs(Number(currentAdj) - newAdj) < 0.005 &&
-          currentSrc === sourceDescription
-        ) {
-          continue; // No change needed
-        }
+        const needsUpdate =
+          (currentAdj === null || Math.abs(Number(currentAdj) - newAdj) >= 0.005) ||
+          currentSrc !== sourceDescription ||
+          (currentAdjPayout === null || Math.abs(Number(currentAdjPayout) - adjustedPayout) >= 0.005) ||
+          (newPayoutStatus && currentPayoutStatus !== newPayoutStatus);
+
+        if (!needsUpdate) continue;
 
         try {
+          const updateProps: Record<string, any> = {
+            "Deficit Adjustment": { number: newAdj },
+            "Deficit Source": {
+              rich_text: [{ text: { content: sourceDescription.slice(0, 2000) } }],
+            },
+            "Adjusted Payout": { number: adjustedPayout },
+          };
+
+          // Update Payout Status to "On Hold" for deficit-held reservations.
+          // The field can be either a "select" or "status" type in Notion — try both.
+          if (newPayoutStatus && currentPayoutStatus !== newPayoutStatus) {
+            const payoutStatusProp = (resPage as any).properties?.["Payout Status"];
+            if (payoutStatusProp?.type === "status") {
+              updateProps["Payout Status"] = { status: { name: newPayoutStatus } };
+            } else {
+              updateProps["Payout Status"] = { select: { name: newPayoutStatus } };
+            }
+          }
+
           await notion.pages.update({
             page_id: (resPage as any).id,
-            properties: {
-              "Deficit Adjustment": { number: newAdj },
-              "Deficit Source": {
-                rich_text: [{ text: { content: sourceDescription.slice(0, 2000) } }],
-              },
-            },
+            properties: updateProps,
           });
           result.reservationsUpdated++;
         } catch (err: any) {
-          // If the properties don't exist yet in Notion, log but don't fail
+          // If a field doesn't exist yet in Notion, log but don't fail the whole sync
           console.error(`syncDeficitAdjustments: reservation ${row.ref}:`, err?.message || err);
           result.errors.push({ id: String(row.id), error: err?.message || "Unknown" });
         }

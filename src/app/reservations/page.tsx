@@ -179,17 +179,30 @@ function AccordionDetail({ r }: { r: Reservation }) {
               )}
             </div>
             <div className="px-5 py-4 bg-gradient-to-r from-[#80020E]/5 to-[#80020E]/[0.02] border-t border-[#80020E]/10">
-              <div className="flex justify-between items-center py-2.5">
-                <span className="text-[13px] font-bold text-[#111]">Total Payout</span>
-                <span className="text-[18px] font-bold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
-              </div>
+              {r.deficitAdjustment !== 0 ? (
+                <>
+                  <div className="flex justify-between items-center py-2.5">
+                    <span className="text-[13px] text-[#666]">Owner Payout</span>
+                    <span className="text-[14px] text-[#666] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2.5">
+                    <span className="text-[13px] text-[#8A6A2E]">Deficit Deduction</span>
+                    <span className="text-[14px] font-semibold text-[#B7484F] tabular-nums">{fmtCurrency(r.deficitAdjustment)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2.5 border-t border-[#80020E]/10">
+                    <span className="text-[13px] font-bold text-[#111]">Paid to Owner</span>
+                    <span className="text-[18px] font-bold text-[#111] tabular-nums">{fmtCurrency((r.ownerPayout || netEarnings) + r.deficitAdjustment)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between items-center py-2.5">
+                  <span className="text-[13px] font-bold text-[#111]">Total Payout</span>
+                  <span className="text-[18px] font-bold text-[#111] tabular-nums">{fmtCurrency(r.ownerPayout || netEarnings)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center py-2.5">
                 <span className="text-[11px] text-[#999]">Payout status</span>
-                {(() => {
-                  // If owner payout is negative, the payout should be on hold regardless of what Notion says
-                  const effectiveStatus = (r.ownerPayout || 0) < 0 && r.payoutStatus === "Pending" ? "On Hold" : r.payoutStatus;
-                  return <span className={statusPillClass(effectiveStatus)}>{effectiveStatus}</span>;
-                })()}
+                <span className={statusPillClass(r.payoutStatus)}>{r.payoutStatus}</span>
               </div>
               <div className="flex justify-between items-center py-2.5">
                 <span className="text-[11px] text-[#999]">Expected by</span>
@@ -453,7 +466,14 @@ function ReservationsContent() {
             cleaningFee: -(r.cleaning || 0),
             expensesTotal: -(r.expenses || 0),
             ownerPayout: r.ownerPayout || 0,
-            payoutStatus: (r.status === "Cancelled") ? "Cancelled" : (r.payoutStatus || "Pending"),
+            payoutStatus: (() => {
+              if (r.status === "Cancelled") return "Cancelled";
+              const raw = r.payoutStatus || "Pending";
+              if (raw !== "Pending") return raw;
+              if ((r.ownerPayout || 0) < 0) return "On Hold";
+              if ((r.deficitAdjustment || 0) < 0 && (r.ownerPayout || 0) + (r.deficitAdjustment || 0) <= 0) return "On Hold";
+              return raw;
+            })(),
             deficitAdjustment: r.deficitAdjustment || 0,
             deficitSource: r.deficitSource || "",
           }));
