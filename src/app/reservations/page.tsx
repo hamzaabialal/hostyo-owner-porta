@@ -31,6 +31,8 @@ interface Reservation {
   expensesTotal: number;
   ownerPayout: number;
   payoutStatus: string;
+  deficitAdjustment: number;
+  deficitSource: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -164,6 +166,16 @@ function AccordionDetail({ r }: { r: Reservation }) {
               })()}
               {(linkedExpensesTotal > 0 || r.expensesTotal !== 0) && (
                 <FinRow label="Expenses" value={fmtCurrency(-(linkedExpensesTotal || Math.abs(r.expensesTotal || 0)))} neg />
+              )}
+              {r.deficitAdjustment !== 0 && (
+                <div className="pt-2 mt-2 border-t border-dashed border-[#f0f0f0]">
+                  <FinRow label="Deficit adjustment" value={fmtCurrency(r.deficitAdjustment)} neg />
+                  {r.deficitSource && (
+                    <div className="text-[10px] text-[#8A6A2E] mt-1 ml-1 leading-relaxed italic">
+                      {r.deficitSource}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             <div className="px-5 py-4 bg-gradient-to-r from-[#80020E]/5 to-[#80020E]/[0.02] border-t border-[#80020E]/10">
@@ -442,6 +454,8 @@ function ReservationsContent() {
             expensesTotal: -(r.expenses || 0),
             ownerPayout: r.ownerPayout || 0,
             payoutStatus: (r.status === "Cancelled") ? "Cancelled" : (r.payoutStatus || "Pending"),
+            deficitAdjustment: r.deficitAdjustment || 0,
+            deficitSource: r.deficitSource || "",
           }));
           setData(mapped);
         }

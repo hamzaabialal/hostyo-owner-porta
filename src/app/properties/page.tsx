@@ -219,15 +219,15 @@ function PropertyCard({ property: p, onClick }: { property: Property; onClick: (
   const displayLocation = [p.city, p.country].filter(Boolean).join(", ") || p.address || "No address";
   return (
     <button onClick={onClick} className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden text-left transition-all hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-[#ddd] group">
-      <div className="relative h-[170px] overflow-hidden bg-[#f5f5f5] flex items-center justify-center">
+      <div className="relative aspect-[4/3] overflow-hidden bg-[#f5f5f5] flex items-center justify-center">
         {p.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={p.coverUrl} alt={p.name} className="w-full h-full object-cover transition-transform group-hover:scale-[1.02]" onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextElementSibling?.classList.remove("hidden"); }} />
         ) : null}
         <svg className={p.coverUrl ? "hidden" : ""} width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       </div>
-      <div className="p-4">
-        <div className="text-[15px] font-semibold text-[#111] mb-0.5 truncate">{p.name || "Untitled"}</div>
+      <div className="p-3.5">
+        <div className="text-[14px] font-semibold text-[#111] mb-0.5 truncate">{p.name || "Untitled"}</div>
         <div className="text-[12px] text-[#888] mb-2 truncate">{displayLocation}</div>
         <div className="flex items-center justify-between">
           <span className={statusPillClass(p.status)}>{p.status}</span>
@@ -249,7 +249,7 @@ function PropertyRow({ property: p, onClick }: { property: Property; onClick: ()
   const displayLocation = [p.city, p.country].filter(Boolean).join(", ") || p.address || "—";
   return (
     <button onClick={onClick} className="w-full flex items-center gap-4 bg-white border border-[#eaeaea] rounded-xl p-3.5 text-left transition-all hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-[#ddd] group">
-      <div className="w-[48px] h-[48px] rounded-lg bg-[#f5f5f5] flex items-center justify-center flex-shrink-0 overflow-hidden">
+      <div className="w-[56px] h-[56px] rounded-lg bg-[#f5f5f5] flex items-center justify-center flex-shrink-0 overflow-hidden">
         {p.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={p.coverUrl} alt={p.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextElementSibling?.classList.remove("hidden"); }} />
@@ -399,7 +399,7 @@ function PropertiesPageInner() {
           <div className="text-[13px] text-[#888] max-w-[340px] leading-relaxed">No properties match your current filters. Try adjusting or clearing them.</div>
         </div>
       ) : view === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((p) => (<PropertyCard key={p.id} property={p} onClick={() => openProperty(p)} />))}
         </div>
       ) : (

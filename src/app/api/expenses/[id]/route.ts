@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { invalidate } from "@/lib/cache";
-import { syncPropertyBalances } from "@/lib/sync-balances";
+import { syncPropertyBalances, syncDeficitAdjustments } from "@/lib/sync-balances";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +97,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (newProperty && !propsToSync.includes(newProperty)) propsToSync.push(newProperty);
     if (propsToSync.length > 0) {
       await syncPropertyBalances(propsToSync);
+      // Roll forward deficit adjustments for affected properties
+      await syncDeficitAdjustments(propsToSync);
     }
 
     // Sync the Expenses column on the linked reservation (if any)
@@ -129,6 +131,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     // Refresh affected property balance in Notion immediately
     if (delInfo.properties.length > 0) {
       await syncPropertyBalances(delInfo.properties);
+      // Re-run deficit adjustments for affected properties
+      await syncDeficitAdjustments(delInfo.properties);
     }
 
     // Sync the Expenses column on the linked reservation (if any)

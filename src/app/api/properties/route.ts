@@ -53,6 +53,7 @@ async function fetchProperties() {
       googleDrive: getProp(p, "Google Drive") || "",
       skipAutomation: getProp(p, "Skip Automation") || false,
       balance: getProp(p, "Balance") || 0,
+      deficitStatus: getProp(p, "Deficit Status") || "",
       propertyType: getProp(p, "Property Type") || "",
       bedrooms: getProp(p, "Bedrooms") || 0,
       bathrooms: getProp(p, "Bathrooms") || 0,
