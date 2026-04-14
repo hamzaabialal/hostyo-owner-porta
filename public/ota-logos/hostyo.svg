@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-<rect width="192" height="192" rx="38" fill="#80020E"/>
-<g fill="white">
-  <!-- Roof -->
-  <path d="M96 36 L40 84 L48 84 L48 148 C48 152 51 155 55 155 L137 155 C141 155 144 152 144 148 L144 84 L152 84 Z"/>
-  <!-- Door cutout -->
-  <rect x="78" y="108" width="36" height="47" rx="3" fill="#80020E"/>
+<rect width="192" height="192" rx="32" fill="white"/>
+<g transform="translate(96,100) scale(0.78)" fill="#80020E">
+  <!-- Hostyo house icon: thick outlined house shape, open bottom-left, rounded bottom-right -->
+  <path d="
+    M-4,-78 L-68,-18 C-73,-13 -76,-6 -76,2 L-76,52 C-76,54 -75,55 -74,55 L-46,55 C-44,55 -43,54 -43,52 L-43,2
+    C-43,-3 -40,-8 -36,-12 L-4,-40 L28,-12 C32,-8 35,-3 35,2 L35,52 C35,62 43,70 53,70 L58,70 C68,70 76,62 76,52
+    L76,2 C76,-6 73,-13 68,-18 L4,-78 C1,-81 -1,-81 -4,-78 Z
+    M-43,62 L-43,70 L-74,70 C-75,70 -76,69 -76,68 L-76,62 C-76,61 -75,60 -74,60 L-44,60 C-43,60 -43,61 -43,62 Z
+  "/>
+  <!-- Inner cutout (the window/door opening) -->
+  <path d="
+    M-4,-48 L-30,-24 C-34,-20 -36,-15 -36,-8 L-36,30 C-36,32 -35,33 -33,33 L29,33 C31,33 32,32 32,30 L32,-8
+    C32,-15 30,-20 26,-24 L0,-48 C-1,-49 -3,-49 -4,-48 Z
+  " fill="white"/>
 </g>
 </svg>
