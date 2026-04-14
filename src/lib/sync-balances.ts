@@ -19,7 +19,7 @@
  */
 import notion from "@/lib/notion";
 import { queryDatabase, getProp, DB } from "@/lib/notion";
-import { type RawReservation, type RawExpense } from "@/lib/reconcile";
+import { type RawReservation, type RawExpense, reconcileAll } from "@/lib/reconcile";
 import { invalidate } from "@/lib/cache";
 
 function normalizeKey(s: string): string {
@@ -364,5 +364,188 @@ export async function syncReservationExpenses(reservationRef: string): Promise<v
     invalidate("reservations");
   } catch (error: any) {
     console.error("syncReservationExpenses error:", error?.message || error);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+ * Deficit adjustment write-back
+ *
+ * Runs the carry-forward reconciliation, then writes two things back to Notion:
+ *   1. Per-reservation: "Deficit Adjustment" (number) and "Deficit Source" (rich_text)
+ *      so the owner payout record shows a line item for the adjustment with the
+ *      linked expense.
+ *   2. Per-property: "Deficit Status" (select) — "Active Deficit" while there's
+ *      an outstanding deficit, "Recovered" once it reaches zero.
+ *
+ * Called after expense mutations and by the daily cron.
+ * -------------------------------------------------------------------------- */
+
+export interface DeficitSyncResult {
+  ok: boolean;
+  reservationsUpdated: number;
+  propertiesUpdated: number;
+  errors: { id: string; error: string }[];
+}
+
+/**
+ * Sync deficit adjustments for ALL properties (or a specific list).
+ *
+ * When `targetProperties` is supplied, only those properties are processed.
+ * This keeps the real-time path (expense create/update/delete) fast.
+ */
+export async function syncDeficitAdjustments(
+  targetProperties?: string[]
+): Promise<DeficitSyncResult> {
+  if (!DB.properties || !DB.reservations || !DB.expenses) {
+    return { ok: false, reservationsUpdated: 0, propertiesUpdated: 0, errors: [] };
+  }
+
+  const result: DeficitSyncResult = {
+    ok: true,
+    reservationsUpdated: 0,
+    propertiesUpdated: 0,
+    errors: [],
+  };
+
+  try {
+    const [propertyPages, reservationPages, expensePages] = await Promise.all([
+      queryDatabase(DB.properties),
+      queryDatabase(DB.reservations, { property: "Deleted", checkbox: { equals: false } }),
+      queryDatabase(DB.expenses),
+    ]);
+
+    const reservations: RawReservation[] = reservationPages.map(mapReservation);
+    const expenses: RawExpense[] = expensePages.map(mapExpense);
+
+    // Build skip-automation set
+    const skipNames = new Set(
+      propertyPages
+        .filter((p: any) => getProp(p, "Skip Automation") === true)
+        .map((p: any) => normalizeKey(getProp(p, "Name") || ""))
+        .filter(Boolean)
+    );
+
+    const isSkipped = (name: string): boolean => {
+      const n = normalizeKey(name);
+      if (!n) return false;
+      for (const s of skipNames) {
+        if (s === n || s.startsWith(n) || n.startsWith(s)) return true;
+      }
+      return false;
+    };
+
+    // Filter to eligible data
+    const eligibleRes = reservations.filter((r) => !isSkipped(r.property || ""));
+    const eligibleExp = expenses.filter((e) => !isSkipped(e.property || ""));
+
+    // Run reconciliation
+    const { byProperty, finalDeficit } = reconcileAll(eligibleRes, eligibleExp);
+
+    // If we're targeting specific properties, only process those
+    const propertiesToProcess = targetProperties
+      ? Object.keys(byProperty).filter((p) =>
+          targetProperties.some((t) => isSameProperty(t, p))
+        )
+      : Object.keys(byProperty);
+
+    // 1. Write adjustment data back to each reservation
+    for (const propName of propertiesToProcess) {
+      const rows = byProperty[propName] || [];
+      for (const row of rows) {
+        // Only write to reservations that have deficit activity
+        if (row.appliedToDeficit === 0 && row.deficitAfter === 0) continue;
+
+        // Find the Notion page for this reservation
+        const resPage = reservationPages.find((p: any) => {
+          const pageId = (p as any).id;
+          return pageId === row.id;
+        });
+        if (!resPage) continue;
+
+        // Build the adjustment description from deficit sources
+        let sourceDescription = "";
+        if (row.appliedToDeficit > 0 && row.deficitSources.length > 0) {
+          const parts = row.deficitSources.map((src) => {
+            const expPart = src.expenseDescriptions.length > 0
+              ? ` (${src.expenseDescriptions.join("; ")})`
+              : "";
+            return `${src.reservationRef}: €${src.amount.toFixed(2)}${expPart}`;
+          });
+          sourceDescription = `Deficit recovery from: ${parts.join(" | ")}`;
+        } else if (row.deficitAfter > 0) {
+          sourceDescription = `Deficit of €${row.deficitAfter.toFixed(2)} carried forward to next reservation.`;
+        }
+
+        // Read current values to avoid unnecessary writes
+        const currentAdj = getProp(resPage, "Deficit Adjustment") ?? null;
+        const currentSrc = getProp(resPage, "Deficit Source") || "";
+        const newAdj = row.appliedToDeficit > 0 ? -row.appliedToDeficit : 0;
+
+        if (
+          currentAdj !== null &&
+          Math.abs(Number(currentAdj) - newAdj) < 0.005 &&
+          currentSrc === sourceDescription
+        ) {
+          continue; // No change needed
+        }
+
+        try {
+          await notion.pages.update({
+            page_id: (resPage as any).id,
+            properties: {
+              "Deficit Adjustment": { number: newAdj },
+              "Deficit Source": {
+                rich_text: [{ text: { content: sourceDescription.slice(0, 2000) } }],
+              },
+            },
+          });
+          result.reservationsUpdated++;
+        } catch (err: any) {
+          // If the properties don't exist yet in Notion, log but don't fail
+          console.error(`syncDeficitAdjustments: reservation ${row.ref}:`, err?.message || err);
+          result.errors.push({ id: String(row.id), error: err?.message || "Unknown" });
+        }
+      }
+    }
+
+    // 2. Update property Deficit Status
+    for (const propName of propertiesToProcess) {
+      const deficit = finalDeficit[propName] || 0;
+      const newStatus = deficit > 0 ? "Active Deficit" : "Recovered";
+
+      const propPage = propertyPages.find((p: any) => {
+        const name = getProp(p, "Name") || "";
+        return isSameProperty(name, propName);
+      });
+      if (!propPage) continue;
+      if (isSkipped(getProp(propPage, "Name") || "")) continue;
+
+      // Read current status to avoid unnecessary writes
+      const currentStatus = getProp(propPage, "Deficit Status") || "";
+      // Don't write "Recovered" if there was never a deficit (status is empty)
+      if (deficit === 0 && !currentStatus) continue;
+      if (currentStatus === newStatus) continue;
+
+      try {
+        await notion.pages.update({
+          page_id: (propPage as any).id,
+          properties: {
+            "Deficit Status": { select: { name: newStatus } },
+          },
+        });
+        result.propertiesUpdated++;
+      } catch (err: any) {
+        console.error(`syncDeficitAdjustments: property ${propName}:`, err?.message || err);
+        result.errors.push({ id: propName, error: err?.message || "Unknown" });
+      }
+    }
+
+    invalidate("reservations");
+    invalidate("properties");
+
+    return result;
+  } catch (error: any) {
+    console.error("syncDeficitAdjustments error:", error?.message || error);
+    return { ok: false, reservationsUpdated: 0, propertiesUpdated: 0, errors: [] };
   }
 }

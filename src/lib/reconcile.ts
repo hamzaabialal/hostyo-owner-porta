@@ -49,6 +49,15 @@ export interface RawExpense {
   description?: string;
 }
 
+/** Tracks the origin of a deficit — which reservation produced it and which expenses drove it negative. */
+export interface DeficitSource {
+  reservationRef: string;       // Reservation Code of the row that went negative
+  reservationId: string | number; // Notion page id
+  amount: number;               // How much deficit this reservation contributed
+  expenseIds: string[];         // Expense page IDs linked to that reservation
+  expenseDescriptions: string[]; // Human-readable labels for each linked expense
+}
+
 export interface ReconciledReservation {
   // Echo of the source row
   id: number | string;
@@ -81,6 +90,10 @@ export interface ReconciledReservation {
   appliedToDeficit: number;    // how much of the net went toward clearing deficit
   paidToOwner: number;         // how much is released to the owner (0 if on hold)
   deficitAfter: number;        // carry-forward deficit leaving this row
+
+  // Deficit source tracking — which reservations/expenses created the deficit
+  // being applied to this row (only populated when appliedToDeficit > 0)
+  deficitSources: DeficitSource[];
 
   // Computed state
   isOnHold: boolean;
@@ -164,6 +177,8 @@ export function reconcileProperty(
     .sort((a, b) => compareDate(a.checkout, b.checkout));
 
   let carryDeficit = 0;
+  // Track the chain of deficit sources so we can attribute adjustments
+  let carryDeficitSources: DeficitSource[] = [];
   const results: ReconciledReservation[] = [];
 
   // The carry-forward walk uses ONLY Notion's Owner Payout values. Notion already
@@ -193,12 +208,17 @@ export function reconcileProperty(
     let deficitAfter = 0;
     let isOnHold = false;
     let holdReason = "";
+    let deficitSources: DeficitSource[] = [];
 
     if (netPayout >= 0) {
       // Owner is paid; deficit is cleared
       paidToOwner = netPayout;
       appliedToDeficit = deficitBefore;
       deficitAfter = 0;
+      // Snapshot the sources that were cleared by this reservation
+      deficitSources = deficitBefore > 0 ? [...carryDeficitSources] : [];
+      // Deficit fully cleared — reset the carry chain
+      carryDeficitSources = [];
     } else {
       // Reservation cannot cover its own expenses + existing deficit
       paidToOwner = 0;
@@ -208,6 +228,25 @@ export function reconcileProperty(
       appliedToDeficit = Math.min(deficitBefore, availableAfterOwnExpenses);
       deficitAfter = -netPayout; // magnitude of the new deficit
       isOnHold = true;
+
+      // Snapshot deficit sources inherited from prior rows
+      deficitSources = deficitBefore > 0 ? [...carryDeficitSources] : [];
+
+      // If THIS reservation itself produced a negative payout, it becomes a new deficit source.
+      if (ownerPayoutRaw < 0) {
+        carryDeficitSources = [
+          ...carryDeficitSources,
+          {
+            reservationRef: r.ref || "",
+            reservationId: r.id,
+            amount: Math.abs(ownerPayoutRaw),
+            expenseIds: linkedRows.map((e) => e.id),
+            expenseDescriptions: linkedRows.map((e) =>
+              [e.category, e.vendor, e.amount ? `€${e.amount.toFixed(2)}` : ""].filter(Boolean).join(" · ")
+            ),
+          },
+        ];
+      }
 
       // Build a human-readable hold reason that distinguishes the three causes:
       //   (a) reservation itself produced a negative owner payout,
@@ -257,6 +296,8 @@ export function reconcileProperty(
       appliedToDeficit,
       paidToOwner,
       deficitAfter,
+
+      deficitSources,
 
       isOnHold,
       holdReason,

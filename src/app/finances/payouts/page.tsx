@@ -82,6 +82,8 @@ export default function PayoutsPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [dismissedBanners, setDismissedBanners] = useState<Record<string, boolean>>({});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [properties, setProperties] = useState<any[]>([]);
 
   const handleSyncBalances = async () => {
     if (syncing) return;
@@ -187,6 +189,9 @@ export default function PayoutsPage() {
         setData(mapped);
       }
 
+      // Store properties for deficit status display
+      setProperties(allProperties);
+
       // Auto-sync all property balances to Notion in the background
       fetch("/api/properties/sync-balances", { method: "POST" }).catch(() => {});
     }).catch(console.error)
@@ -249,6 +254,37 @@ export default function PayoutsPage() {
     return s.includes("error") || s.includes("fail");
   }), [filtered]);
   const onHoldPayouts = useMemo(() => filtered.filter((r: PayoutRow) => r.payoutStatus.toLowerCase().includes("hold")), [filtered]);
+
+  // Per-property deficit recovery tracker (admin-side)
+  // Combines the reconciliation data with the Notion "Deficit Status" field
+  const deficitTracker = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const propStatusMap = new Map<string, string>();
+    for (const p of properties) {
+      const name = ((p as any).name || "").trim().toLowerCase();
+      if (name) propStatusMap.set(name, (p as any).deficitStatus || "");
+    }
+
+    // Group by property — get last deficit value per property
+    const byProp: Record<string, { deficit: number; applied: number; status: string }> = {};
+    for (const r of data) {
+      const key = (r.property || "").trim();
+      if (!key) continue;
+      const keyLower = key.toLowerCase();
+      if (!byProp[key]) {
+        byProp[key] = { deficit: 0, applied: 0, status: propStatusMap.get(keyLower) || "" };
+      }
+      byProp[key].applied += r.appliedToDeficit;
+      // Use the last (most recent) deficitAfter as the current deficit
+      if (r.deficitAfter > 0) {
+        byProp[key].deficit = Math.max(byProp[key].deficit, r.deficitAfter);
+      }
+    }
+
+    return Object.entries(byProp)
+      .filter(([, v]) => v.deficit > 0 || v.applied > 0 || v.status === "Recovered")
+      .sort(([, a], [, b]) => b.deficit - a.deficit);
+  }, [data, properties]);
 
   // Aggregated reconciliation totals across all visible rows
   const totalAppliedToDeficit = useMemo(
@@ -395,6 +431,49 @@ export default function PayoutsPage() {
           <div className="text-[10px] text-[#999]">19%</div>
         </div>
       </div>
+
+      {/* Deficit Recovery Tracker (admin) */}
+      {deficitTracker.length > 0 && (
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-4 mb-5">
+          <div className="flex items-center gap-2 mb-3">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+              <path d="M12 6v6l4 2"/>
+            </svg>
+            <span className="text-[13px] font-semibold text-[#111]">Deficit Recovery Tracker</span>
+          </div>
+          <div className="space-y-2">
+            {deficitTracker.map(([propName, info]: [string, { deficit: number; applied: number; status: string }]) => {
+              const isActive = info.deficit > 0;
+              const isRecovered = !isActive && (info.status === "Recovered" || info.applied > 0);
+              return (
+                <div key={propName} className={`flex items-center justify-between px-3 py-2.5 rounded-lg border ${isActive ? "bg-[#FBF1E2]/50 border-[#E8DDC7]" : "bg-[#E8F5E9]/50 border-[#C8E6C9]"}`}>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? "bg-[#D4A843]" : "bg-[#4CAF50]"}`} />
+                    <span className="text-[12px] font-medium text-[#333] truncate">{propName}</span>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {info.applied > 0 && (
+                      <span className="text-[11px] text-[#666]">
+                        {fmtCurrency(info.applied)} recovered
+                      </span>
+                    )}
+                    {isActive ? (
+                      <span className="text-[11px] font-semibold text-[#B7484F] bg-[#F6EDED] px-2 py-0.5 rounded-full">
+                        {fmtCurrency(info.deficit)} outstanding
+                      </span>
+                    ) : isRecovered ? (
+                      <span className="text-[11px] font-semibold text-[#2F6B57] bg-[#E8F5E9] px-2 py-0.5 rounded-full">
+                        Payouts Resumed
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">

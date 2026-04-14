@@ -13,13 +13,19 @@
  * cron runs.
  */
 import { NextResponse } from "next/server";
-import { syncAllPropertyBalances } from "@/lib/sync-balances";
+import { syncAllPropertyBalances, syncDeficitAdjustments } from "@/lib/sync-balances";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const result = await syncAllPropertyBalances();
-  return NextResponse.json(result, { status: result.ok ? 200 : 500 });
+  const [balanceResult, deficitResult] = await Promise.all([
+    syncAllPropertyBalances(),
+    syncDeficitAdjustments(),
+  ]);
+  return NextResponse.json(
+    { ...balanceResult, deficit: deficitResult },
+    { status: balanceResult.ok ? 200 : 500 }
+  );
 }
 
 export async function GET(req: Request) {
@@ -28,6 +34,12 @@ export async function GET(req: Request) {
   if (!process.env.CRON_SECRET || auth !== expected) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
-  const result = await syncAllPropertyBalances();
-  return NextResponse.json(result, { status: result.ok ? 200 : 500 });
+  const [balanceResult, deficitResult] = await Promise.all([
+    syncAllPropertyBalances(),
+    syncDeficitAdjustments(),
+  ]);
+  return NextResponse.json(
+    { ...balanceResult, deficit: deficitResult },
+    { status: balanceResult.ok ? 200 : 500 }
+  );
 }

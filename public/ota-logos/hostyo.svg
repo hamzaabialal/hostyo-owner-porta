@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+<rect width="192" height="192" rx="38" fill="#80020E"/>
+<g fill="white">
+  <!-- Roof -->
+  <path d="M96 36 L40 84 L48 84 L48 148 C48 152 51 155 55 155 L137 155 C141 155 144 152 144 148 L144 84 L152 84 Z"/>
+  <!-- Door cutout -->
+  <rect x="78" y="108" width="36" height="47" rx="3" fill="#80020E"/>
+</g>
+</svg>

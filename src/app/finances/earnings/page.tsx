@@ -36,6 +36,8 @@ interface EarningRow {
   payoutStatus: string;
   payoutDate: string;
   checkoutDate: string;
+  deficitAdjustment: number;
+  deficitSource: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -158,6 +160,16 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
             {row.hostyoFee !== 0 && <InfoItem label="Management fee" value={fmtCurrency(row.hostyoFee)} />}
             {row.vat !== 0 && <InfoItem label="VAT 19%" value={fmtCurrency(row.vat)} />}
             {expensesAmount > 0 && <InfoItem label="Expenses" value={fmtCurrency(-expensesAmount)} />}
+            {row.deficitAdjustment !== 0 && (
+              <>
+                <InfoItem label="Deficit adjustment" value={fmtCurrency(row.deficitAdjustment)} />
+                {row.deficitSource && (
+                  <div className="text-[10px] text-[#8A6A2E] py-1.5 leading-relaxed italic border-b border-[#f3f3f3]">
+                    {row.deficitSource}
+                  </div>
+                )}
+              </>
+            )}
           </div>
           <div>
             <div className="text-[13px] font-semibold text-[#999] uppercase tracking-wide mb-3">Payout</div>
@@ -211,9 +223,11 @@ export default function FinancesEarningsPage() {
             cleaning: -(r.cleaning || 0),
             expenses: -(r.expenses || 0),
             net: r.ownerPayout || 0,
-            payoutStatus: r.payoutStatus || "Pending",
+            payoutStatus: (r.ownerPayout || 0) < 0 && (r.payoutStatus || "Pending") === "Pending" ? "On Hold" : (r.payoutStatus || "Pending"),
             payoutDate: r.checkout || "",
             checkoutDate: (r.checkout || "").split("T")[0],
+            deficitAdjustment: r.deficitAdjustment || 0,
+            deficitSource: r.deficitSource || "",
           }));
           setData(mapped);
         }

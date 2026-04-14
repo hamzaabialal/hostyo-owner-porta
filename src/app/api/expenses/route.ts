@@ -105,8 +105,11 @@ export async function POST(req: Request) {
 
     // Refresh the affected property's Balance in Notion immediately
     if (property) {
-      const { syncPropertyBalances } = await import("@/lib/sync-balances");
+      const { syncPropertyBalances, syncDeficitAdjustments } = await import("@/lib/sync-balances");
       await syncPropertyBalances([property]);
+      // Roll forward deficit adjustments so the reservation records reflect
+      // the adjustment immediately after expense creation.
+      await syncDeficitAdjustments([property]);
     }
 
     // If expense is linked to a reservation, sync the Expenses column on that reservation
