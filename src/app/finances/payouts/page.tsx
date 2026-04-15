@@ -432,45 +432,13 @@ export default function PayoutsPage() {
         </div>
       </div>
 
-      {/* Deficit Recovery Tracker (admin) */}
-      {deficitTracker.length > 0 && (
-        <div className="bg-white border border-[#eaeaea] rounded-xl p-4 mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-              <path d="M12 6v6l4 2"/>
-            </svg>
-            <span className="text-[13px] font-semibold text-[#111]">Deficit Recovery Tracker</span>
-          </div>
-          <div className="space-y-2">
-            {deficitTracker.map(([propName, info]: [string, { deficit: number; applied: number; status: string }]) => {
-              const isActive = info.deficit > 0;
-              const isRecovered = !isActive && (info.status === "Recovered" || info.applied > 0);
-              return (
-                <div key={propName} className={`flex items-center justify-between px-3 py-2.5 rounded-lg border ${isActive ? "bg-[#FBF1E2]/50 border-[#E8DDC7]" : "bg-[#E8F5E9]/50 border-[#C8E6C9]"}`}>
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? "bg-[#D4A843]" : "bg-[#4CAF50]"}`} />
-                    <span className="text-[12px] font-medium text-[#333] truncate">{propName}</span>
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    {info.applied > 0 && (
-                      <span className="text-[11px] text-[#666]">
-                        {fmtCurrency(info.applied)} recovered
-                      </span>
-                    )}
-                    {isActive ? (
-                      <span className="text-[11px] font-semibold text-[#B7484F] bg-[#F6EDED] px-2 py-0.5 rounded-full">
-                        {fmtCurrency(info.deficit)} outstanding
-                      </span>
-                    ) : isRecovered ? (
-                      <span className="text-[11px] font-semibold text-[#2F6B57] bg-[#E8F5E9] px-2 py-0.5 rounded-full">
-                        Payouts Resumed
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
+      {/* Negative Balances — shown as a summary card like the ones above */}
+      {totalDeficitOutstanding > 0 && (
+        <div className="grid grid-cols-1 gap-2 mb-5">
+          <div className="bg-white border border-[#eaeaea] rounded-xl p-3">
+            <div className="text-[9px] font-semibold text-[#999] uppercase tracking-wider mb-1">Negative Balances</div>
+            <div className="text-[18px] font-bold text-[#B7484F]">-{fmtCurrency(totalDeficitOutstanding)}</div>
+            <div className="text-[10px] text-[#999]">{deficitTracker.filter(([, v]: [string, { deficit: number }]) => v.deficit > 0).length} {deficitTracker.filter(([, v]: [string, { deficit: number }]) => v.deficit > 0).length === 1 ? "property" : "properties"}</div>
           </div>
         </div>
       )}
