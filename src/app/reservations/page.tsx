@@ -94,42 +94,40 @@ function AccordionDetail({ r }: { r: Reservation }) {
           const linked = all.filter((e: any) => e.reservation && r.ref && e.reservation.includes(r.ref.slice(0, 10)));
           setLinkedExpenses(linked);
 
-          // Build tooltip: find the expenses that caused the deficit.
-          if (r.deficitAdjustment !== 0) {
+          // Build tooltip: find ALL expenses that caused the deficit.
+          if (r.deficitAdjustment !== 0 && r.property) {
+            const seen = new Set<string>();
             const entries: { name: string; amount: number }[] = [];
 
-            // Try reservation-ref lookup first
+            // 1. Expenses linked to deficit-causing reservations (by ref)
             if (r.deficitSource) {
               const src = r.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
               const refMatches = src.match(/\d-\d{9,}/g) || [];
               for (const ref of refMatches) {
                 const refKey = ref.slice(0, 10).toLowerCase();
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const matched = all.filter((e: any) =>
-                  e.reservation && e.reservation.toLowerCase().includes(refKey)
-                );
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                for (const e of matched) {
-                  entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
+                for (const e of all) {
+                  if (e.reservation && e.reservation.toLowerCase().includes(refKey) && !seen.has(e.id)) {
+                    seen.add(e.id);
+                    entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
+                  }
                 }
               }
             }
 
-            // Fallback: property-level expenses
-            if (entries.length === 0 && r.property) {
-              const propLower = r.property.toLowerCase();
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const propExpenses = all.filter((e: any) => {
-                if (!e.property) return false;
-                const eProp = e.property.toLowerCase();
-                if (!(eProp === propLower || eProp.startsWith(propLower) || propLower.startsWith(eProp))) return false;
-                const status = (e.status || "").toLowerCase();
-                if (status !== "paid" && status !== "approved") return false;
-                if (e.reservation && r.ref && e.reservation.includes(r.ref.slice(0, 10))) return false;
-                return true;
-              });
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              for (const e of propExpenses) {
+            // 2. Property-level expenses (no reservation link) — always check
+            const propLower = r.property.toLowerCase();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const e of all) {
+              if (seen.has(e.id)) continue;
+              if (!e.property) continue;
+              const eProp = e.property.toLowerCase();
+              if (!(eProp === propLower || eProp.startsWith(propLower) || propLower.startsWith(eProp))) continue;
+              const status = (e.status || "").toLowerCase();
+              if (status !== "paid" && status !== "approved") continue;
+              if (e.reservation && r.ref && e.reservation.includes(r.ref.slice(0, 10))) continue;
+              if (!e.reservation || e.reservation.trim() === "") {
+                seen.add(e.id);
                 entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
               }
             }

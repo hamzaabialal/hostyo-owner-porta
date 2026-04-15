@@ -119,46 +119,43 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
         const total = linked.reduce((s: number, e: any) => s + (e.amount || 0), 0);
         setLinkedExpensesTotal(total);
 
-        // Build tooltip: find the expenses that caused the deficit.
-        // First try matching by reservation refs in the deficit source.
-        // If none found (property-level expenses), find all paid/approved
-        // expenses for the same property that aren't linked to this reservation.
-        if (row.deficitAdjustment !== 0) {
+        // Build tooltip: find ALL expenses that caused the deficit.
+        // Search both reservation-linked AND property-level expenses, dedup by id.
+        if (row.deficitAdjustment !== 0 && row.property) {
+          const seen = new Set<string>();
           const entries: { name: string; amount: number }[] = [];
 
-          // Try reservation-ref lookup first
+          // 1. Expenses linked to the deficit-causing reservations (by ref)
           if (row.deficitSource) {
             const src = row.deficitSource.replace(/^Deficit recovery from:\s*/i, "");
             const refMatches = src.match(/\d-\d{9,}/g) || [];
             for (const ref of refMatches) {
               const refKey = ref.slice(0, 10).toLowerCase();
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const matched = all.filter((e: any) =>
-                e.reservation && e.reservation.toLowerCase().includes(refKey)
-              );
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              for (const e of matched) {
-                entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
+              for (const e of all) {
+                if (e.reservation && e.reservation.toLowerCase().includes(refKey) && !seen.has(e.id)) {
+                  seen.add(e.id);
+                  entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
+                }
               }
             }
           }
 
-          // Fallback: if no expenses found by ref, find property-level expenses
-          if (entries.length === 0 && row.property) {
-            const propLower = row.property.toLowerCase();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const propExpenses = all.filter((e: any) => {
-              if (!e.property) return false;
-              const eProp = e.property.toLowerCase();
-              if (!(eProp === propLower || eProp.startsWith(propLower) || propLower.startsWith(eProp))) return false;
-              const status = (e.status || "").toLowerCase();
-              if (status !== "paid" && status !== "approved") return false;
-              // Exclude expenses linked to THIS reservation
-              if (e.reservation && row.ref && e.reservation.includes(row.ref.slice(0, 10))) return false;
-              return true;
-            });
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            for (const e of propExpenses) {
+          // 2. Property-level expenses (no reservation link) — always check
+          const propLower = row.property.toLowerCase();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const e of all) {
+            if (seen.has(e.id)) continue;
+            if (!e.property) continue;
+            const eProp = e.property.toLowerCase();
+            if (!(eProp === propLower || eProp.startsWith(propLower) || propLower.startsWith(eProp))) continue;
+            const status = (e.status || "").toLowerCase();
+            if (status !== "paid" && status !== "approved") continue;
+            // Exclude expenses linked to THIS reservation
+            if (e.reservation && row.ref && e.reservation.includes(row.ref.slice(0, 10))) continue;
+            // Only include property-level (no reservation) or linked to deficit-causing reservations
+            if (!e.reservation || e.reservation.trim() === "") {
+              seen.add(e.id);
               entries.push({ name: e.vendor || e.category || "Expense", amount: e.amount || 0 });
             }
           }
@@ -359,7 +356,17 @@ export default function FinancesEarningsPage() {
   }, [data]);
 
   const payoutStatusOptions = useMemo(() => {
-    const statuses = Array.from(new Set(data.map((r) => r.payoutStatus))).filter(Boolean).sort();
+    // Normalize casing so "On Hold" and "On hold" collapse into one option
+    const normalize = (s: string): string => {
+      const l = s.toLowerCase().trim();
+      if (l === "on hold") return "On Hold";
+      if (l === "pending") return "Pending";
+      if (l === "paid" || l === "withdrawn") return "Paid";
+      if (l.includes("error") || l.includes("fail")) return "Errored";
+      if (l === "cancelled") return "Cancelled";
+      return s;
+    };
+    const statuses = Array.from(new Set(data.map((r) => normalize(r.payoutStatus)))).filter(Boolean).sort();
     return statuses.map((s) => ({ value: s, label: s }));
   }, [data]);
 
@@ -375,7 +382,7 @@ export default function FinancesEarningsPage() {
     const q = search.toLowerCase().trim();
     return data.filter((r) => {
       if (filterProperty && r.property !== filterProperty) return false;
-      if (filterPayoutStatus && r.payoutStatus !== filterPayoutStatus) return false;
+      if (filterPayoutStatus && r.payoutStatus.toLowerCase() !== filterPayoutStatus.toLowerCase()) return false;
       if (filterChannel && r.channel !== filterChannel) return false;
       if (dateFrom && r.date < dateFrom) return false;
       if (dateTo && r.date > dateTo) return false;

@@ -511,6 +511,17 @@ export async function syncDeficitAdjustments(
             "Adjusted Payout": { number: adjustedPayout },
           };
 
+          // Write the adjusted amount directly to Owner Payout so the payout
+          // automation picks up the correct value. Only update if there's actually
+          // a deficit adjustment (don't overwrite normal reservations).
+          if (newAdj !== 0 || row.isOnHold) {
+            const ownerPayoutProp = (resPage as any).properties?.["Owner Payout"];
+            // Only write if it's a number field (not a formula — formulas can't be written)
+            if (ownerPayoutProp?.type === "number") {
+              updateProps["Owner Payout"] = { number: adjustedPayout };
+            }
+          }
+
           // Update Payout Status to "On Hold" for deficit-held reservations.
           // The field can be either a "select" or "status" type in Notion — try both.
           if (newPayoutStatus && currentPayoutStatus !== newPayoutStatus) {
@@ -527,10 +538,39 @@ export async function syncDeficitAdjustments(
             properties: updateProps,
           });
           result.reservationsUpdated++;
-        } catch (err: any) {
-          // If a field doesn't exist yet in Notion, log but don't fail the whole sync
-          console.error(`syncDeficitAdjustments: reservation ${row.ref}:`, err?.message || err);
-          result.errors.push({ id: String(row.id), error: err?.message || "Unknown" });
+        } catch (firstErr: any) {
+          // If Owner Payout is a formula field, retry without it
+          if (firstErr?.message?.includes("Owner Payout") || firstErr?.message?.includes("formula")) {
+            try {
+              const retryProps: Record<string, any> = {
+                "Deficit Adjustment": { number: newAdj },
+                "Deficit Source": {
+                  rich_text: [{ text: { content: sourceDescription.slice(0, 2000) } }],
+                },
+                "Adjusted Payout": { number: adjustedPayout },
+              };
+              if (newPayoutStatus && currentPayoutStatus !== newPayoutStatus) {
+                const payoutStatusProp = (resPage as any).properties?.["Payout Status"];
+                if (payoutStatusProp?.type === "status") {
+                  retryProps["Payout Status"] = { status: { name: newPayoutStatus } };
+                } else {
+                  retryProps["Payout Status"] = { select: { name: newPayoutStatus } };
+                }
+              }
+              await notion.pages.update({
+                page_id: (resPage as any).id,
+                properties: retryProps,
+              });
+              result.reservationsUpdated++;
+              console.log(`syncDeficitAdjustments: Owner Payout is a formula for ${row.ref}, wrote to Adjusted Payout instead`);
+            } catch (retryErr: any) {
+              console.error(`syncDeficitAdjustments: reservation ${row.ref}:`, retryErr?.message || retryErr);
+              result.errors.push({ id: String(row.id), error: retryErr?.message || "Unknown" });
+            }
+          } else {
+            console.error(`syncDeficitAdjustments: reservation ${row.ref}:`, firstErr?.message || firstErr);
+            result.errors.push({ id: String(row.id), error: firstErr?.message || "Unknown" });
+          }
         }
       }
     }
