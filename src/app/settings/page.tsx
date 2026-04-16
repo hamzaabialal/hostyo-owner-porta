@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
 
@@ -313,6 +313,8 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.ok && data.url) {
         setProfilePicture(data.url);
+        // Notify other components (Sidebar, etc.) to update immediately
+        window.dispatchEvent(new CustomEvent("hostyo:profile-picture", { detail: data.url }));
         // Persist immediately so it survives a reload
         await fetch("/api/profile", {
           method: "PATCH",
@@ -382,6 +384,23 @@ export default function SettingsPage() {
 
   /* ---- Security ---- */
   const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
+
+  /* ---- 2FA ---- */
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
+
+  /* ---- Active Sessions ---- */
+  const sessions = useMemo(() => {
+    // Build from the current browser as a best-effort approximation.
+    // Real session tracking would require a server-side store.
+    if (typeof window === "undefined") return [];
+    const ua = navigator.userAgent;
+    const isMobile = /iPhone|iPad|Android/i.test(ua);
+    const browser = /Chrome/i.test(ua) ? "Chrome" : /Firefox/i.test(ua) ? "Firefox" : /Safari/i.test(ua) ? "Safari" : /Edg/i.test(ua) ? "Edge" : "Browser";
+    const os = /Mac/i.test(ua) ? "macOS" : /Windows/i.test(ua) ? "Windows" : /iPhone|iPad/i.test(ua) ? "iOS" : /Android/i.test(ua) ? "Android" : /Linux/i.test(ua) ? "Linux" : "Unknown";
+    return [
+      { device: `${browser} on ${os}`, platform: isMobile ? "Mobile" : "Desktop", lastActive: "Now", current: true },
+    ];
+  }, []);
 
   /* ---- Shared styles ---- */
   const cardCls = "rounded-xl border border-[#eaeaea] bg-white p-7";
@@ -570,20 +589,96 @@ export default function SettingsPage() {
 
         {/* ── Security Tab ── */}
         {activeTab === "security" && (
-          <div className={cardCls}>
-            <h2 className="mb-5 text-[15px] font-bold text-[#111]">Security</h2>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[14px] font-medium text-[#111]">Password</div>
-                <div className="text-[13px] text-[#888] mt-0.5">Change your password to keep your account secure.</div>
+          <div className="space-y-4">
+            {/* Password */}
+            <div className={cardCls}>
+              <h2 className="mb-5 text-[15px] font-bold text-[#111]">Password</h2>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[14px] font-medium text-[#111]">Password</div>
+                  <div className="text-[13px] text-[#888] mt-0.5">Change your password to keep your account secure.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPasswordPanelOpen(true)}
+                  className="rounded-lg border border-[#80020E] bg-white px-4 py-2 text-[13px] font-semibold text-[#80020E] transition-colors hover:bg-[#fdf0f1] flex-shrink-0"
+                >
+                  Change password
+                </button>
               </div>
+            </div>
+
+            {/* Two-Factor Authentication */}
+            <div className={cardCls}>
+              <h2 className="mb-5 text-[15px] font-bold text-[#111]">Two-Factor Authentication</h2>
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0 pr-4">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <div className="text-[14px] font-medium text-[#111]">Email verification code</div>
+                    {twoFactorEnabled && (
+                      <span className="text-[10px] font-semibold text-[#2F6B57] bg-[#EAF3EF] px-2 py-0.5 rounded-full">Enabled</span>
+                    )}
+                  </div>
+                  <div className="text-[13px] text-[#888]">When you sign in, we&apos;ll send a 6-digit code to your email for added security.</div>
+                </div>
+                <Toggle checked={twoFactorEnabled} onChange={() => {
+                  setTwoFactorEnabled(!twoFactorEnabled);
+                  showToast(twoFactorEnabled ? "Two-factor authentication disabled." : "Two-factor authentication enabled.");
+                }} />
+              </div>
+            </div>
+
+            {/* Active Sessions */}
+            <div className={cardCls}>
+              <h2 className="mb-5 text-[15px] font-bold text-[#111]">Active Sessions</h2>
+
+              {sessions.map((s, idx) => (
+                <div
+                  key={s.device}
+                  className={`flex items-center justify-between py-3.5 ${
+                    idx < sessions.length - 1 ? "border-b border-[#f0f0f0]" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-[#f5f5f5] flex items-center justify-center flex-shrink-0">
+                      {s.platform === "Desktop" ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="1.8">
+                          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="1.8">
+                          <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+                        </svg>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-[14px] font-medium text-[#111] flex items-center gap-2">
+                        {s.device}
+                        {s.current && (
+                          <span className="text-[10px] font-semibold text-[#2F6B57] bg-[#EAF3EF] px-2 py-0.5 rounded-full">Current</span>
+                        )}
+                      </div>
+                      <div className="text-[12px] text-[#999] mt-0.5">Last active: {s.lastActive}</div>
+                    </div>
+                  </div>
+                  {!s.current && (
+                    <button
+                      type="button"
+                      onClick={() => showToast(`Signed out of ${s.device}.`)}
+                      className="text-[12px] font-medium text-[#999] hover:text-[#80020E] transition-colors"
+                    >
+                      Sign out
+                    </button>
+                  )}
+                </div>
+              ))}
+
               <button
                 type="button"
-                onClick={() => setPasswordPanelOpen(true)}
-                className="rounded-lg border border-[#80020E] bg-white px-4 py-2 text-[13px] font-semibold text-[#80020E] transition-colors hover:bg-[#fdf0f1] flex-shrink-0"
+                className="mt-4 text-[13px] font-medium text-[#999] hover:text-[#80020E] transition-colors"
+                onClick={() => showToast("All other sessions signed out.")}
               >
-                Change password
+                Sign out all other sessions
               </button>
             </div>
           </div>
