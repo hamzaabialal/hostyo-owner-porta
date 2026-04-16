@@ -297,15 +297,39 @@ export default function SettingsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, profileFetched]);
 
-  const handleProfilePicture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+
+  const handleProfilePicture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { showToast("Image must be under 2MB."); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") setProfilePicture(reader.result);
-    };
-    reader.readAsDataURL(file);
+    if (file.size > 5 * 1024 * 1024) { showToast("Image must be under 5MB."); return; }
+    if (!file.type.startsWith("image/")) { showToast("Only image files are allowed."); return; }
+
+    setUploadingPicture(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/profile/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.ok && data.url) {
+        setProfilePicture(data.url);
+        // Persist immediately so it survives a reload
+        await fetch("/api/profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, profilePicture: data.url }),
+        });
+        showToast("Profile picture updated.");
+      } else {
+        showToast(data.error || "Upload failed.");
+      }
+    } catch {
+      showToast("Network error. Please try again.");
+    } finally {
+      setUploadingPicture(false);
+      // Clear the file input so the same file can be re-selected
+      if (e.target) e.target.value = "";
+    }
   };
 
   const saveProfile = async () => {
@@ -416,14 +440,19 @@ export default function SettingsPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-colors cursor-pointer"
+                  onClick={() => !uploadingPicture && fileInputRef.current?.click()}
+                  disabled={uploadingPicture}
+                  className={`absolute inset-0 rounded-full flex items-center justify-center transition-colors cursor-pointer ${uploadingPicture ? "bg-black/50" : "bg-black/0 group-hover:bg-black/40"}`}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
-                  </svg>
+                  {uploadingPicture ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                      <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                  )}
                 </button>
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleProfilePicture} className="hidden" />
               </div>

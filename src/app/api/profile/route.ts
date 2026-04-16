@@ -23,6 +23,7 @@ function getProp(page: any, name: string): any {
     case "email": return p.email || "";
     case "phone_number": return p.phone_number || "";
     case "checkbox": return p.checkbox ?? false;
+    case "url": return p.url || "";
     default: return null;
   }
 }
@@ -80,6 +81,7 @@ export async function GET(req: NextRequest) {
         payoutMethod: getProp(page, "Payout Method") || "Bank Transfer",
         legalName: getProp(page, "Legal Name") || "",
         billingAddress: getProp(page, "Billing Address") || "",
+        profilePicture: getProp(page, "Profile Picture") || "",
       },
     });
   } catch (error: any) {
@@ -144,6 +146,10 @@ export async function PATCH(req: NextRequest) {
     }
     if (body.billingAddress !== undefined) {
       properties["Billing Address"] = { rich_text: [{ text: { content: body.billingAddress.trim() } }] };
+    }
+    if (body.profilePicture !== undefined) {
+      // Profile Picture is a URL field in Notion (e.g. Vercel Blob URL)
+      properties["Profile Picture"] = { url: body.profilePicture || null };
     }
 
     // Password change
