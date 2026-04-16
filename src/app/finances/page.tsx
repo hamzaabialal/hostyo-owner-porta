@@ -241,20 +241,19 @@ export default function FinancesOverviewPage() {
 
   // Filter reservations to only live properties where automation is not skipped
   const skipNames = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return properties
-      .filter((p: any) => p.skipAutomation === true)
-      .map((p: any) => ((p.name || "") as string).trim().toLowerCase())
+      .filter((p: Record<string, unknown>) => p.skipAutomation === true)
+      .map((p: Record<string, unknown>) => ((p.name || "") as string).trim().toLowerCase())
       .filter(Boolean);
   }, [properties]);
 
-  const isLive = (propName: string): boolean => {
-    const n = (propName || "").trim().toLowerCase();
-    if (!n) return true;
-    return !skipNames.some((s: string) => s === n || s.startsWith(n) || n.startsWith(s));
-  };
-
-  const liveReservations = useMemo(() => reservations.filter((r) => isLive(r.property)), [reservations, skipNames]);
+  const liveReservations = useMemo(() => {
+    return reservations.filter((r) => {
+      const n = (r.property || "").trim().toLowerCase();
+      if (!n) return true;
+      return !skipNames.some((s: string) => s === n || s.startsWith(n) || n.startsWith(s));
+    });
+  }, [reservations, skipNames]);
 
   // Current Balance — real-time total across all live properties
   const ownerBalance = useMemo(() =>
@@ -308,8 +307,8 @@ export default function FinancesOverviewPage() {
 
   // YTD fees (Nov previous year to current month)
   const ytdStart = `${now.getFullYear() - 1}-11`;
-  const feesYTD = useMemo(() => liveReservations.filter((r) => { const co = (r.checkout || ""); return co >= ytdStart && co <= thisMonth + "-31"; }).reduce((s, r) => s + (r.managementFee || 0), 0), [reservations, ytdStart, thisMonth]);
-  const ytdBookings = useMemo(() => liveReservations.filter((r) => { const co = (r.checkout || ""); return co >= ytdStart && co <= thisMonth + "-31" && r.status !== "Cancelled"; }).length, [reservations, ytdStart, thisMonth]);
+  const feesYTD = useMemo(() => liveReservations.filter((r) => { const co = (r.checkout || ""); return co >= ytdStart && co <= thisMonth + "-31"; }).reduce((s, r) => s + (r.managementFee || 0), 0), [liveReservations, ytdStart, thisMonth]);
+  const ytdBookings = useMemo(() => liveReservations.filter((r) => { const co = (r.checkout || ""); return co >= ytdStart && co <= thisMonth + "-31" && r.status !== "Cancelled"; }).length, [liveReservations, ytdStart, thisMonth]);
   const avgPerBooking = ytdBookings > 0 ? feesYTD / ytdBookings : 0;
   const avgPerProperty = activeProperties > 0 ? feesYTD / activeProperties : 0;
 

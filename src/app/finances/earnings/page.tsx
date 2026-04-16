@@ -164,7 +164,8 @@ function EarningDrawer({ row, onClose }: { row: EarningRow; onClose: () => void 
         }
       })
       .catch(() => {});
-  }, [row.ref, row.deficitSource]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.ref, row.deficitSource, row.deficitAdjustment, row.property]);
 
   const expensesAmount = linkedExpensesTotal > 0 ? linkedExpensesTotal : Math.abs(row.expenses || 0);
   const adjustedPayout = row.adjustedPayout > 0 ? row.adjustedPayout : (row.deficitAdjustment !== 0 ? row.net + row.deficitAdjustment : row.net);
