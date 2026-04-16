@@ -197,9 +197,14 @@ export default function TicketsPage() {
                             {/* Footer: avatar + time */}
                             <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#f3f3f3]">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0">
-                                  {initialsOf(t.submittedBy)}
-                                </div>
+                                {t.submittedImage ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={t.submittedImage} alt={t.submittedBy} className="w-5 h-5 rounded-full object-cover flex-shrink-0" />
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0">
+                                    {initialsOf(t.submittedBy)}
+                                  </div>
+                                )}
                                 <span className="text-[10px] text-[#777] truncate">{t.submittedBy}</span>
                               </div>
                               <span className="text-[10px] text-[#bbb] flex-shrink-0">{timeAgo(t.createdAt)}</span>
@@ -241,44 +246,74 @@ function TicketDrawer({ ticket, onClose, onUpdate, onDelete }: {
 }) {
   const [commentText, setCommentText] = useState("");
   const [commentFiles, setCommentFiles] = useState<TicketAttachment[]>([]);
+  const [uploadingComment, setUploadingComment] = useState(false);
+  const [sendingComment, setSendingComment] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const commentFileRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Build the full message thread: initial message + comments
   const allMessages = [
-    { id: "initial", author: "User" as const, authorName: ticket.submittedBy, message: ticket.message, attachments: ticket.attachments || [], createdAt: ticket.createdAt },
+    {
+      id: "initial",
+      author: "User" as const,
+      authorName: ticket.submittedBy,
+      authorEmail: ticket.submittedEmail,
+      authorImage: ticket.submittedImage,
+      message: ticket.message,
+      attachments: ticket.attachments || [],
+      createdAt: ticket.createdAt,
+    },
     ...(ticket.comments || []),
   ];
 
-  const handleAddFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (file.size > 5 * 1024 * 1024) continue; // 5MB limit
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === "string") {
-          setCommentFiles((prev) => [...prev, { name: file.name, url: reader.result as string, type: file.type, size: file.size }]);
+  const handleAddFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files;
+    if (!selected || selected.length === 0) return;
+    setUploadError("");
+    setUploadingComment(true);
+    try {
+      for (let i = 0; i < selected.length; i++) {
+        const file = selected[i];
+        if (file.size > 10 * 1024 * 1024) { setUploadError(`${file.name} too large (max 10MB).`); continue; }
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/tickets/upload", { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.ok) {
+          setCommentFiles((prev) => [...prev, { name: data.name, url: data.url, type: data.type, size: data.size }]);
+        } else {
+          setUploadError(data.error || "Upload failed.");
         }
-      };
-      reader.readAsDataURL(file);
+      }
+    } catch {
+      setUploadError("Upload failed. Please try again.");
+    } finally {
+      setUploadingComment(false);
+      e.target.value = "";
     }
-    e.target.value = "";
   };
 
-  const handleSendComment = () => {
-    if (!commentText.trim() && commentFiles.length === 0) return;
-    addComment(ticket.id, {
-      author: "Admin",
-      authorName: "Admin",
-      message: commentText.trim(),
-      attachments: commentFiles,
-    });
-    setCommentText("");
-    setCommentFiles([]);
-    onUpdate({}); // trigger refresh
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+  const handleSendComment = async () => {
+    if ((!commentText.trim() && commentFiles.length === 0) || sendingComment) return;
+    setSendingComment(true);
+    try {
+      addComment(ticket.id, {
+        author: "Admin",
+        authorName: "Admin",
+        message: commentText.trim(),
+        attachments: commentFiles,
+      });
+      setCommentText("");
+      setCommentFiles([]);
+      // Refresh the parent — passing the new comment list forces the drawer to re-render
+      // with the updated ticket from localStorage
+      const fresh = getTickets().find((t) => t.id === ticket.id);
+      if (fresh) onUpdate({ comments: fresh.comments });
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } finally {
+      setSendingComment(false);
+    }
   };
 
   const fmtSize = (bytes: number) => {
@@ -343,12 +378,18 @@ function TicketDrawer({ ticket, onClose, onUpdate, onDelete }: {
                 const isAdmin = msg.author === "Admin";
                 return (
                   <div key={msg.id} className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 ${isAdmin ? "bg-[#333]" : "bg-accent"}`}>
-                      {isAdmin ? "A" : initialsOf(msg.authorName)}
-                    </div>
+                    {msg.authorImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={msg.authorImage} alt={msg.authorName} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 ${isAdmin ? "bg-[#333]" : "bg-accent"}`}>
+                        {isAdmin ? "A" : initialsOf(msg.authorName)}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[13px] font-semibold text-[#111]">{isAdmin ? "Admin" : msg.authorName}</span>
+                        {msg.authorEmail && !isAdmin && <span className="text-[11px] text-[#999]">{msg.authorEmail}</span>}
                         <span className="text-[11px] text-[#bbb]">{timeAgo(msg.createdAt)}</span>
                       </div>
                       {msg.message && (
@@ -392,10 +433,15 @@ function TicketDrawer({ ticket, onClose, onUpdate, onDelete }: {
               ))}
             </div>
           )}
+          {uploadError && <div className="text-[11px] text-[#B7484F] mb-1.5">{uploadError}</div>}
           <div className="flex items-end gap-2">
-            <button type="button" onClick={() => commentFileRef.current?.click()} title="Attach file"
-              className="w-[38px] h-[38px] flex items-center justify-center rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#555] hover:border-[#ccc] transition-colors flex-shrink-0">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            <button type="button" onClick={() => !uploadingComment && commentFileRef.current?.click()} disabled={uploadingComment} title="Attach file"
+              className="w-[38px] h-[38px] flex items-center justify-center rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#555] hover:border-[#ccc] transition-colors flex-shrink-0 disabled:opacity-60">
+              {uploadingComment ? (
+                <div className="w-3.5 h-3.5 border-2 border-[#999] border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+              )}
             </button>
             <input ref={commentFileRef} type="file" multiple onChange={handleAddFiles} className="hidden" />
             <input
@@ -406,9 +452,9 @@ function TicketDrawer({ ticket, onClose, onUpdate, onDelete }: {
               placeholder="Write a message..."
               className="flex-1 h-[38px] px-3.5 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white"
             />
-            <button type="button" onClick={handleSendComment}
-              className="h-[38px] px-4 rounded-lg border border-[#80020E] text-[#80020E] text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors flex-shrink-0">
-              Send
+            <button type="button" onClick={handleSendComment} disabled={sendingComment || uploadingComment || (!commentText.trim() && commentFiles.length === 0)}
+              className="h-[38px] px-4 rounded-lg border border-[#80020E] text-[#80020E] text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors flex-shrink-0 disabled:opacity-40">
+              {sendingComment ? "Sending..." : "Send"}
             </button>
           </div>
 

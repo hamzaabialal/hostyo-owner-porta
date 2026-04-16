@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { getNotifications, markAllRead, markAsRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
 import { addTicket } from "@/lib/tickets";
 
@@ -67,36 +68,68 @@ function notifIcon(type: AppNotification["type"]) {
 
 /* ── Contact Support Drawer ── */
 function HelpDrawer({ onClose }: { onClose: () => void }) {
+  const { data: session } = useSession();
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [files, setFiles] = useState<{ name: string; url: string; type: string; size: number }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [sent, setSent] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Fetch the user's profile picture from the profile API (Notion-backed)
+  const [profileImage, setProfileImage] = useState<string>("");
+  useEffect(() => {
+    const email = session?.user?.email;
+    if (!email) return;
+    fetch(`/api/profile?email=${encodeURIComponent(email)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok && data.profile?.profilePicture) setProfileImage(data.profile.profilePicture);
+      })
+      .catch(() => {});
+  }, [session]);
+
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files;
-    if (!selected) return;
-    for (let i = 0; i < selected.length; i++) {
-      const file = selected[i];
-      if (file.size > 5 * 1024 * 1024) continue;
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === "string") {
-          setFiles((prev) => [...prev, { name: file.name, url: reader.result as string, type: file.type, size: file.size }]);
+    if (!selected || selected.length === 0) return;
+    setUploadError("");
+    setUploading(true);
+    try {
+      for (let i = 0; i < selected.length; i++) {
+        const file = selected[i];
+        if (file.size > 10 * 1024 * 1024) { setUploadError(`${file.name} is too large (max 10MB).`); continue; }
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/tickets/upload", { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.ok) {
+          setFiles((prev) => [...prev, { name: data.name, url: data.url, type: data.type, size: data.size }]);
+        } else {
+          setUploadError(data.error || "Upload failed.");
         }
-      };
-      reader.readAsDataURL(file);
+      }
+    } catch {
+      setUploadError("Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
     }
-    e.target.value = "";
   };
 
-  const handleSubmit = () => {
-    if (!subject.trim() || !message.trim()) return;
+  const handleSubmit = async () => {
+    if (!subject.trim() || !message.trim() || submitting) return;
+    setSubmitting(true);
+    const userName = session?.user?.name || "User";
+    const userEmail = session?.user?.email || "";
+    const userImage = profileImage || session?.user?.image || "";
     addTicket({
       subject: subject.trim(),
       message: message.trim(),
-      submittedBy: "User",
-      submittedEmail: "",
+      submittedBy: userName,
+      submittedEmail: userEmail,
+      submittedImage: userImage,
       attachments: files,
     });
     setSent(true);
@@ -137,12 +170,16 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
               </div>
               {/* File upload */}
               <div className="mb-5">
-                <button type="button" onClick={() => fileRef.current?.click()}
-                  className="flex items-center gap-2 px-3 py-2 border border-dashed border-[#d0d0d0] rounded-lg text-[12px] text-[#888] hover:border-[#999] hover:text-[#555] transition-colors w-full justify-center">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-                  Attach files
+                <button type="button" onClick={() => !uploading && fileRef.current?.click()} disabled={uploading}
+                  className="flex items-center gap-2 px-3 py-2 border border-dashed border-[#d0d0d0] rounded-lg text-[12px] text-[#888] hover:border-[#999] hover:text-[#555] transition-colors w-full justify-center disabled:opacity-60">
+                  {uploading ? (
+                    <><div className="w-3 h-3 border-2 border-[#999] border-t-transparent rounded-full animate-spin" />Uploading...</>
+                  ) : (
+                    <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>Attach files</>
+                  )}
                 </button>
                 <input ref={fileRef} type="file" multiple onChange={handleFiles} className="hidden" />
+                {uploadError && <div className="mt-2 text-[11px] text-[#B7484F]">{uploadError}</div>}
                 {files.length > 0 && (
                   <div className="mt-2 space-y-1">
                     {files.map((f, i) => (
@@ -156,9 +193,9 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
                   </div>
                 )}
               </div>
-              <button onClick={handleSubmit} disabled={!subject.trim() || !message.trim()}
+              <button onClick={handleSubmit} disabled={!subject.trim() || !message.trim() || submitting || uploading}
                 className="w-full h-[42px] rounded-lg border border-[#80020E] text-[#80020E] text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-40">
-                Submit Ticket
+                {submitting ? "Submitting..." : "Submit Ticket"}
               </button>
               <div className="mt-5 pt-5 border-t border-[#f0f0f0]">
                 <p className="text-[12px] text-[#999] mb-2">Or contact us directly:</p>

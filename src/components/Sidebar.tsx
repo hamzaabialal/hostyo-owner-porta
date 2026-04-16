@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { useProfilePicture } from "@/lib/useProfilePicture";
 
 const navItems = [
   { label: "Home", href: "/dashboard", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[18px] h-[18px]"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> },
@@ -44,7 +45,7 @@ export default function Sidebar() {
 
   const userName = session?.user?.name || "User";
   const userEmail = session?.user?.email || "";
-  const userImage = session?.user?.image || "";
+  const userImage = useProfilePicture();
   const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   const isActive = (href: string) => {

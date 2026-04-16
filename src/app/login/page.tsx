@@ -126,7 +126,7 @@ function LoginForm() {
       {/* Centered card */}
       <div className="flex-1 flex items-center justify-center p-4 -mt-10">
         <div className="w-full max-w-[420px]">
-          <div className="bg-white rounded-3xl p-8 shadow-[0_8px_40px_rgba(0,0,0,0.08)]">
+          <div className="bg-white rounded-[28px] p-9 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15),0_8px_20px_-8px_rgba(128,2,14,0.08)]">
             {step === "credentials" ? (
               <>
                 <h1 className="text-[22px] font-bold text-[#111] text-center mb-1">Welcome back</h1>
@@ -167,9 +167,10 @@ function LoginForm() {
                     <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required className={inputCls} />
                   </div>
                   <button type="submit" disabled={loading}
-                    className="w-full h-[46px] text-white rounded-xl text-[14px] font-semibold transition-all disabled:opacity-50 shadow-[0_4px_12px_rgba(128,2,14,0.3)] hover:shadow-[0_6px_20px_rgba(128,2,14,0.4)] active:shadow-[0_2px_8px_rgba(128,2,14,0.3)] active:translate-y-[1px]"
-                    style={{ background: "linear-gradient(180deg, #9B1520 0%, #80020E 50%, #5E0109 100%)" }}>
-                    {loading ? "Signing in..." : "Sign in"}
+                    className="group relative w-full h-[48px] text-white rounded-xl text-[14px] font-semibold transition-all disabled:opacity-50 shadow-[0_6px_20px_-4px_rgba(128,2,14,0.5),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_10px_30px_-5px_rgba(128,2,14,0.55),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-[1px] active:translate-y-[1px] active:shadow-[0_2px_8px_-2px_rgba(128,2,14,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] overflow-hidden"
+                    style={{ background: "linear-gradient(180deg, #A41826 0%, #80020E 55%, #5A0108 100%)" }}>
+                    <span className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                    <span className="relative">{loading ? "Signing in..." : "Sign in"}</span>
                   </button>
                 </form>
               </>
@@ -196,9 +197,10 @@ function LoginForm() {
                       className="w-full h-[48px] px-4 border border-[#e2e2e2] rounded-xl text-[20px] font-bold text-center text-[#111] tracking-[8px] placeholder:text-[#ddd] placeholder:tracking-[8px] outline-none focus:border-[#80020E] transition-colors bg-white" />
                   </div>
                   <button type="submit" disabled={loading || verifyCode.length !== 6}
-                    className="w-full h-[46px] text-white rounded-xl text-[14px] font-semibold transition-all disabled:opacity-50 shadow-[0_4px_12px_rgba(128,2,14,0.3)] hover:shadow-[0_6px_20px_rgba(128,2,14,0.4)]"
-                    style={{ background: "linear-gradient(180deg, #9B1520 0%, #80020E 50%, #5E0109 100%)" }}>
-                    {loading ? "Verifying..." : "Verify & Sign In"}
+                    className="group relative w-full h-[48px] text-white rounded-xl text-[14px] font-semibold transition-all disabled:opacity-50 shadow-[0_6px_20px_-4px_rgba(128,2,14,0.5),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_10px_30px_-5px_rgba(128,2,14,0.55),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-[1px] overflow-hidden"
+                    style={{ background: "linear-gradient(180deg, #A41826 0%, #80020E 55%, #5A0108 100%)" }}>
+                    <span className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                    <span className="relative">{loading ? "Verifying..." : "Verify & Sign In"}</span>
                   </button>
                 </form>
 

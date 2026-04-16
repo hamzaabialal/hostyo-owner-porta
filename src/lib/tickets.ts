@@ -4,6 +4,8 @@ export interface TicketComment {
   id: string;
   author: string;        // "User" or "Admin"
   authorName: string;
+  authorEmail?: string;
+  authorImage?: string;  // profile picture URL
   message: string;
   attachments: TicketAttachment[];
   createdAt: string;
@@ -24,6 +26,7 @@ export interface SupportTicket {
   priority: "Low" | "Medium" | "High";
   submittedBy: string;
   submittedEmail: string;
+  submittedImage?: string;  // profile picture URL of the user who submitted
   createdAt: string;
   updatedAt: string;
   adminNote: string;
