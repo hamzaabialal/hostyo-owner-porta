@@ -12,12 +12,18 @@
  * expense create/update/delete endpoints to keep balances fresh between
  * cron runs.
  */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { syncAllPropertyBalances, syncDeficitAdjustments } from "@/lib/sync-balances";
+import { getUserScope } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const scope = await getUserScope(req);
+  if (!scope) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  // Only admins can trigger a full sync
+  if (!scope.isAdmin) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+
   const [balanceResult, deficitResult] = await Promise.all([
     syncAllPropertyBalances(),
     syncDeficitAdjustments(),

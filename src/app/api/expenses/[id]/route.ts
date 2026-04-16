@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { invalidate } from "@/lib/cache";
 import { syncPropertyBalances, syncDeficitAdjustments } from "@/lib/sync-balances";
+import { getUserScope, isInScope } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -34,14 +35,29 @@ async function getExpenseInfo(expenseId: string): Promise<{ properties: string[]
 }
 
 /** PATCH — update expense status/category */
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
+    const scope = await getUserScope(req);
+    if (!scope) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
     // Capture info BEFORE the edit so we know to sync even if
     // the edit moves the expense to a different property.
     const oldInfo = await getExpenseInfo(id);
 
+    // Owner can only modify expenses on their own properties
+    if (!scope.isAdmin) {
+      const owns = oldInfo.properties.some((p) => isInScope(scope, p));
+      if (!owns) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await req.json();
+
+    // Owner cannot move an expense to a property outside their scope
+    if (body.property && !isInScope(scope, body.property)) {
+      return NextResponse.json({ ok: false, error: "Forbidden — target property not in your scope" }, { status: 403 });
+    }
+
     const properties: any = {};
 
     if (body.status !== undefined && body.status !== "") {
@@ -117,11 +133,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 /** DELETE — archive expense */
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
+    const scope = await getUserScope(req);
+    if (!scope) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
     // Capture info BEFORE deletion so we know which balance + reservation to refresh
     const delInfo = await getExpenseInfo(id);
+
+    // Owner can only delete expenses on their own properties
+    if (!scope.isAdmin) {
+      const owns = delInfo.properties.some((p) => isInScope(scope, p));
+      if (!owns) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
 
     await notion.pages.update({ page_id: id, archived: true });
 

@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { queryDatabase, getProp, DB } from "@/lib/notion";
 import { cached, invalidate } from "@/lib/cache";
+import { getUserScope, filterByScope, isInScope } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -68,15 +69,23 @@ async function fetchExpenses() {
   });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   if (!DB.expenses) {
     return NextResponse.json({ ok: false, error: "Expenses database not configured" }, { status: 500 });
   }
   try {
+    const scope = await getUserScope(req);
+    if (!scope) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
     const { Client } = await import("@notionhq/client");
     const notion = new Client({ auth: process.env.NOTION_API_KEY });
     const body = await req.json();
     const { property, category, status, amount, vendor, notes, reservation } = body;
+
+    // Owners can only create expenses for their own properties
+    if (property && !isInScope(scope, property)) {
+      return NextResponse.json({ ok: false, error: "Forbidden — property not in your scope" }, { status: 403 });
+    }
 
     const expenseId = `EXP-${Date.now()}`;
     const today = new Date().toISOString().split("T")[0];
@@ -125,19 +134,23 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   if (!DB.expenses) {
     return NextResponse.json({ source: "placeholder", data: [] });
   }
 
   try {
+    const scope = await getUserScope(req);
+    if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     // If ?fresh=1 is passed, bypass cache completely
     const url = new URL(req.url);
     if (url.searchParams.get("fresh") === "1") {
       invalidate("expenses");
     }
     const expenses = await cached("expenses", fetchExpenses);
-    return NextResponse.json({ source: "notion", data: expenses });
+    const scoped = filterByScope(scope, expenses, (e: any) => e.property || "");
+    return NextResponse.json({ source: "notion", data: scoped });
   } catch (error) {
     console.error("Error fetching expenses:", error);
     return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });

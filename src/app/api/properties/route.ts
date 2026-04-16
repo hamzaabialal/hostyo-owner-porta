@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import notion from "@/lib/notion";
 import { queryDatabase, getProp, DB } from "@/lib/notion";
 import { cached, invalidate } from "@/lib/cache";
+import { getUserScope, filterByScope } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -66,26 +67,34 @@ async function fetchProperties() {
   });
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!DB.properties) {
     return NextResponse.json({ source: "placeholder", data: [] });
   }
 
   try {
+    const scope = await getUserScope(req);
+    if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const properties = await cached("properties", fetchProperties);
-    return NextResponse.json({ source: "notion", data: properties });
+    const scoped = filterByScope(scope, properties, (p: any) => p.name || "");
+    return NextResponse.json({ source: "notion", data: scoped });
   } catch (error) {
     console.error("Error fetching properties:", error);
     return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   if (!DB.properties) {
     return NextResponse.json({ error: "Properties DB not configured" }, { status: 500 });
   }
 
   try {
+    const scope = await getUserScope(request);
+    if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!scope.isAdmin) return NextResponse.json({ error: "Forbidden — only admins can create properties" }, { status: 403 });
+
     const body = await request.json();
 
     // Build Notion properties object

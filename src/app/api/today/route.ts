@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { cached } from "@/lib/cache";
+import { getUserScope, isInScope } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -177,14 +178,64 @@ async function fetchTodayData() {
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!DB_ID) {
     return NextResponse.json({ arrivals: [], departures: [], upcoming: [], payment: { balance: "£0", paidThisMonth: "£0", pending: "£0" } });
   }
 
   try {
-    const data = await cached("today", fetchTodayData);
-    return NextResponse.json(data);
+    const scope = await getUserScope(req);
+    if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // The fetchTodayData builds an aggregate response. For owners we need
+    // to filter property-scoped lists AND recompute the payment totals.
+    // Simplest path: if not admin, fetch the raw reservations and rebuild.
+    const data: any = await cached("today", fetchTodayData);
+
+    if (scope.isAdmin) {
+      return NextResponse.json(data);
+    }
+
+    // Filter the list fields by property scope
+    const arrivals = (data.arrivals || []).filter((a: any) => isInScope(scope, a.property || ""));
+    const departures = (data.departures || []).filter((a: any) => isInScope(scope, a.property || ""));
+    const upcoming = (data.upcoming || []).filter((a: any) => isInScope(scope, a.property || ""));
+
+    // Payment totals in the raw aggregate are unscoped. Recompute from scoped
+    // reservations fetched fresh — cheap enough.
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const allRes: any = await notion.databases.query({
+      database_id: DB_ID,
+      filter: { property: "Deleted", checkbox: { equals: false } },
+      page_size: 100,
+    });
+
+    let balance = 0, paidThisMonth = 0, pending = 0;
+    for (const p of allRes.results) {
+      const propertyName = prop(p, "Property") || "";
+      if (!isInScope(scope, propertyName)) continue;
+      const status = prop(p, "Status");
+      const payoutStatus = prop(p, "Payout Status");
+      const ownerPayout = prop(p, "Owner Payout") || 0;
+      const checkout = prop(p, "Check Out") || "";
+      const psLower = (payoutStatus || "").toLowerCase();
+      if (payoutStatus === "Paid" && checkout.startsWith(thisMonth)) paidThisMonth += ownerPayout;
+      if (status === "In-House") balance += ownerPayout;
+      if (status === "Completed" && (psLower === "pending" || psLower === "on hold")) pending += ownerPayout;
+    }
+
+    const fmt = (n: number) => "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    return NextResponse.json({
+      arrivals,
+      departures,
+      upcoming,
+      payment: {
+        balance: fmt(balance),
+        paidThisMonth: fmt(paidThisMonth),
+        pending: fmt(pending),
+      },
+    });
   } catch (error: any) {
     console.error("Error fetching today:", error?.message);
     return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });

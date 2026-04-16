@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { queryDatabase, getProp, DB } from "@/lib/notion";
 import { cached } from "@/lib/cache";
+import { getUserScope, filterByScope } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -32,14 +33,18 @@ async function fetchPayouts() {
   }));
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!DB.payoutCycles) {
     return NextResponse.json({ source: "placeholder", data: [] });
   }
 
   try {
+    const scope = await getUserScope(req);
+    if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const payouts = await cached("payouts", fetchPayouts);
-    return NextResponse.json({ source: "notion", data: payouts });
+    const scoped = filterByScope(scope, payouts, (p: any) => p.property || "");
+    return NextResponse.json({ source: "notion", data: scoped });
   } catch (error) {
     console.error("Error fetching payouts:", error);
     return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
