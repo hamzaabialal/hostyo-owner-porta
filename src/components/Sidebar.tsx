@@ -65,7 +65,7 @@ export default function Sidebar() {
       <div className={`flex items-center ${collapsed ? "justify-center px-2" : "justify-between px-5"} pt-5 pb-4`}>
         <Link href="/dashboard" className="flex items-center overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/hostyo-logo.png" alt="Hostyo" className={`w-8 h-8 rounded-lg object-contain flex-shrink-0 ${collapsed ? "" : "hidden"}`} />
+          <img src="/property-icons/ios_1024.png" alt="Hostyo" className={`w-8 h-8 rounded-lg object-contain flex-shrink-0 ${collapsed ? "" : "hidden"}`} />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/property-icons/hostyo-07.png" alt="Hostyo" className={`h-8 object-contain ${collapsed ? "hidden" : ""}`} />
         </Link>
@@ -177,12 +177,14 @@ export default function Sidebar() {
       <div className={`border-t border-[#eaeaea] ${collapsed ? "px-2 py-3" : "px-4 py-3"}`}>
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
-            {userImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={userImage} alt={userName} className="w-8 h-8 rounded-full object-cover" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-[10px] font-bold">{initials}</div>
-            )}
+            <Link href="/settings" title="Profile settings">
+              {userImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={userImage} alt={userName} className="w-8 h-8 rounded-full object-cover hover:ring-2 hover:ring-[#80020E]/30 transition-all" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-[10px] font-bold hover:ring-2 hover:ring-[#80020E]/30 transition-all">{initials}</div>
+              )}
+            </Link>
             <button onClick={() => signOut({ callbackUrl: "/login" })} title="Log out"
               className="p-1.5 text-[#999] hover:text-[#555] transition-colors">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[16px] h-[16px]">
@@ -192,18 +194,22 @@ export default function Sidebar() {
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2.5 mb-3">
+            <Link href="/settings"
+              className="flex items-center gap-2.5 mb-3 px-2 py-2 -mx-2 rounded-lg hover:bg-[#f5f5f5] transition-colors cursor-pointer">
               {userImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={userImage} alt={userName} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
               ) : (
                 <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-white text-[12px] font-bold flex-shrink-0">{initials}</div>
               )}
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="text-[13px] font-semibold text-[#111] truncate">{userName}</div>
                 {userEmail && <div className="text-[10px] text-[#999] truncate">{userEmail}</div>}
               </div>
-            </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" className="flex-shrink-0">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </Link>
             <button onClick={() => signOut({ callbackUrl: "/login" })}
               className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] text-[#999] hover:bg-[#f5f5f5] hover:text-[#555] transition-colors w-full">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[16px] h-[16px]">

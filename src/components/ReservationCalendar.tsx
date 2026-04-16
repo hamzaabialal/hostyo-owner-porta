@@ -271,7 +271,7 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
                     <div className="absolute top-full left-0 mt-1 bg-white border border-[#e2e2e2] rounded-xl shadow-lg z-50 p-3 w-[260px]">
                       <div className="flex items-center justify-center gap-3 mb-3">
                         {[viewY - 1, viewY, viewY + 1].map((y) => (
-                          <button key={y} className={`px-3 py-1 rounded-lg text-[12px] font-semibold transition-colors ${
+                          <button key={y} className={`px-3 py-1 rounded-lg text-[12px] font-semibold transition-colors outline-none ${
                             y === viewY ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"
                           }`} onClick={() => setMonthYear(y, viewM)}>{y}</button>
                         ))}
@@ -281,8 +281,8 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
                           <button key={m} onClick={() => {
                             setMonthYear(viewY, i);
                             setMonthPickerOpen(false);
-                          }} className={`px-2 py-2 rounded-lg text-[12px] font-medium transition-colors ${
-                            i === viewM ? "bg-[#80020E] text-white" : "text-[#555] hover:bg-[#f5f5f5]"
+                          }} className={`px-2 py-2 rounded-lg text-[12px] font-medium transition-colors outline-none ${
+                            i === viewM ? "border border-[#80020E] text-[#80020E]" : "text-[#555] hover:bg-[#f5f5f5] border border-transparent"
                           }`}>{m.slice(0, 3)}</button>
                         ))}
                       </div>

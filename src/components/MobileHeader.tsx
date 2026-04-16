@@ -56,7 +56,7 @@ export default function MobileHeader({ title }: { title: string }) {
       <header className="sticky top-0 z-40 bg-white border-b border-[#eaeaea] px-4 h-[52px] flex items-center justify-between md:hidden">
         <div className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/hostyo-logo.png" alt="Hostyo" className="w-7 h-7 rounded-md object-contain" />
+          <img src="/property-icons/ios_1024.png" alt="Hostyo" className="w-7 h-7 rounded-md object-contain" />
           <h1 className="text-[15px] font-semibold text-[#111]">{title}</h1>
         </div>
         <button onClick={() => setNotifOpen(true)} className="relative p-2 text-[#888] hover:text-[#555] transition-colors">

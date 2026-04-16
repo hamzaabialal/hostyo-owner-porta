@@ -10,6 +10,11 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Remove default blue focus outline on all interactive elements.
+   Keyboard users get a subtle brand-colored ring via :focus-visible. */
+button:focus, a:focus, select:focus, [role="switch"]:focus { outline: none; }
+button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid rgba(128, 2, 14, 0.3); outline-offset: 2px; border-radius: 6px; }
+
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background: #f8f8f8;
