@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { cached } from "@/lib/cache";
+import { getUserScope, filterByScope } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -88,12 +89,15 @@ async function fetchReservations() {
   });
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   if (!DB_ID) {
     return NextResponse.json({ source: "placeholder", data: [] });
   }
 
   try {
+    const scope = await getUserScope(req);
+    if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     // Force fresh data if ?fresh=1
     const url = new URL(req.url);
     if (url.searchParams.get("fresh") === "1") {
@@ -101,7 +105,8 @@ export async function GET(req: Request) {
       invalidate("reservations");
     }
     const reservations = await cached("reservations", fetchReservations);
-    return NextResponse.json({ source: "notion", data: reservations });
+    const scoped = filterByScope(scope, reservations, (r: any) => r.property || "");
+    return NextResponse.json({ source: "notion", data: scoped });
   } catch (error: any) {
     console.error("Error fetching reservations:", error?.message);
     return NextResponse.json({ error: "Failed to fetch", detail: error?.message }, { status: 500 });

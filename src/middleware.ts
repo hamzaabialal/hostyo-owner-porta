@@ -17,6 +17,7 @@ const PROTECTED_API_PATHS = [
   "/api/profile",
   "/api/users",
   "/api/debug",
+  "/api/tickets",
 ];
 
 // Admin-only paths

@@ -36,17 +36,27 @@ export interface SupportTicket {
 
 const STORAGE_KEY = "hostyo_tickets";
 
-export function getTickets(): SupportTicket[] {
+/**
+ * Returns all tickets stored locally.
+ *
+ * Admins see everything; owners only see their own tickets (filtered by email).
+ * Pass `currentEmail` to scope the result to that user. If omitted, all tickets
+ * are returned (use for admin views).
+ */
+export function getTickets(currentEmail?: string): SupportTicket[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    const tickets = raw ? JSON.parse(raw) : [];
+    const tickets: SupportTicket[] = raw ? JSON.parse(raw) : [];
     // Migration: add comments/attachments arrays to old tickets
-    return tickets.map((t: SupportTicket) => ({
+    const migrated = tickets.map((t) => ({
       ...t,
       comments: t.comments || [],
       attachments: t.attachments || [],
     }));
+    if (!currentEmail) return migrated;
+    const mine = currentEmail.toLowerCase().trim();
+    return migrated.filter((t) => (t.submittedEmail || "").toLowerCase().trim() === mine);
   } catch { return []; }
 }
 
