@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getNotifications, markAllRead, markAsRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
 import { addTicket } from "@/lib/tickets";
@@ -65,11 +65,30 @@ function notifIcon(type: AppNotification["type"]) {
   }
 }
 
-/* ── Help Drawer ── */
+/* ── Contact Support Drawer ── */
 function HelpDrawer({ onClose }: { onClose: () => void }) {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [files, setFiles] = useState<{ name: string; url: string; type: string; size: number }[]>([]);
   const [sent, setSent] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files;
+    if (!selected) return;
+    for (let i = 0; i < selected.length; i++) {
+      const file = selected[i];
+      if (file.size > 5 * 1024 * 1024) continue;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          setFiles((prev) => [...prev, { name: file.name, url: reader.result as string, type: file.type, size: file.size }]);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = "";
+  };
 
   const handleSubmit = () => {
     if (!subject.trim() || !message.trim()) return;
@@ -78,6 +97,7 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
       message: message.trim(),
       submittedBy: "User",
       submittedEmail: "",
+      attachments: files,
     });
     setSent(true);
     setTimeout(() => onClose(), 1500);
@@ -88,7 +108,7 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 bg-black/20 z-[9998]" onClick={onClose} />
       <div className="fixed inset-y-0 right-0 w-full max-w-[400px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-[9999] flex flex-col">
         <div className="flex items-center justify-between px-6 h-[56px] border-b border-[#eaeaea] flex-shrink-0">
-          <span className="text-[15px] font-semibold text-[#111]">Help & Support</span>
+          <span className="text-[15px] font-semibold text-[#111]">Contact Support</span>
           <button onClick={onClose} className="p-2 text-[#999] hover:text-[#555] transition-colors">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -110,13 +130,34 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
                 <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Brief summary of your issue"
                   className="w-full h-[42px] px-3.5 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
               </div>
-              <div className="mb-5">
+              <div className="mb-4">
                 <label className="block text-[13px] font-medium text-[#555] mb-1.5">Message</label>
                 <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe the issue in detail..."
                   rows={5} className="w-full px-3.5 py-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors resize-none bg-white" />
               </div>
+              {/* File upload */}
+              <div className="mb-5">
+                <button type="button" onClick={() => fileRef.current?.click()}
+                  className="flex items-center gap-2 px-3 py-2 border border-dashed border-[#d0d0d0] rounded-lg text-[12px] text-[#888] hover:border-[#999] hover:text-[#555] transition-colors w-full justify-center">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                  Attach files
+                </button>
+                <input ref={fileRef} type="file" multiple onChange={handleFiles} className="hidden" />
+                {files.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {files.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between px-2.5 py-1.5 bg-[#f9f9f9] border border-[#eee] rounded-lg text-[11px]">
+                        <span className="text-[#555] truncate flex-1">{f.name}</span>
+                        <button onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="text-[#bbb] hover:text-[#555] ml-2 flex-shrink-0">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button onClick={handleSubmit} disabled={!subject.trim() || !message.trim()}
-                className="w-full h-[42px] rounded-lg bg-[#80020E] text-white text-[13px] font-semibold hover:bg-[#6b010c] transition-colors disabled:opacity-40">
+                className="w-full h-[42px] rounded-lg border border-[#80020E] text-[#80020E] text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-40">
                 Submit Ticket
               </button>
               <div className="mt-5 pt-5 border-t border-[#f0f0f0]">

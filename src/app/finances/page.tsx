@@ -216,11 +216,19 @@ export default function FinancesOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [properties, setProperties] = useState<any[]>([]);
+
   useEffect(() => {
-    fetchData("reservations", "/api/reservations")
-      .then((res: unknown) => {
-        const rr = res as { data?: Reservation[] };
+    Promise.all([
+      fetchData("reservations", "/api/reservations"),
+      fetchData("properties", "/api/properties"),
+    ]).then(([resResult, propResult]: unknown[]) => {
+        const rr = resResult as { data?: Reservation[] };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pp = propResult as { data?: any[] };
         if (rr.data) setReservations(rr.data);
+        if (pp.data) setProperties(pp.data);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -231,55 +239,83 @@ export default function FinancesOverviewPage() {
   const now = useMemo(() => new Date(), []);
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
+  // Filter reservations to only live properties where automation is not skipped
+  const skipNames = useMemo(() => {
+    return properties
+      .filter((p: Record<string, unknown>) => p.skipAutomation === true)
+      .map((p: Record<string, unknown>) => ((p.name || "") as string).trim().toLowerCase())
+      .filter(Boolean);
+  }, [properties]);
+
+  const liveReservations = useMemo(() => {
+    return reservations.filter((r) => {
+      const n = (r.property || "").trim().toLowerCase();
+      if (!n) return true;
+      return !skipNames.some((s: string) => s === n || s.startsWith(n) || n.startsWith(s));
+    });
+  }, [reservations, skipNames]);
+
+  // Current Balance — real-time total across all live properties
   const ownerBalance = useMemo(() =>
-    reservations
+    liveReservations
       .filter((r) => {
         if (r.status !== "Completed") return false;
         const ps = (r.payoutStatus || "").toLowerCase();
         return ps === "pending" || ps === "on hold";
       })
       .reduce((sum, r) => sum + (r.ownerPayout || 0), 0),
-  [reservations]);
+  [liveReservations]);
 
-  const paidThisMonth = useMemo(() =>
-    reservations
-      .filter((r) => r.payoutStatus === "Paid" && (r.checkout || "").startsWith(thisMonth))
-      .reduce((sum, r) => sum + (r.ownerPayout || 0), 0),
-  [reservations, thisMonth]);
-
-  const pendingPayment = useMemo(() =>
-    reservations
+  // Expected Payouts — pending owner payout total for current month
+  const expectedPayouts = useMemo(() =>
+    liveReservations
       .filter((r) => {
+        if (r.status === "Cancelled") return false;
         const ps = (r.payoutStatus || "").toLowerCase();
-        return ps === "pending" || ps === "on hold";
+        if (ps !== "pending" && ps !== "on hold") return false;
+        return (r.checkout || "").startsWith(thisMonth);
       })
       .reduce((sum, r) => sum + (r.ownerPayout || 0), 0),
-  [reservations]);
+  [liveReservations, thisMonth]);
+
+  // Cleaning Fees — current month total
+  const cleaningThisMonth = useMemo(() =>
+    liveReservations
+      .filter((r) => r.status !== "Cancelled" && (r.checkout || "").startsWith(thisMonth))
+      .reduce((sum, r) => sum + (r.cleaning || 0), 0),
+  [liveReservations, thisMonth]);
+
+  // VAT — 19% on management fees, current month
+  const vatThisMonth = useMemo(() =>
+    liveReservations
+      .filter((r) => r.status !== "Cancelled" && (r.checkout || "").startsWith(thisMonth))
+      .reduce((sum, r) => sum + ((r.managementFee || 0) * 0.19), 0),
+  [liveReservations, thisMonth]);
 
   const upcomingPayouts = useMemo(() => {
     const today = now.toISOString().split("T")[0];
-    return reservations
+    return liveReservations
       .filter((r) => r.checkin > today && r.status !== "Cancelled")
       .reduce((sum, r) => sum + (r.ownerPayout || 0), 0);
-  }, [reservations, now]);
+  }, [liveReservations, now]);
 
   // Additional computed values (all hooks must be before early returns)
   const today = useMemo(() => now.toISOString().split("T")[0], [now]);
-  const activeProperties = useMemo(() => new Set(reservations.filter((r) => r.status !== "Cancelled").map((r) => r.property)).size, [reservations]);
-  const feesThisMonth = useMemo(() => reservations.filter((r) => (r.checkout || "").startsWith(thisMonth)).reduce((s, r) => s + (r.managementFee || 0), 0), [reservations, thisMonth]);
-  const upcomingConfirmed = useMemo(() => reservations.filter((r) => r.checkin > today && r.status !== "Cancelled").length, [reservations, today]);
+  const activeProperties = useMemo(() => new Set(liveReservations.filter((r) => r.status !== "Cancelled").map((r) => r.property)).size, [liveReservations]);
+  const feesThisMonth = useMemo(() => liveReservations.filter((r) => (r.checkout || "").startsWith(thisMonth)).reduce((s, r) => s + (r.managementFee || 0), 0), [liveReservations, thisMonth]);
+  const upcomingConfirmed = useMemo(() => liveReservations.filter((r) => r.checkin > today && r.status !== "Cancelled").length, [liveReservations, today]);
 
   // YTD fees (Nov previous year to current month)
   const ytdStart = `${now.getFullYear() - 1}-11`;
-  const feesYTD = useMemo(() => reservations.filter((r) => { const co = (r.checkout || ""); return co >= ytdStart && co <= thisMonth + "-31"; }).reduce((s, r) => s + (r.managementFee || 0), 0), [reservations, ytdStart, thisMonth]);
-  const ytdBookings = useMemo(() => reservations.filter((r) => { const co = (r.checkout || ""); return co >= ytdStart && co <= thisMonth + "-31" && r.status !== "Cancelled"; }).length, [reservations, ytdStart, thisMonth]);
+  const feesYTD = useMemo(() => liveReservations.filter((r) => { const co = (r.checkout || ""); return co >= ytdStart && co <= thisMonth + "-31"; }).reduce((s, r) => s + (r.managementFee || 0), 0), [liveReservations, ytdStart, thisMonth]);
+  const ytdBookings = useMemo(() => liveReservations.filter((r) => { const co = (r.checkout || ""); return co >= ytdStart && co <= thisMonth + "-31" && r.status !== "Cancelled"; }).length, [liveReservations, ytdStart, thisMonth]);
   const avgPerBooking = ytdBookings > 0 ? feesYTD / ytdBookings : 0;
   const avgPerProperty = activeProperties > 0 ? feesYTD / activeProperties : 0;
 
   // Properties ranked by fees earned
   const propertyRanking = useMemo(() => {
     const map: Record<string, { fees: number; revenue: number }> = {};
-    for (const r of reservations) {
+    for (const r of liveReservations) {
       if (r.status === "Cancelled") continue;
       const p = r.property || "Unknown";
       if (!map[p]) map[p] = { fees: 0, revenue: 0 };
@@ -287,27 +323,28 @@ export default function FinancesOverviewPage() {
       map[p].revenue += r.grossAmount || 0;
     }
     return Object.entries(map).sort(([, a], [, b]) => b.fees - a.fees).slice(0, 10);
-  }, [reservations]);
+  }, [liveReservations]);
 
   // Monthly management fees chart — 12-month rolling window ending on current month.
   // Each month has `collected` (paid fees so far) and `pending` (forecast fees from
   // not-yet-paid, non-cancelled reservations). Past months will be all collected;
   // future months will be all pending; the current month is a mix of both.
+  // 18-month chart: 6 past + current + 11 future (scrollable)
   const monthlyFees = useMemo(() => {
     const months: { month: string; year: number; key: string; collected: number; pending: number; isCurrent: boolean; isFuture: boolean }[] = [];
-    for (let i = 11; i >= 0; i--) {
+    for (let i = 6; i >= -11; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = d.toLocaleDateString("en-GB", { month: "short" });
       const isCurrent = key === thisMonth;
       const isFuture = key > thisMonth;
-      const monthRes = reservations.filter((r) => (r.checkout || "").startsWith(key) && r.status !== "Cancelled");
+      const monthRes = liveReservations.filter((r) => (r.checkout || "").startsWith(key) && r.status !== "Cancelled");
       const collected = monthRes.filter((r) => r.payoutStatus === "Paid").reduce((s, r) => s + (r.managementFee || 0), 0);
       const pending = monthRes.filter((r) => r.payoutStatus !== "Paid").reduce((s, r) => s + (r.managementFee || 0), 0);
       months.push({ month: label, year: d.getFullYear(), key, collected, pending, isCurrent, isFuture });
     }
     return months;
-  }, [reservations, now, thisMonth]);
+  }, [liveReservations, now, thisMonth]);
 
   const maxFee = Math.max(...monthlyFees.map((d) => d.collected + d.pending), 1);
   const [hoveredMonth, setHoveredMonth] = useState<string | null>(null);
@@ -332,7 +369,7 @@ export default function FinancesOverviewPage() {
     <AppShell title="Finances">
       <MobileTabs tabs={FINANCE_TABS} />
 
-      {/* ── Row 1: Ghost stat cards ── */}
+      {/* ── Row 1: Stat cards ── */}
       <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
         {[
           { label: "Properties", value: String(activeProperties), sub: "Active" },
@@ -342,20 +379,20 @@ export default function FinancesOverviewPage() {
           { label: "Avg / Booking", value: fmtCurrency(avgPerBooking), sub: "YTD" },
           { label: "Avg / Property", value: fmtCurrency(avgPerProperty), sub: "YTD" },
         ].map((c) => (
-          <div key={c.label} className="bg-white border border-[#80020E]/25 rounded-xl p-3 md:p-4 hover:border-[#80020E]/50 transition-colors">
-            <div className="text-[9px] md:text-[10px] font-semibold text-[#80020E]/70 uppercase tracking-wider mb-1">{c.label}</div>
-            <div className="text-[16px] md:text-[20px] font-bold text-[#80020E] truncate">{c.value}</div>
-            <div className="text-[9px] md:text-[10px] text-[#80020E]/50 mt-0.5">{c.sub}</div>
+          <div key={c.label} className="bg-white border border-[#eaeaea] rounded-xl p-3 md:p-4">
+            <div className="text-[9px] md:text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">{c.label}</div>
+            <div className="text-[16px] md:text-[20px] font-bold text-[#111] truncate">{c.value}</div>
+            <div className="text-[9px] md:text-[10px] text-[#aaa] mt-0.5">{c.sub}</div>
           </div>
         ))}
       </div>
 
-      {/* ── Row 2: Light stat cards ── */}
+      {/* ── Row 2: Key financial cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-5">
-        <SummaryCard label="Owner Balance" value={fmtCurrency(ownerBalance)} accent subtitle="Payout pending" onClick={() => router.push("/finances/earnings")} />
-        <SummaryCard label="Owner Payouts" value={fmtCurrency(paidThisMonth)} subtitle="This month" onClick={() => router.push("/finances/earnings")} />
-        <SummaryCard label="Pending Payout" value={fmtCurrency(pendingPayment)} subtitle="Net after fees" onClick={() => router.push("/finances/earnings")} />
-        <SummaryCard label="Revenue Forecast" value={fmtCurrency(upcomingPayouts)} subtitle="Future bookings" onClick={() => router.push("/finances/earnings")} />
+        <SummaryCard label="Current Balance" value={fmtCurrency(ownerBalance)} accent subtitle="Across all live properties" onClick={() => router.push("/finances/earnings")} />
+        <SummaryCard label="Expected Payouts" value={fmtCurrency(expectedPayouts)} subtitle="Pending · this month" onClick={() => router.push("/finances/payouts")} />
+        <SummaryCard label="Cleaning Fees" value={fmtCurrency(cleaningThisMonth)} subtitle="This month" />
+        <SummaryCard label="Service VAT" value={fmtCurrency(vatThisMonth)} subtitle="19% · this month" />
       </div>
 
       {/* ── Monthly Management Fees Chart ── */}
@@ -363,19 +400,20 @@ export default function FinancesOverviewPage() {
         <div className="flex items-center justify-between mb-5">
           <div>
             <div className="text-[14px] font-semibold text-[#111]">Monthly management fees</div>
-            <div className="text-[11px] text-[#999] mt-0.5">12-month rolling · collected vs pending</div>
+            <div className="text-[11px] text-[#999] mt-0.5">Scroll to see upcoming months</div>
           </div>
           <div className="flex items-center gap-4 text-[11px] text-[#999]">
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#80020E]" />Collected</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm border border-[#80020E]/40 bg-[#80020E]/[0.06]" />Pending / Forecast</span>
           </div>
         </div>
-        {/* Y-axis + bars */}
+        {/* Y-axis + scrollable bars */}
         <div className="flex gap-2">
-          <div className="flex flex-col justify-between text-[10px] text-[#bbb] text-right w-[40px] h-[200px] pb-6">
+          <div className="flex flex-col justify-between text-[10px] text-[#bbb] text-right w-[40px] h-[200px] pb-6 flex-shrink-0">
             {[...Array(6)].map((_, i) => <span key={i}>€{((maxFee / 5) * (5 - i) / 1000).toFixed(1)}k</span>)}
           </div>
-          <div className="flex-1 flex items-end gap-1.5 md:gap-2.5 h-[200px] border-b border-[#f0f0f0] pb-0 relative">
+          <div className="flex-1 overflow-x-auto hide-scrollbar">
+          <div className="flex items-end gap-1.5 md:gap-2.5 h-[200px] border-b border-[#f0f0f0] pb-0 relative" style={{ minWidth: `${monthlyFees.length * 52}px` }}>
             {monthlyFees.map((d) => {
               const total = d.collected + d.pending;
               const collectedPct = (d.collected / maxFee) * 100;
@@ -427,6 +465,7 @@ export default function FinancesOverviewPage() {
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       </div>

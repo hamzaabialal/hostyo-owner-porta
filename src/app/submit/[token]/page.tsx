@@ -343,7 +343,7 @@ export default function SubmitExpensePage() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white border-b border-[#eaeaea] px-4 h-[52px] flex items-center gap-2.5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/hostyo-logo.png" alt="Hostyo" className="w-7 h-7 rounded-md object-contain" />
+        <img src="/property-icons/ios_1024.png" alt="Hostyo" className="w-7 h-7 rounded-md object-contain" />
         <span className="text-[14px] font-semibold text-[#111]">Submit Expense</span>
       </header>
 

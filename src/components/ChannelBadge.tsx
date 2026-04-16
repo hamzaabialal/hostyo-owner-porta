@@ -5,12 +5,8 @@ const logoImages: Record<string, string> = {
   "Airbnb": "/ota-logos/airbnb.avif",
   "Booking.com": "/ota-logos/booking.svg",
   "Expedia": "/ota-logos/expedia.ico",
-};
-
-// Logos rendered inside a clipped square container (icon has whitespace that needs cropping)
-const logoScaled: Record<string, string> = {
-  "Direct": "/hostyo-logo.png",
-  "BookingSite": "/hostyo-logo.png",
+  "Direct": "/property-icons/ios_1024.png",
+  "BookingSite": "/property-icons/ios_1024.png",
 };
 
 const logoFallbacks: Record<string, { bg: string; letter: string }> = {
@@ -32,17 +28,6 @@ function normalizeChannel(channel: string): string {
 
 function ChannelLogo({ channel, size = 16 }: { channel: string; size?: number }) {
   const normalized = normalizeChannel(channel);
-
-  // Logo with whitespace — render in a clipped container, scaled up to fill
-  const scaledSrc = logoScaled[normalized];
-  if (scaledSrc) {
-    return (
-      <span className="inline-flex items-center justify-center rounded-sm flex-shrink-0 overflow-hidden" style={{ width: size, height: size }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={scaledSrc} alt={normalized} className="object-cover" style={{ width: size * 1.55, height: size * 1.55 }} />
-      </span>
-    );
-  }
 
   const imgSrc = logoImages[normalized];
   if (imgSrc) {

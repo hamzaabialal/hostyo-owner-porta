@@ -9,7 +9,7 @@ export default function PendingApprovalPage() {
         {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/hostyo-logo.png" alt="Hostyo" className="w-10 h-10 rounded-xl object-contain" />
+          <img src="/property-icons/ios_1024.png" alt="Hostyo" className="w-10 h-10 rounded-xl object-contain" />
           <span className="text-[20px] font-bold text-[#111]">Hostyo</span>
         </div>
 
