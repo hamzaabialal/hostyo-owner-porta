@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import ChannelBadge from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
-import { getDocuments, addDocument, removeDocument, formatFileSize, type PropertyDocument } from "@/lib/documents";
+import { fetchDocuments, addDocument, removeDocument, formatFileSize, type PropertyDocument } from "@/lib/documents";
 import { reconcileProperty } from "@/lib/reconcile";
 
 /* ------------------------------------------------------------------ */
@@ -211,8 +211,12 @@ export default function PropertyDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refreshDocs = useCallback(() => {
-    if (id) setDocs(getDocuments(id));
-  }, [id]);
+    if (id) {
+      // Fetch from server API (shared across users), with property name for scope check
+      const propName = property?.name || "";
+      fetchDocuments(id, propName).then(setDocs).catch(() => {});
+    }
+  }, [id, property?.name]);
 
   useEffect(() => { refreshDocs(); }, [refreshDocs]);
 
@@ -298,19 +302,21 @@ export default function PropertyDetailPage() {
 
   // totalReleasedToOwner removed — balance is now computed from pendingBalance
 
-  // In-house guest (checked in, not checked out)
+  // In-house guest (checked in, not checked out — includes checkout day)
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inHouseRes = useMemo(() => reservations.find((r: any) =>
-    r.checkin <= today && r.checkout > today && r.status !== "Cancelled"
+    r.checkin <= today && r.checkout >= today && r.status !== "Cancelled"
   ), [reservations, today]);
+  const inHouseDaysLeft = inHouseRes ? daysBetween(today, inHouseRes.checkout) : -1;
 
-  // Next arrival
+  // Next arrival (first reservation with checkin >= today that isn't the in-house one)
   const nextArrival = useMemo(() => reservations
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((r: any) => r.checkin > today && r.status !== "Cancelled")
+    .filter((r: any) => r.checkin >= today && r.status !== "Cancelled" && (!inHouseRes || r.ref !== inHouseRes.ref))
     .sort((a, b) => a.checkin.localeCompare(b.checkin))[0] || null,
-  [reservations, today]);
+  [reservations, today, inHouseRes]);
+  const arrivalDaysAway = nextArrival ? daysBetween(today, nextArrival.checkin) : -1;
 
   if (loading) return <AppShell title="Property"><div className="flex items-center justify-center h-64 text-[#999] text-sm">Loading...</div></AppShell>;
   if (!property) return <AppShell title="Property"><div className="flex items-center justify-center h-64 text-[#999] text-sm">Property not found.</div></AppShell>;
@@ -353,62 +359,63 @@ export default function PropertyDetailPage() {
       {/* ═══ Overview Tab ═══ */}
       {tab === "overview" && (
         <div className="space-y-5">
-          {/* In-house + Next arrival cards */}
+          {/* In-house / Check-out + Next arrival / Check-in cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* In-house */}
+            {/* In-house card — label changes dynamically */}
             <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#2F6B57]" />
-                  <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">In House</span>
+                  <span className={`w-2 h-2 rounded-full ${inHouseDaysLeft === 0 ? "bg-[#FF5A5F]" : "bg-[#2F6B57]"}`} />
+                  <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">
+                    {inHouseDaysLeft === 0 ? "Check Out" : "In House"}
+                  </span>
                 </div>
                 {inHouseRes && (
                   <div className="text-right">
-                    <div className="text-[22px] font-bold text-[#111]">{daysBetween(today, inHouseRes.checkout)}</div>
-                    <div className="text-[10px] text-[#999]">days left</div>
+                    <div className={`text-[22px] font-bold ${inHouseDaysLeft === 0 ? "text-[#FF5A5F]" : "text-[#111]"}`}>{inHouseDaysLeft}</div>
+                    <div className="text-[10px] text-[#999]">{inHouseDaysLeft === 0 ? "today" : "days left"}</div>
                   </div>
                 )}
               </div>
               {inHouseRes ? (
                 <div>
-                  <div className="text-[15px] font-semibold text-[#111] mb-1">{inHouseRes.guest}</div>
-                  <div className="text-[11px] text-[#888] mb-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ChannelBadge channel={inHouseRes.channel || "Direct"} compact />
+                    <span className="text-[15px] font-semibold text-[#111]">{inHouseRes.guest}</span>
+                  </div>
+                  <div className="text-[11px] text-[#888]">
                     {fmtDate(inHouseRes.checkin)} → {fmtDate(inHouseRes.checkout)} · {inHouseRes.nights} nights · {(inHouseRes.adults || 0) + (inHouseRes.children || 0) || inHouseRes.guests || 1} guests
                   </div>
-                  {(() => {
-                    const daysLeft = daysBetween(today, inHouseRes.checkout);
-                    if (daysLeft <= 1) return <span className="text-[11px] font-medium text-[#FF5A5F]">Departing tomorrow</span>;
-                    return null;
-                  })()}
                 </div>
               ) : (
                 <div className="text-[13px] text-[#999]">No guest currently in house</div>
               )}
             </div>
 
-            {/* Next arrival */}
+            {/* Next arrival card — label changes on day of check-in */}
             <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#2F6B57]" />
-                  <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Next Arrival</span>
+                  <span className={`w-2 h-2 rounded-full ${arrivalDaysAway === 0 ? "bg-[#2F6B57]" : "bg-[#D4A843]"}`} />
+                  <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">
+                    {arrivalDaysAway === 0 ? "Check In" : "Next Arrival"}
+                  </span>
                 </div>
                 {nextArrival && (
                   <div className="text-right">
-                    <div className="text-[22px] font-bold text-[#111]">{daysBetween(today, nextArrival.checkin)}</div>
-                    <div className="text-[10px] text-[#999]">days away</div>
+                    <div className={`text-[22px] font-bold ${arrivalDaysAway === 0 ? "text-[#2F6B57]" : "text-[#111]"}`}>{arrivalDaysAway}</div>
+                    <div className="text-[10px] text-[#999]">{arrivalDaysAway === 0 ? "today" : "days away"}</div>
                   </div>
                 )}
               </div>
               {nextArrival ? (
                 <div>
-                  <div className="text-[15px] font-semibold text-[#111] mb-1">{nextArrival.guest}</div>
-                  <div className="text-[11px] text-[#888] mb-2">
-                    {fmtDate(nextArrival.checkin)} → {fmtDate(nextArrival.checkout)} · {nextArrival.nights} nights
+                  <div className="flex items-center gap-2 mb-1">
+                    <ChannelBadge channel={nextArrival.channel || "Direct"} compact />
+                    <span className="text-[15px] font-semibold text-[#111]">{nextArrival.guest}</span>
                   </div>
                   <div className="text-[11px] text-[#888]">
-                    {(nextArrival.adults || 0) + (nextArrival.children || 0) || nextArrival.guests || 1} guests
-                    {daysBetween(today, nextArrival.checkin) === 0 && <span className="ml-3 text-[#2F6B57] font-semibold">Today</span>}
+                    {fmtDate(nextArrival.checkin)} → {fmtDate(nextArrival.checkout)} · {nextArrival.nights} nights · {(nextArrival.adults || 0) + (nextArrival.children || 0) || nextArrival.guests || 1} guests
                   </div>
                 </div>
               ) : (
@@ -457,46 +464,92 @@ export default function PropertyDetailPage() {
 
       {/* ═══ Reservations Tab ═══ */}
       {tab === "reservations" && (
-        <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
+        <>
           {propReservations.length === 0 ? (
-            <div className="p-8 text-center text-[13px] text-[#999]">No reservations for this property.</div>
+            <div className="bg-white border border-[#eaeaea] rounded-xl p-8 text-center text-[13px] text-[#999]">No reservations for this property.</div>
           ) : (
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr className="bg-[#fafafa]">
-                  {["Status", "Guest / Ref", "Channel", "Gross", "Deductions", "Payout", "Expected by"].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              {/* Mobile card view */}
+              <div className="md:hidden space-y-3">
                 {propReservations.map((r, i) => {
                   const gross = r.grossAmount || r.gross || 0;
                   const payout = r.ownerPayout || 0;
-                  // Deductions = everything between gross and owner payout
-                  const deductions = gross - payout;
-                  const expectedBy = r.checkout ? (() => { const d = new Date(r.checkout + "T00:00:00"); d.setDate(d.getDate() + 3); return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); })() : "—";
+                  const expectedBy = r.checkout ? (() => { const d = new Date(r.checkout + "T00:00:00"); d.setDate(d.getDate() + 3); return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); })() : "";
+                  const checkinFmt = r.checkin ? new Date(r.checkin + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+                  const checkoutFmt = r.checkout ? new Date(r.checkout + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+                  const nights = r.checkin && r.checkout ? Math.ceil((new Date(r.checkout + "T00:00:00").getTime() - new Date(r.checkin + "T00:00:00").getTime()) / 86400000) : 0;
                   return (
-                  <tr key={i} className="border-b border-[#f0f0f0] hover:bg-[#f9f9f9]">
-                    <td className="px-4 py-3"><span className={statusPillClass(r.status)}>{r.status}</span></td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-[#111]">{r.guest}</div>
-                      {r.ref && <div className="text-[11px] text-[#999] mt-0.5">{r.ref}</div>}
-                    </td>
-                    <td className="px-4 py-3"><ChannelBadge channel={r.channel} compact /></td>
-                    <td className="px-4 py-3 tabular-nums text-[#111]">{fmtCurrency(gross)}</td>
-                    <td className="px-4 py-3 tabular-nums text-[#7A5252]">−{fmtCurrency(deductions)}</td>
-                    <td className={`px-4 py-3 font-semibold tabular-nums ${payout < 0 ? "text-[#B7484F]" : "text-[#111]"}`}>
-                      {payout < 0 ? `−${fmtCurrency(Math.abs(payout))}` : fmtCurrency(payout)}
-                    </td>
-                    <td className="px-4 py-3 text-[#666]">{expectedBy}</td>
-                  </tr>
+                    <div key={i} className="bg-white border border-[#eaeaea] rounded-xl p-3.5">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={statusPillClass(r.status)}>{r.status}</span>
+                        {expectedBy && <span className="text-[10px] text-[#999]">Expected {expectedBy}</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <ChannelBadge channel={r.channel} compact />
+                        <span className="text-[15px] font-semibold text-[#111]">{r.guest}</span>
+                      </div>
+                      {r.ref && <div className="text-[11px] text-[#999] mb-1">{r.ref}</div>}
+                      <div className="text-[12px] text-[#666] mb-2">
+                        {checkinFmt} → {checkoutFmt}{nights > 0 ? ` · ${nights} night${nights !== 1 ? "s" : ""}` : ""}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <span className="text-[10px] text-[#999]">Gross </span>
+                            <span className="text-[13px] font-medium text-[#111]">{fmtCurrency(gross)}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#999]">Payout </span>
+                          <span className={`text-[14px] font-semibold ${payout < 0 ? "text-[#B7484F]" : "text-[#111]"}`}>
+                            {payout < 0 ? `−${fmtCurrency(Math.abs(payout))}` : fmtCurrency(payout)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
+                <table className="w-full border-collapse text-[13px]">
+                  <thead>
+                    <tr className="bg-[#fafafa]">
+                      {["Status", "Guest / Ref", "Channel", "Gross", "Deductions", "Payout", "Expected by"].map((h) => (
+                        <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#999] border-b border-[#eaeaea]">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {propReservations.map((r, i) => {
+                      const gross = r.grossAmount || r.gross || 0;
+                      const payout = r.ownerPayout || 0;
+                      const deductions = gross - payout;
+                      const expectedBy = r.checkout ? (() => { const d = new Date(r.checkout + "T00:00:00"); d.setDate(d.getDate() + 3); return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); })() : "—";
+                      return (
+                        <tr key={i} className="border-b border-[#f0f0f0] hover:bg-[#f9f9f9]">
+                          <td className="px-4 py-3"><span className={statusPillClass(r.status)}>{r.status}</span></td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-[#111]">{r.guest}</div>
+                            {r.ref && <div className="text-[11px] text-[#999] mt-0.5">{r.ref}</div>}
+                          </td>
+                          <td className="px-4 py-3"><ChannelBadge channel={r.channel} compact /></td>
+                          <td className="px-4 py-3 tabular-nums text-[#111]">{fmtCurrency(gross)}</td>
+                          <td className="px-4 py-3 tabular-nums text-[#7A5252]">−{fmtCurrency(deductions)}</td>
+                          <td className={`px-4 py-3 font-semibold tabular-nums ${payout < 0 ? "text-[#B7484F]" : "text-[#111]"}`}>
+                            {payout < 0 ? `−${fmtCurrency(Math.abs(payout))}` : fmtCurrency(payout)}
+                          </td>
+                          <td className="px-4 py-3 text-[#666]">{expectedBy}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
-        </div>
+        </>
       )}
 
       {/* ═══ Earnings Tab ═══ */}
@@ -504,85 +557,116 @@ export default function PropertyDetailPage() {
         // Build a lookup from reconciled data so we can show adjusted amounts
         const reconMap = new Map<string, { paidToOwner: number; appliedToDeficit: number; deficitAfter: number; isOnHold: boolean; totalExpenses: number }>();
         for (const row of reconciledRows) {
-          // Key by ref (reservation code) for matching
           if (row.ref) reconMap.set(row.ref, row);
         }
 
-        // Total paid out = sum of ownerPayout for Paid reservations
         /* eslint-disable @typescript-eslint/no-explicit-any */
-        const paidOut = reservations
-          .filter((r: any) => r.payoutStatus === "Paid")
-          .reduce((s: number, r: any) => s + (r.ownerPayout || 0), 0);
-
-        // All completed reservations sorted by checkout (most recent first)
+        // All completed/paid reservations sorted by payout date (pending closest first)
         const completedRes = [...reservations]
           .filter((r: any) => r.status === "Completed" || r.payoutStatus === "Paid")
+          .map((r: any) => {
+            const recon = r.ref ? reconMap.get(r.ref) : undefined;
+            const ownerPayout = r.ownerPayout || 0;
+            const paidToOwner = recon ? recon.paidToOwner : (r.payoutStatus === "Paid" ? ownerPayout : 0);
+            const isHeld = recon ? recon.isOnHold : (ownerPayout < 0 && (r.payoutStatus === "Pending" || r.payoutStatus === "On Hold"));
+            // Fix issue 3: use reconciliation status, fallback to checking negative payout
+            const effectiveStatus = r.payoutStatus === "Paid" ? "Paid" : isHeld ? "On Hold" : (ownerPayout < 0 ? "On Hold" : r.payoutStatus);
+            const expectedBy = r.checkout ? (() => { const d = new Date(r.checkout + "T00:00:00"); d.setDate(d.getDate() + 3); return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); })() : "";
+            const deductions = (r.grossAmount || r.gross || 0) - ownerPayout;
+            return { ...r, effectiveStatus, paidToOwner, deductions, expectedBy, appliedToDeficit: recon?.appliedToDeficit || 0, expApplied: recon?.totalExpenses || 0 };
+          })
         /* eslint-enable @typescript-eslint/no-explicit-any */
-          .sort((a, b) => (b.checkout || "").localeCompare(a.checkout || ""));
+          .sort((a, b) => {
+            // Pending/On Hold first by closest checkout, then Paid by most recent
+            const aP = a.effectiveStatus === "Pending" || a.effectiveStatus === "On Hold";
+            const bP = b.effectiveStatus === "Pending" || b.effectiveStatus === "On Hold";
+            if (aP && !bP) return -1;
+            if (!aP && bP) return 1;
+            if (aP && bP) return (a.checkout || "").localeCompare(b.checkout || "");
+            return (b.checkout || "").localeCompare(a.checkout || "");
+          });
 
         return (
           <div className="space-y-5">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <StatBox label="Total Earnings" value={fmtCurrency(totalEarnings)} sub="All time" />
-              <StatBox label="Paid Out" value={fmtCurrency(paidOut)} sub="Completed payouts" />
               <StatBox
                 label="Current Balance"
                 value={`${pendingBalance < 0 ? "−" : ""}${fmtCurrency(Math.abs(pendingBalance))}`}
                 sub={pendingBalance < 0 ? "On hold" : pendingBalance === 0 ? "No pending payouts" : "Awaiting payout"}
               />
-              {currentDeficit > 0 && (
-                <StatBox label="Carry-forward Deficit" value={`−${fmtCurrency(currentDeficit)}`} sub="Applied from next payout" />
-              )}
             </div>
 
-            <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#f0f0f0]">
-                <h3 className="text-[13px] font-semibold text-[#111]">Payout History</h3>
-              </div>
-              {completedRes.length === 0 ? (
-                <div className="p-6 text-center text-[13px] text-[#999]">No earnings yet for this property.</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-[13px]">
-                    <thead>
-                      <tr className="bg-[#fafafa]">
-                        {["Guest", "Checkout", "Status", "Owner Payout", "Expenses", "Applied to Deficit", "Paid Out"].map((h) => (
-                          <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-[#999] border-b border-[#eaeaea] whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {completedRes.map((r, i) => {
-                        const recon = r.ref ? reconMap.get(r.ref) : undefined;
-                        const ownerPayout = r.ownerPayout || 0;
-                        const expApplied = recon ? recon.totalExpenses : 0;
-                        const appliedToDeficit = recon ? recon.appliedToDeficit : 0;
-                        const paidToOwner = recon ? recon.paidToOwner : (r.payoutStatus === "Paid" ? ownerPayout : 0);
-                        const isHeld = recon ? recon.isOnHold : (ownerPayout < 0 && r.payoutStatus === "Pending");
-                        const effectiveStatus = isHeld ? "On Hold" : r.payoutStatus;
-                        return (
+            {completedRes.length === 0 ? (
+              <div className="bg-white border border-[#eaeaea] rounded-xl p-6 text-center text-[13px] text-[#999]">No earnings yet for this property.</div>
+            ) : (
+              <>
+                {/* Mobile card view */}
+                <div className="md:hidden space-y-3">
+                  {completedRes.map((r, i) => (
+                    <div key={i} className="bg-white border border-[#eaeaea] rounded-xl p-3.5">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={statusPillClass(r.effectiveStatus)}>{r.effectiveStatus}</span>
+                        {r.expectedBy && <span className="text-[10px] text-[#999]">{r.expectedBy}</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <ChannelBadge channel={r.channel} compact />
+                        <span className="text-[15px] font-semibold text-[#111]">{r.guest}</span>
+                      </div>
+                      {r.ref && <div className="text-[11px] text-[#999] mb-1">{r.ref}</div>}
+                      <div className="text-[12px] text-[#666] mb-2">{fmtDate(r.checkin)} → {fmtDate(r.checkout)}</div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-[#999]">Gross </span>
+                          <span className="text-[13px] font-medium text-[#111]">{fmtCurrency(r.grossAmount || r.gross || 0)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#999]">Payout </span>
+                          <span className={`text-[14px] font-semibold ${r.paidToOwner > 0 ? "text-[#2F6B57]" : r.ownerPayout < 0 ? "text-[#B7484F]" : "text-[#111]"}`}>
+                            {r.paidToOwner > 0 ? fmtCurrency(r.paidToOwner) : fmtCurrency(r.ownerPayout || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden md:block bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-[13px]">
+                      <thead>
+                        <tr className="bg-[#fafafa]">
+                          {["Status", "Guest", "Channel", "Checkout", "Gross", "Deductions", "Payout"].map((h) => (
+                            <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-[#999] border-b border-[#eaeaea] whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {completedRes.map((r, i) => (
                           <tr key={i} className="border-b border-[#f3f3f3] hover:bg-[#f9f9f9]">
-                            <td className="px-4 py-3 font-medium text-[#111]">{r.guest}</td>
+                            <td className="px-4 py-3"><span className={statusPillClass(r.effectiveStatus)}>{r.effectiveStatus}</span></td>
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-[#111]">{r.guest}</div>
+                              {r.ref && <div className="text-[11px] text-[#999] mt-0.5">{r.ref}</div>}
+                            </td>
+                            <td className="px-4 py-3"><ChannelBadge channel={r.channel} compact /></td>
                             <td className="px-4 py-3 text-[#666] text-[12px]">{fmtDateFull(r.checkout)}</td>
-                            <td className="px-4 py-3"><span className={statusPillClass(effectiveStatus)}>{effectiveStatus}</span></td>
-                            <td className="px-4 py-3 tabular-nums">{ownerPayout < 0 ? <span className="text-[#B7484F]">−{fmtCurrency(Math.abs(ownerPayout))}</span> : fmtCurrency(ownerPayout)}</td>
-                            <td className="px-4 py-3 tabular-nums text-[#7A5252]">{expApplied > 0 ? `−${fmtCurrency(expApplied)}` : "—"}</td>
-                            <td className="px-4 py-3 tabular-nums text-[#8A6A2E]">{appliedToDeficit > 0 ? `−${fmtCurrency(appliedToDeficit)}` : "—"}</td>
+                            <td className="px-4 py-3 tabular-nums text-[#111]">{fmtCurrency(r.grossAmount || r.gross || 0)}</td>
+                            <td className="px-4 py-3 tabular-nums text-[#7A5252]">−{fmtCurrency(r.deductions)}</td>
                             <td className="px-4 py-3 tabular-nums font-semibold">
-                              {paidToOwner > 0 ? (
-                                <span className="text-[#2F6B57]">{fmtCurrency(paidToOwner)}</span>
-                              ) : (
-                                <span className="text-[#bbb]">€0.00</span>
-                              )}
+                              {r.paidToOwner > 0 ? <span className="text-[#2F6B57]">{fmtCurrency(r.paidToOwner)}</span> :
+                                r.ownerPayout < 0 ? <span className="text-[#B7484F]">−{fmtCurrency(Math.abs(r.ownerPayout))}</span> :
+                                fmtCurrency(r.ownerPayout || 0)}
                             </td>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         );
       })()}
@@ -602,32 +686,7 @@ export default function PropertyDetailPage() {
 
         return (
           <div className="space-y-5">
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatBox label="Total Expenses" value={fmtCurrency(totalExp)} sub={`${expenses.length} expenses`} />
-              <StatBox label="Reservation Linked" value={fmtCurrency(reservationLinkedExp.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0))} sub={`${reservationLinkedExp.length} expenses`} />
-              <StatBox label="Property Level" value={fmtCurrency(propertyLevelExp.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0))} sub={`${propertyLevelExp.length} expenses`} />
-              <StatBox
-                label="Current Balance"
-                value={`${pendingBalance < 0 ? "−" : ""}${fmtCurrency(Math.abs(pendingBalance))}`}
-                sub={pendingBalance < 0 ? "On hold" : pendingBalance === 0 ? "No pending payouts" : "Payout pending"}
-              />
-            </div>
-
-            {/* Property-level expense impact notice */}
-            {propertyLevelPaidTotal > 0 && (
-              <div className="bg-[#F6F1E6] border border-[#E8DDC7] rounded-xl p-4 flex items-start gap-3">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A6A2E" strokeWidth="2" className="flex-shrink-0 mt-0.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <div className="text-[12px] text-[#8A6A2E]">
-                  <strong>{fmtCurrency(propertyLevelPaidTotal)}</strong> in paid property-level expenses are deducted from the owner balance.
-                  These are not linked to any specific reservation — they reduce the overall payout due to the owner.
-                </div>
-              </div>
-            )}
-
-            {/* Expense table */}
+            {/* Expense table — no stat cards, just the list */}
             <div className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3 bg-[#fafafa] border-b border-[#f0f0f0]">
                 <span className="text-[12px] font-semibold text-[#999] uppercase tracking-wide">Expenses ({expenses.length})</span>
@@ -1014,8 +1073,9 @@ export default function PropertyDetailPage() {
               let data;
               try { data = JSON.parse(text); } catch { continue; }
               if (data.ok) {
-                addDocument({
+                await addDocument({
                   propertyId: id,
+                  propertyName: property?.name || "",
                   name: file.name,
                   url: data.url,
                   size: formatFileSize(file.size),
@@ -1123,7 +1183,7 @@ export default function PropertyDetailPage() {
                         <a href={doc.url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-md border border-[#e2e2e2] flex items-center justify-center text-[#888] hover:text-[#80020E] hover:border-[#80020E] transition-colors" title="Download">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         </a>
-                        <button onClick={() => { removeDocument(doc.id); refreshDocs(); }} className="w-7 h-7 rounded-md border border-[#e2e2e2] flex items-center justify-center text-[#ccc] hover:text-[#7A5252] hover:border-[#7A5252] transition-colors" title="Delete">
+                        <button onClick={async () => { await removeDocument(doc.id); refreshDocs(); }} className="w-7 h-7 rounded-md border border-[#e2e2e2] flex items-center justify-center text-[#ccc] hover:text-[#7A5252] hover:border-[#7A5252] transition-colors" title="Delete">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                         </button>
                       </div>

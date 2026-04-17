@@ -18,10 +18,11 @@ const PROTECTED_API_PATHS = [
   "/api/users",
   "/api/debug",
   "/api/tickets",
+  "/api/documents",
 ];
 
 // Admin-only paths
-const ADMIN_PATHS = ["/users", "/tickets"];
+const ADMIN_PATHS = ["/users", "/tickets", "/finances/payouts"];
 const ADMIN_API_PATHS = ["/api/users"];
 
 export async function middleware(req: NextRequest) {

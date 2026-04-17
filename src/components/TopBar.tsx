@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getNotifications, markAllRead, markAsRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
-import { addTicket } from "@/lib/tickets";
+import { addTicket, getTickets, addComment, markTicketRead, hasNewUpdate, type SupportTicket, type TicketAttachment } from "@/lib/tickets";
 
 function stopPropagation(ev: { stopPropagation: () => void }): void {
   ev.stopPropagation();
@@ -66,142 +66,356 @@ function notifIcon(type: AppNotification["type"]) {
   }
 }
 
+/* ── Helper: time ago ── */
+function supportTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function isImageAttachment(att: TicketAttachment): boolean {
+  return att.type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|avif)$/i.test(att.name || "");
+}
+
 /* ── Contact Support Drawer ── */
 function HelpDrawer({ onClose }: { onClose: () => void }) {
   const { data: session } = useSession();
+  const userEmail = session?.user?.email || "";
+  const userName = session?.user?.name || "User";
+
+  const [tab, setTab] = useState<"new" | "list">("new");
+  const [openTicket, setOpenTicket] = useState<SupportTicket | null>(null);
+
+  // New ticket form state
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [files, setFiles] = useState<{ name: string; url: string; type: string; size: number }[]>([]);
+  const [files, setFiles] = useState<TicketAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [sent, setSent] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Fetch the user's profile picture from the profile API (Notion-backed)
-  const [profileImage, setProfileImage] = useState<string>("");
-  useEffect(() => {
-    const email = session?.user?.email;
-    if (!email) return;
-    fetch(`/api/profile?email=${encodeURIComponent(email)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.ok && data.profile?.profilePicture) setProfileImage(data.profile.profilePicture);
-      })
-      .catch(() => {});
-  }, [session]);
+  // My tickets
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [search, setSearch] = useState("");
+  const refreshTickets = useCallback(() => { if (userEmail) setTickets(getTickets(userEmail)); }, [userEmail]);
+  useEffect(() => { refreshTickets(); }, [refreshTickets]);
 
-  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files;
-    if (!selected || selected.length === 0) return;
+  // Conversation state
+  const [replyText, setReplyText] = useState("");
+  const [replyFiles, setReplyFiles] = useState<TicketAttachment[]>([]);
+  const [replyUploading, setReplyUploading] = useState(false);
+  const [replySending, setReplySending] = useState(false);
+  const replyFileRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Profile image
+  const [profileImage, setProfileImage] = useState("");
+  useEffect(() => {
+    if (!userEmail) return;
+    fetch(`/api/profile?email=${encodeURIComponent(userEmail)}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.ok && data.profile?.profilePicture) setProfileImage(data.profile.profilePicture); })
+      .catch(() => {});
+  }, [userEmail]);
+
+  const userImage = profileImage || session?.user?.image || "";
+
+  // Upload handler (shared for new ticket + replies)
+  const uploadFiles = async (selected: FileList, setFilesState: React.Dispatch<React.SetStateAction<TicketAttachment[]>>, setUploadingState: React.Dispatch<React.SetStateAction<boolean>>) => {
     setUploadError("");
-    setUploading(true);
+    setUploadingState(true);
     try {
       for (let i = 0; i < selected.length; i++) {
         const file = selected[i];
-        if (file.size > 10 * 1024 * 1024) { setUploadError(`${file.name} is too large (max 10MB).`); continue; }
+        if (file.size > 10 * 1024 * 1024) { setUploadError(`${file.name} too large (max 10MB).`); continue; }
         const formData = new FormData();
         formData.append("file", file);
         const res = await fetch("/api/tickets/upload", { method: "POST", body: formData });
         const data = await res.json();
         if (data.ok) {
-          setFiles((prev) => [...prev, { name: data.name, url: data.url, type: data.type, size: data.size }]);
-        } else {
-          setUploadError(data.error || "Upload failed.");
-        }
+          setFilesState((prev) => [...prev, { name: data.name, url: data.url, type: data.type, size: data.size }]);
+        } else { setUploadError(data.error || "Upload failed."); }
       }
-    } catch {
-      setUploadError("Upload failed. Please try again.");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
+    } catch { setUploadError("Upload failed."); }
+    finally { setUploadingState(false); }
   };
 
+  // Submit new ticket
   const handleSubmit = async () => {
     if (!subject.trim() || !message.trim() || submitting) return;
     setSubmitting(true);
-    const userName = session?.user?.name || "User";
-    const userEmail = session?.user?.email || "";
-    const userImage = profileImage || session?.user?.image || "";
-    addTicket({
-      subject: subject.trim(),
-      message: message.trim(),
-      submittedBy: userName,
-      submittedEmail: userEmail,
-      submittedImage: userImage,
-      attachments: files,
-    });
+    addTicket({ subject: subject.trim(), message: message.trim(), submittedBy: userName, submittedEmail: userEmail, submittedImage: userImage, attachments: files });
     setSent(true);
-    setTimeout(() => onClose(), 1500);
+    setSubject(""); setMessage(""); setFiles([]);
+    refreshTickets();
+    setTimeout(() => { setSent(false); setTab("list"); }, 1500);
   };
 
+  // Open a ticket conversation
+  const openConversation = (t: SupportTicket) => {
+    markTicketRead(t.id);
+    setOpenTicket({ ...t, lastReadByUser: new Date().toISOString() });
+    refreshTickets();
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+  };
+
+  // Send reply in conversation
+  const handleSendReply = async () => {
+    if ((!replyText.trim() && replyFiles.length === 0) || replySending || !openTicket) return;
+    setReplySending(true);
+    addComment(openTicket.id, { author: "User", authorName: userName, authorEmail: userEmail, authorImage: userImage, message: replyText.trim(), attachments: replyFiles });
+    setReplyText(""); setReplyFiles([]);
+    const fresh = getTickets(userEmail).find((t) => t.id === openTicket.id);
+    if (fresh) { markTicketRead(fresh.id); setOpenTicket(fresh); }
+    refreshTickets();
+    setReplySending(false);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+  };
+
+  const filteredTickets = tickets
+    .filter((t) => !search || t.subject.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  const isClosed = openTicket?.status === "Closed";
+
+  // ── Conversation view ──
+  if (openTicket) {
+    const allMsgs = [
+      { id: "init", author: "User" as const, authorName: openTicket.submittedBy, authorImage: openTicket.submittedImage, message: openTicket.message, attachments: openTicket.attachments || [], createdAt: openTicket.createdAt },
+      ...(openTicket.comments || []),
+    ];
+    return (
+      <>
+        <div className="fixed inset-0 bg-black/20 z-[9998]" onClick={onClose} />
+        <div className="fixed inset-y-0 right-0 w-full max-w-[440px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-[9999] flex flex-col">
+          <div className="flex items-center justify-between px-5 h-[52px] border-b border-[#eaeaea] flex-shrink-0">
+            <button onClick={() => { setOpenTicket(null); refreshTickets(); }} className="text-[13px] text-[#888] hover:text-[#555] flex items-center gap-1">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+              Back to tickets
+            </button>
+            <button onClick={onClose} className="p-1.5 text-[#999] hover:text-[#555]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            <h3 className="text-[16px] font-bold text-[#111] mb-0.5">{openTicket.subject}</h3>
+            <div className="text-[11px] text-[#999] mb-5">Created: {new Date(openTicket.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</div>
+            <div className="text-[13px] font-semibold text-[#111] mb-3">Conversation</div>
+            <div className="space-y-4">
+              {allMsgs.map((msg) => {
+                const isAdmin = msg.author === "Admin";
+                return (
+                  <div key={msg.id} className="flex items-start gap-2.5">
+                    {msg.authorImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={msg.authorImage} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ${isAdmin ? "bg-[#333]" : "bg-accent"}`}>
+                        {isAdmin ? "S" : (msg.authorName || "U").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[13px] font-semibold text-[#111]">{isAdmin ? "Support" : "You"}</span>
+                        <span className="text-[11px] text-[#bbb]">{supportTimeAgo(msg.createdAt)}</span>
+                      </div>
+                      {msg.message && (
+                        <div className="text-[13px] text-[#555] leading-relaxed bg-[#fafafa] rounded-lg p-3 border border-[#f0f0f0]">{msg.message}</div>
+                      )}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {msg.attachments.map((att, i) => isImageAttachment(att) ? (
+                            <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-[#eaeaea] hover:border-[#ccc] transition-colors max-w-[200px]">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={att.url} alt={att.name} className="w-full h-auto max-h-[160px] object-cover" />
+                            </a>
+                          ) : (
+                            <a key={i} href={att.url} download={att.name} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#f5f5f5] border border-[#eaeaea] rounded-lg text-[11px] text-[#555] hover:border-[#ccc]">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                              <span className="truncate max-w-[120px]">{att.name}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+          {/* Reply input */}
+          <div className="border-t border-[#eaeaea] px-5 py-3 flex-shrink-0">
+            {isClosed && (
+              <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-[#f5f5f5] rounded-lg text-[12px] text-[#888]">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                This conversation is closed. Still need help? <button onClick={() => { setOpenTicket(null); setTab("new"); }} className="text-[#80020E] font-medium hover:underline ml-0.5">Contact us</button>
+              </div>
+            )}
+            {replyFiles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {replyFiles.map((f, i) => (
+                  <span key={i} className="flex items-center gap-1 px-2 py-1 bg-[#f5f5f5] border border-[#eaeaea] rounded text-[11px] text-[#555]">
+                    {isImageAttachment(f) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={f.url} alt="" className="w-4 h-4 rounded object-cover" />
+                    ) : (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                    )}
+                    <span className="truncate max-w-[80px]">{f.name}</span>
+                    <button onClick={() => setReplyFiles((p) => p.filter((_, j) => j !== i))} className="text-[#bbb] hover:text-[#555]">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex items-end gap-2">
+              <button type="button" onClick={() => !replyUploading && replyFileRef.current?.click()} disabled={isClosed || replyUploading}
+                className="w-[36px] h-[36px] flex items-center justify-center rounded-lg border border-[#e2e2e2] text-[#999] hover:text-[#555] hover:border-[#ccc] transition-colors flex-shrink-0 disabled:opacity-40">
+                {replyUploading ? <div className="w-3 h-3 border-2 border-[#999] border-t-transparent rounded-full animate-spin" /> :
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                }
+              </button>
+              <input ref={replyFileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" onChange={async (e) => { if (e.target.files) { await uploadFiles(e.target.files, setReplyFiles, setReplyUploading); e.target.value = ""; } }} className="hidden" />
+              <input type="text" value={replyText} onChange={(e) => setReplyText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendReply(); } }}
+                placeholder={isClosed ? "Ticket closed" : "Write a reply..."}
+                disabled={isClosed}
+                className="flex-1 h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white disabled:bg-[#f8f8f8] disabled:cursor-not-allowed" />
+              <button type="button" onClick={handleSendReply} disabled={isClosed || replySending || (!replyText.trim() && replyFiles.length === 0)}
+                className="h-[36px] px-3.5 rounded-lg border border-[#80020E] text-[#80020E] text-[12px] font-semibold hover:bg-[#80020E]/5 transition-colors flex-shrink-0 disabled:opacity-40">
+                {replySending ? "..." : "Send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ── Main drawer (tabs: New ticket / My tickets) ──
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-[9998]" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 w-full max-w-[400px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-[9999] flex flex-col">
-        <div className="flex items-center justify-between px-6 h-[56px] border-b border-[#eaeaea] flex-shrink-0">
-          <span className="text-[15px] font-semibold text-[#111]">Contact Support</span>
-          <button onClick={onClose} className="p-2 text-[#999] hover:text-[#555] transition-colors">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      <div className="fixed inset-y-0 right-0 w-full max-w-[420px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-[9999] flex flex-col">
+        <div className="flex items-center justify-between px-6 h-[52px] border-b border-[#eaeaea] flex-shrink-0">
+          <span className="text-[15px] font-semibold text-[#111]">Support</span>
+          <button onClick={onClose} className="p-1.5 text-[#999] hover:text-[#555]">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {sent ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-14 h-14 rounded-full bg-[#EAF3EF] flex items-center justify-center mb-4">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2F6B57" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div className="text-[15px] font-semibold text-[#111] mb-1">Ticket submitted</div>
-              <div className="text-[13px] text-[#888]">We&apos;ll get back to you shortly.</div>
-            </div>
-          ) : (
-            <>
-              <p className="text-[13px] text-[#888] mb-5">Submit a support ticket and our team will get back to you as soon as possible.</p>
-              <div className="mb-4">
-                <label className="block text-[13px] font-medium text-[#555] mb-1.5">Subject</label>
-                <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Brief summary of your issue"
-                  className="w-full h-[42px] px-3.5 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
-              </div>
-              <div className="mb-4">
-                <label className="block text-[13px] font-medium text-[#555] mb-1.5">Message</label>
-                <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe the issue in detail..."
-                  rows={5} className="w-full px-3.5 py-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors resize-none bg-white" />
-              </div>
-              {/* File upload */}
-              <div className="mb-5">
-                <button type="button" onClick={() => !uploading && fileRef.current?.click()} disabled={uploading}
-                  className="flex items-center gap-2 px-3 py-2 border border-dashed border-[#d0d0d0] rounded-lg text-[12px] text-[#888] hover:border-[#999] hover:text-[#555] transition-colors w-full justify-center disabled:opacity-60">
-                  {uploading ? (
-                    <><div className="w-3 h-3 border-2 border-[#999] border-t-transparent rounded-full animate-spin" />Uploading...</>
-                  ) : (
-                    <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>Attach files</>
-                  )}
-                </button>
-                <input ref={fileRef} type="file" multiple onChange={handleFiles} className="hidden" />
-                {uploadError && <div className="mt-2 text-[11px] text-[#B7484F]">{uploadError}</div>}
-                {files.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {files.map((f, i) => (
-                      <div key={i} className="flex items-center justify-between px-2.5 py-1.5 bg-[#f9f9f9] border border-[#eee] rounded-lg text-[11px]">
-                        <span className="text-[#555] truncate flex-1">{f.name}</span>
-                        <button onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="text-[#bbb] hover:text-[#555] ml-2 flex-shrink-0">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        </button>
-                      </div>
-                    ))}
+
+        {/* Tabs */}
+        <div className="flex border-b border-[#eaeaea] px-6">
+          <button onClick={() => setTab("new")} className={`px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors ${tab === "new" ? "text-[#80020E] border-[#80020E]" : "text-[#999] border-transparent hover:text-[#555]"}`}>
+            New ticket
+          </button>
+          <button onClick={() => { setTab("list"); refreshTickets(); }} className={`px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors ${tab === "list" ? "text-[#80020E] border-[#80020E]" : "text-[#999] border-transparent hover:text-[#555]"}`}>
+            My tickets ({tickets.length})
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {/* ── New Ticket Tab ── */}
+          {tab === "new" && (
+            <div className="px-6 py-5">
+              {sent ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-14 h-14 rounded-full bg-[#EAF3EF] flex items-center justify-center mb-4">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2F6B57" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
                   </div>
-                )}
-              </div>
-              <button onClick={handleSubmit} disabled={!subject.trim() || !message.trim() || submitting || uploading}
-                className="w-full h-[42px] rounded-lg border border-[#80020E] text-[#80020E] text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-40">
-                {submitting ? "Submitting..." : "Submit Ticket"}
-              </button>
-              <div className="mt-5 pt-5 border-t border-[#f0f0f0]">
-                <p className="text-[12px] text-[#999] mb-2">Or contact us directly:</p>
-                <a href="mailto:support@hostyo.com" className="text-[13px] text-[#80020E] font-medium hover:underline">support@hostyo.com</a>
-              </div>
-            </>
+                  <div className="text-[15px] font-semibold text-[#111] mb-1">Ticket submitted</div>
+                  <div className="text-[13px] text-[#888]">We&apos;ll get back to you shortly.</div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-[13px] text-[#888] mb-5">Submit a support ticket and our team will get back to you as soon as possible.</p>
+                  <div className="mb-4">
+                    <label className="block text-[13px] font-medium text-[#555] mb-1.5">Subject</label>
+                    <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Brief summary of your issue"
+                      className="w-full h-[42px] px-3.5 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-[13px] font-medium text-[#555] mb-1.5">Message</label>
+                    <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe the issue in detail..."
+                      rows={4} className="w-full px-3.5 py-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors resize-none bg-white" />
+                  </div>
+                  <div className="mb-5">
+                    <button type="button" onClick={() => !uploading && fileRef.current?.click()} disabled={uploading}
+                      className="flex items-center gap-2 px-3 py-2 border border-dashed border-[#d0d0d0] rounded-lg text-[12px] text-[#888] hover:border-[#999] hover:text-[#555] transition-colors w-full justify-center disabled:opacity-60">
+                      {uploading ? <><div className="w-3 h-3 border-2 border-[#999] border-t-transparent rounded-full animate-spin" />Uploading...</> :
+                        <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>Attach files</>}
+                    </button>
+                    <input ref={fileRef} type="file" multiple onChange={async (e) => { if (e.target.files) { await uploadFiles(e.target.files, setFiles, setUploading); e.target.value = ""; } }} className="hidden" />
+                    {uploadError && <div className="mt-2 text-[11px] text-[#B7484F]">{uploadError}</div>}
+                    {files.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {files.map((f, i) => (
+                          <div key={i} className="flex items-center justify-between px-2.5 py-1.5 bg-[#f9f9f9] border border-[#eee] rounded-lg text-[11px]">
+                            <span className="text-[#555] truncate flex-1">{f.name}</span>
+                            <button onClick={() => setFiles((p) => p.filter((_, j) => j !== i))} className="text-[#bbb] hover:text-[#555] ml-2 flex-shrink-0">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={handleSubmit} disabled={!subject.trim() || !message.trim() || submitting || uploading}
+                    className="w-full h-[42px] rounded-lg border border-[#80020E] text-[#80020E] text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-40">
+                    {submitting ? "Submitting..." : "Submit Ticket"}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── My Tickets Tab ── */}
+          {tab === "list" && (
+            <div className="px-5 py-4">
+              {tickets.length > 0 && (
+                <div className="relative mb-3">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tickets..."
+                    className="w-full h-[36px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
+                </div>
+              )}
+              {filteredTickets.length === 0 ? (
+                <div className="py-10 text-center">
+                  <div className="text-[13px] text-[#999]">{tickets.length === 0 ? "No tickets yet" : "No matching tickets"}</div>
+                </div>
+              ) : (
+                <div className="space-y-0">
+                  {filteredTickets.map((t) => {
+                    const isNew = hasNewUpdate(t);
+                    return (
+                      <button key={t.id} onClick={() => openConversation(t)}
+                        className={`w-full flex items-center gap-3 py-3.5 text-left transition-colors hover:bg-[#f9f9f9] -mx-2 px-2 rounded-lg ${isNew ? "border-l-[3px] border-l-[#80020E] pl-3" : "border-l-[3px] border-l-transparent"}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[14px] font-semibold text-[#111] truncate">{t.subject}</div>
+                          <div className="text-[11px] text-[#999] mt-0.5">{supportTimeAgo(t.updatedAt)}</div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {isNew && (
+                            <span className="text-[10px] font-semibold text-[#80020E] bg-[#80020E]/[0.08] px-2 py-0.5 rounded-full border border-[#80020E]/20">New update</span>
+                          )}
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -334,7 +548,13 @@ export default function TopBar({ title }: { title: string }) {
   useEffect(() => {
     refreshCount();
     window.addEventListener("hostyo:notification", refreshCount);
-    return () => window.removeEventListener("hostyo:notification", refreshCount);
+    // Listen for mobile header opening the support drawer
+    const openSupport = () => setHelpOpen(true);
+    window.addEventListener("hostyo:open-support", openSupport);
+    return () => {
+      window.removeEventListener("hostyo:notification", refreshCount);
+      window.removeEventListener("hostyo:open-support", openSupport);
+    };
   }, [refreshCount]);
 
   return (

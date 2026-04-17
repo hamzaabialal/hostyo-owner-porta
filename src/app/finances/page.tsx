@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
 import MobileTabs from "@/components/MobileTabs";
 import ChannelBadge from "@/components/ChannelBadge";
@@ -212,6 +213,9 @@ function EmptyState() {
 export default function FinancesOverviewPage() {
   const { fetchData } = useData();
   const router = useRouter();
+  const { data: session } = useSession();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isAdmin = (session?.user as any)?.role === "admin";
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
@@ -299,6 +303,54 @@ export default function FinancesOverviewPage() {
       .reduce((sum, r) => sum + (r.ownerPayout || 0), 0);
   }, [liveReservations, now]);
 
+  // Owner-specific: Next payout (earliest pending completed reservation)
+  const nextPayout = useMemo(() => {
+    const pending = liveReservations
+      .filter((r) => {
+        if (r.status !== "Completed") return false;
+        const ps = (r.payoutStatus || "").toLowerCase();
+        return ps === "pending" || ps === "on hold";
+      })
+      .sort((a, b) => (a.checkout || "").localeCompare(b.checkout || ""));
+    if (pending.length === 0) return { amount: 0, date: "" };
+    // Sum all pending payouts, use the latest checkout + 3 days as expected date
+    const total = pending.reduce((s, r) => s + (r.ownerPayout || 0), 0);
+    const lastCheckout = pending[pending.length - 1]?.checkout || "";
+    let expectedDate = "";
+    if (lastCheckout) {
+      const d = new Date(lastCheckout + "T00:00:00");
+      d.setDate(d.getDate() + 3);
+      expectedDate = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    }
+    return { amount: total, date: expectedDate };
+  }, [liveReservations]);
+
+  // Owner-specific: Earned this month (owner payouts from completed reservations this month)
+  const earnedThisMonth = useMemo(() =>
+    liveReservations
+      .filter((r) => r.status === "Completed" && (r.checkout || "").startsWith(thisMonth))
+      .reduce((sum, r) => sum + (r.ownerPayout || 0), 0),
+  [liveReservations, thisMonth]);
+
+  // Owner-specific: Monthly earnings chart (paid vs forecast/pending)
+  const monthlyEarnings = useMemo(() => {
+    const months: { month: string; year: number; key: string; paid: number; forecast: number; isCurrent: boolean }[] = [];
+    for (let i = 6; i >= -5; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-GB", { month: "short" });
+      const isCurrent = key === thisMonth;
+      const monthRes = liveReservations.filter((r) => (r.checkout || "").startsWith(key) && r.status !== "Cancelled");
+      const paid = monthRes.filter((r) => r.payoutStatus === "Paid" || r.status === "Completed").reduce((s, r) => s + (r.ownerPayout || 0), 0);
+      const forecast = monthRes.filter((r) => r.status !== "Completed" && r.payoutStatus !== "Paid").reduce((s, r) => s + (r.ownerPayout || 0), 0);
+      months.push({ month: label, year: d.getFullYear(), key, paid, forecast, isCurrent });
+    }
+    return months;
+  }, [liveReservations, now, thisMonth]);
+
+  const maxEarning = Math.max(...monthlyEarnings.map((d) => d.paid + d.forecast), 1);
+  const [hoveredEarningMonth, setHoveredEarningMonth] = useState<string | null>(null);
+
   // Additional computed values (all hooks must be before early returns)
   const today = useMemo(() => now.toISOString().split("T")[0], [now]);
   const activeProperties = useMemo(() => new Set(liveReservations.filter((r) => r.status !== "Cancelled").map((r) => r.property)).size, [liveReservations]);
@@ -369,34 +421,100 @@ export default function FinancesOverviewPage() {
     <AppShell title="Finances">
       <MobileTabs tabs={FINANCE_TABS} />
 
-      {/* ── Row 1: Stat cards ── */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
-        {[
-          { label: "Properties", value: String(activeProperties), sub: "Active" },
-          { label: `Fees · ${now.toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}`, value: fmtCurrency(feesThisMonth), sub: "This month" },
-          { label: "Upcoming", value: fmtCurrency(upcomingPayouts), sub: `${upcomingConfirmed} Confirmed` },
-          { label: "Fees YTD", value: fmtCurrency(feesYTD), sub: `Nov ${now.getFullYear() - 1} – ${now.toLocaleDateString("en-GB", { month: "short" })} ${String(now.getFullYear()).slice(2)}` },
-          { label: "Avg / Booking", value: fmtCurrency(avgPerBooking), sub: "YTD" },
-          { label: "Avg / Property", value: fmtCurrency(avgPerProperty), sub: "YTD" },
-        ].map((c) => (
-          <div key={c.label} className="bg-white border border-[#eaeaea] rounded-xl p-3 md:p-4">
-            <div className="text-[9px] md:text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">{c.label}</div>
-            <div className="text-[16px] md:text-[20px] font-bold text-[#111] truncate">{c.value}</div>
-            <div className="text-[9px] md:text-[10px] text-[#aaa] mt-0.5">{c.sub}</div>
+      {/* ═══ Owner View ═══ */}
+      {!isAdmin && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+            <SummaryCard label="Balance" value={ownerBalance === 0 ? "€0.00" : fmtCurrency(ownerBalance)} subtitle={ownerBalance === 0 ? "No pending payouts" : "Payout pending"} onClick={() => router.push("/finances/earnings")} />
+            <SummaryCard label="Next Payout" value={fmtCurrency(nextPayout.amount)} subtitle={nextPayout.date ? `Expected by ${nextPayout.date}` : "No pending payouts"} onClick={() => router.push("/finances/earnings")} />
+            <SummaryCard label="Earned This Month" value={fmtCurrency(earnedThisMonth)} subtitle={now.toLocaleDateString("en-GB", { month: "long", year: "numeric" })} />
+            <SummaryCard label="Forecast" value={fmtCurrency(upcomingPayouts)} subtitle="Confirmed bookings" />
           </div>
-        ))}
-      </div>
 
-      {/* ── Row 2: Key financial cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-5">
-        <SummaryCard label="Current Balance" value={fmtCurrency(ownerBalance)} accent subtitle="Across all live properties" onClick={() => router.push("/finances/earnings")} />
-        <SummaryCard label="Expected Payouts" value={fmtCurrency(expectedPayouts)} subtitle="Pending · this month" onClick={() => router.push("/finances/payouts")} />
-        <SummaryCard label="Cleaning Fees" value={fmtCurrency(cleaningThisMonth)} subtitle="This month" />
-        <SummaryCard label="Service VAT" value={fmtCurrency(vatThisMonth)} subtitle="19% · this month" />
-      </div>
+          {/* Monthly earnings chart — owner view */}
+          <div className="bg-white border border-[#eaeaea] rounded-xl p-5 md:p-6 mb-5">
+            <div className="flex items-center justify-between mb-5">
+              <div className="text-[14px] font-semibold text-[#111]">Monthly earnings</div>
+              <div className="flex items-center gap-4 text-[11px] text-[#999]">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#80020E]" />Paid</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm border border-[#80020E]/40 bg-[#80020E]/[0.06]" />Forecast</span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex flex-col justify-between text-[10px] text-[#bbb] text-right w-[40px] h-[200px] pb-6 flex-shrink-0">
+                {[...Array(6)].map((_, i) => <span key={i}>€{((maxEarning / 5) * (5 - i) / 1000).toFixed(1)}k</span>)}
+              </div>
+              <div className="flex-1 overflow-x-auto hide-scrollbar">
+                <div className="flex items-end gap-1.5 md:gap-2.5 h-[200px] border-b border-[#f0f0f0] pb-0 relative" style={{ minWidth: `${monthlyEarnings.length * 52}px` }}>
+                  {monthlyEarnings.map((d) => {
+                    const total = d.paid + d.forecast;
+                    const paidPct = (d.paid / maxEarning) * 100;
+                    const forecastPct = (d.forecast / maxEarning) * 100;
+                    const isHovered = hoveredEarningMonth === d.key;
+                    return (
+                      <div key={d.key} className="flex-1 flex flex-col items-center gap-1 h-full justify-end relative"
+                        onMouseEnter={() => setHoveredEarningMonth(d.key)}
+                        onMouseLeave={() => setHoveredEarningMonth((c) => (c === d.key ? null : c))}>
+                        {isHovered && (
+                          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 bg-[#111] text-white text-[11px] rounded-lg px-2.5 py-2 shadow-lg whitespace-nowrap pointer-events-none">
+                            <div className="font-semibold mb-1">{d.month} {d.year}</div>
+                            <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#80020E]" /><span className="text-white/70">Paid</span><span className="ml-2 tabular-nums">{fmtCurrency(d.paid)}</span></div>
+                            <div className="flex items-center gap-1.5 mt-0.5"><span className="w-2 h-2 rounded-sm border border-white/40 bg-white/[0.06]" /><span className="text-white/70">Forecast</span><span className="ml-2 tabular-nums">{fmtCurrency(d.forecast)}</span></div>
+                            <div className="border-t border-white/10 mt-1 pt-1 flex items-center justify-between gap-2"><span className="text-white/70">Total</span><span className="font-semibold tabular-nums">{fmtCurrency(total)}</span></div>
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-[#111]" />
+                          </div>
+                        )}
+                        <div className="w-full flex justify-center items-end h-[170px] cursor-pointer">
+                          <div className="w-full max-w-[26px] flex flex-col justify-end h-full">
+                            {d.forecast > 0 && <div className={`w-full border border-[#80020E]/40 bg-[#80020E]/[0.06] ${d.paid > 0 ? "rounded-t border-b-0" : "rounded-t"} ${isHovered ? "bg-[#80020E]/[0.12]" : ""} transition-colors`} style={{ height: `${forecastPct}%` }} />}
+                            {d.paid > 0 && <div className={`w-full bg-[#80020E] ${d.forecast > 0 ? "rounded-b" : "rounded-t"} ${isHovered ? "brightness-110" : ""} transition-all`} style={{ height: `${paidPct}%` }} />}
+                            {total === 0 && <div className="w-full rounded-t bg-[#f0f0f0]" style={{ height: "2px" }} />}
+                          </div>
+                        </div>
+                        <span className={`text-[10px] font-medium ${d.isCurrent ? "text-[#80020E] font-semibold" : "text-[#999]"}`}>{d.month}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
-      {/* ── Monthly Management Fees Chart ── */}
-      <div className="bg-white border border-[#eaeaea] rounded-xl p-5 md:p-6 mb-5">
+      {/* ═══ Admin View ═══ */}
+      {isAdmin && (
+        <>
+          {/* ── Row 1: Stat cards ── */}
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+            {[
+              { label: "Properties", value: String(activeProperties), sub: "Active" },
+              { label: `Fees · ${now.toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}`, value: fmtCurrency(feesThisMonth), sub: "This month" },
+              { label: "Upcoming", value: fmtCurrency(upcomingPayouts), sub: `${upcomingConfirmed} Confirmed` },
+              { label: "Fees YTD", value: fmtCurrency(feesYTD), sub: `Nov ${now.getFullYear() - 1} – ${now.toLocaleDateString("en-GB", { month: "short" })} ${String(now.getFullYear()).slice(2)}` },
+              { label: "Avg / Booking", value: fmtCurrency(avgPerBooking), sub: "YTD" },
+              { label: "Avg / Property", value: fmtCurrency(avgPerProperty), sub: "YTD" },
+            ].map((c) => (
+              <div key={c.label} className="bg-white border border-[#eaeaea] rounded-xl p-3 md:p-4">
+                <div className="text-[9px] md:text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">{c.label}</div>
+                <div className="text-[16px] md:text-[20px] font-bold text-[#111] truncate">{c.value}</div>
+                <div className="text-[9px] md:text-[10px] text-[#aaa] mt-0.5">{c.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Row 2: Key financial cards ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-5">
+            <SummaryCard label="Current Balance" value={fmtCurrency(ownerBalance)} accent subtitle="Across all live properties" onClick={() => router.push("/finances/earnings")} />
+            <SummaryCard label="Expected Payouts" value={fmtCurrency(expectedPayouts)} subtitle="Pending · this month" onClick={() => router.push("/finances/payouts")} />
+            <SummaryCard label="Cleaning Fees" value={fmtCurrency(cleaningThisMonth)} subtitle="This month" />
+            <SummaryCard label="Service VAT" value={fmtCurrency(vatThisMonth)} subtitle="19% · this month" />
+          </div>
+        </>
+      )}
+
+      {/* ── Monthly Management Fees Chart (admin only) ── */}
+      {isAdmin && <div className="bg-white border border-[#eaeaea] rounded-xl p-5 md:p-6 mb-5">
         <div className="flex items-center justify-between mb-5">
           <div>
             <div className="text-[14px] font-semibold text-[#111]">Monthly management fees</div>
@@ -468,29 +586,31 @@ export default function FinancesOverviewPage() {
           </div>
           </div>
         </div>
-      </div>
+      </div>}
 
-      {/* ── Properties by Fees Earned ── */}
-      <div className="bg-white border border-[#eaeaea] rounded-xl p-5 md:p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-[14px] font-semibold text-[#111]">Properties by fees earned</div>
-          <div className="text-[11px] text-[#999]">YTD · ranked</div>
-        </div>
-        <div className="divide-y divide-[#f3f3f3]">
-          {propertyRanking.map(([prop, data], i) => (
-            <div key={prop} className="flex items-center gap-3 py-3">
-              <span className="text-[12px] font-medium text-[#bbb] w-5 text-right flex-shrink-0">{i + 1}</span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-medium text-[#111] truncate">{prop}</div>
+      {/* ── Properties by Fees Earned (admin only) ── */}
+      {isAdmin && (
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-5 md:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-[14px] font-semibold text-[#111]">Properties by fees earned</div>
+            <div className="text-[11px] text-[#999]">YTD · ranked</div>
+          </div>
+          <div className="divide-y divide-[#f3f3f3]">
+            {propertyRanking.map(([prop, data], i) => (
+              <div key={prop} className="flex items-center gap-3 py-3">
+                <span className="text-[12px] font-medium text-[#bbb] w-5 text-right flex-shrink-0">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-medium text-[#111] truncate">{prop}</div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-[14px] font-bold text-[#111]">{fmtCurrency(data.fees)}</div>
+                  <div className="text-[10px] text-[#999]">{fmtCurrency(data.revenue)} rev</div>
+                </div>
               </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-[14px] font-bold text-[#111]">{fmtCurrency(data.fees)}</div>
-                <div className="text-[10px] text-[#999]">{fmtCurrency(data.revenue)} rev</div>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Reservation Detail Drawer */}
       {selectedReservation && <ReservationDrawer r={selectedReservation} onClose={() => setSelectedReservation(null)} />}

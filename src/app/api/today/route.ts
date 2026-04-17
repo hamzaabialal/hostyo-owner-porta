@@ -196,16 +196,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(data);
     }
 
-    // Filter ALL list fields by property scope
-    const arrivals = (data.arrivals || []).filter((a: any) => isInScope(scope, a.property || ""));
-    const departures = (data.departures || []).filter((a: any) => isInScope(scope, a.property || ""));
-    const upcoming = (data.upcoming || []).filter((a: any) => isInScope(scope, a.property || ""));
-    const inHouse = (data.inHouse || []).filter((a: any) => isInScope(scope, a.property || ""));
-    const nextArrivals = (data.nextArrivals || []).filter((a: any) => isInScope(scope, a.property || ""));
-
-    // Payment totals in the raw aggregate are unscoped. Recompute from scoped
-    // reservations — paginated to get ALL pages, not just the first 100.
+    // For owners: compute EVERYTHING fresh from paginated Notion data.
+    // This avoids stale cache issues and ensures scope filtering is accurate.
     const thisMonth = new Date().toISOString().slice(0, 7);
+    const todayStr = new Date().toISOString().split("T")[0];
     const allPages: any[] = [];
     let cursor: string | undefined = undefined;
     do {
@@ -220,35 +214,63 @@ export async function GET(req: NextRequest) {
     } while (cursor);
 
     let balance = 0, paidThisMonth = 0, pending = 0, forecast = 0;
-    const todayStr = new Date().toISOString().split("T")[0];
+    const inHouse: any[] = [];
+    const nextArrivals: any[] = [];
+    const arrivals: any[] = [];
+    const departures: any[] = [];
+
     for (const p of allPages) {
       const propertyName = prop(p, "Property") || "";
       if (!isInScope(scope, propertyName)) continue;
+
       const status = prop(p, "Status");
       const payoutStatus = prop(p, "Payout Status");
       const ownerPayout = prop(p, "Owner Payout") || 0;
       const checkin = (prop(p, "Check In") || "").split("T")[0];
       const checkout = (prop(p, "Check Out") || "").split("T")[0];
+      const channel = prop(p, "Channel") || "Direct";
+      const guest = prop(p, "Guest") || "";
+      const nights = prop(p, "Nights") || 0;
       const psLower = (payoutStatus || "").toLowerCase();
 
-      // Paid this month
+      // Payment totals
       if (payoutStatus === "Paid" && checkout.startsWith(thisMonth)) paidThisMonth += ownerPayout;
-      // Balance = sum of completed + pending/on-hold payouts (same as the home page expects)
-      if (status === "Completed" && (psLower === "pending" || psLower === "on hold")) {
-        balance += ownerPayout;
-        pending += ownerPayout;
-      }
-      // Forecast = future bookings not yet paid
+      if (status === "Completed" && (psLower === "pending" || psLower === "on hold")) { balance += ownerPayout; pending += ownerPayout; }
       if (checkin > todayStr && status !== "Cancelled" && payoutStatus !== "Paid") forecast += ownerPayout;
+
+      // In-house: checked in <= today && checkout >= today && not cancelled
+      if (checkin <= todayStr && checkout >= todayStr && status !== "Cancelled") {
+        const daysLeft = Math.ceil((new Date(checkout + "T00:00:00").getTime() - new Date(todayStr + "T00:00:00").getTime()) / 86400000);
+        inHouse.push({ guest, property: propertyName, channel, checkout, daysLeft, nights });
+      }
+
+      // Next arrivals: checkin >= today && not cancelled
+      if (checkin >= todayStr && status !== "Cancelled") {
+        const daysAway = Math.ceil((new Date(checkin + "T00:00:00").getTime() - new Date(todayStr + "T00:00:00").getTime()) / 86400000);
+        const fmtDate = (d: string) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+        nextArrivals.push({ guest, property: propertyName, channel, checkin, daysAway, date: fmtDate(checkin) });
+      }
+
+      // Arrivals today
+      if (checkin === todayStr && status !== "Cancelled") {
+        arrivals.push({ guest, property: propertyName, guests: 0, channel });
+      }
+      // Departures today
+      if (checkout === todayStr && status !== "Cancelled") {
+        departures.push({ guest, property: propertyName, channel });
+      }
     }
+
+    inHouse.sort((a: any, b: any) => a.daysLeft - b.daysLeft);
+    nextArrivals.sort((a: any, b: any) => a.daysAway - b.daysAway);
 
     const fmt = (n: number) => `€${n.toLocaleString("en-IE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
     return NextResponse.json({
       arrivals,
       departures,
-      upcoming,
-      inHouse,
+      upcoming: nextArrivals.slice(0, 3),
+      inHouse: inHouse.slice(0, 6),
       nextArrivals,
       payment: {
         balance: fmt(balance),
