@@ -272,9 +272,10 @@ export default function FinancesEarningsPage() {
   const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
+    // Always fetch fresh data to avoid stale payout status from cache
     Promise.all([
-      fetchData("reservations", "/api/reservations"),
-      fetchData("expenses", "/api/expenses"),
+      fetchData("reservations", "/api/reservations?fresh=1"),
+      fetchData("expenses", "/api/expenses?fresh=1"),
     ]).then(([resResult, expResult]: unknown[]) => {
         const d = resResult as { data?: Record<string, unknown>[] };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -330,10 +331,16 @@ export default function FinancesEarningsPage() {
               net: r.ownerPayout || 0,
               payoutStatus: (() => {
                 const raw = r.payoutStatus || "Pending";
-                if (raw !== "Pending") return raw;
+                // If Notion already has a non-Pending status, use it
+                if (raw !== "Pending" && raw.toLowerCase() !== "pending") return raw;
+                // Reconciliation says on hold
                 if (recon?.isOnHold) return "On Hold";
+                // Negative payout — definitely on hold
                 if ((r.ownerPayout || 0) < 0) return "On Hold";
+                // Deficit recovery consumed the payout
                 if (reconApplied > 0 && reconPaidToOwner === 0) return "On Hold";
+                // Completed reservation with zero payout — nothing to pay
+                if (r.status === "Completed" && (r.ownerPayout || 0) <= 0) return "On Hold";
                 return raw;
               })(),
               payoutDate: r.checkout || "",

@@ -22,7 +22,7 @@ export interface SupportTicket {
   id: string;
   subject: string;
   message: string;
-  status: "Open" | "In Progress" | "Resolved" | "Closed";
+  status: "Open" | "In Progress" | "Closed";
   priority: "Low" | "Medium" | "High";
   submittedBy: string;
   submittedEmail: string;
