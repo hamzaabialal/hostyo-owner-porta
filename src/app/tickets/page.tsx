@@ -5,15 +5,14 @@ import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
 import { getTickets, updateTicket, deleteTicket, addComment, type SupportTicket, type TicketAttachment } from "@/lib/tickets";
 
-const STATUS_OPTIONS = ["Open", "In Progress", "Resolved", "Closed"] as const;
+const STATUS_OPTIONS = ["Open", "In Progress", "Closed"] as const;
 type TicketStatus = (typeof STATUS_OPTIONS)[number];
 const PRIORITY_OPTIONS = ["Low", "Medium", "High"] as const;
 
-// Kanban column visual config — ClickUp-style accent bars + dot
+// Kanban column visual config
 const COLUMNS: { status: TicketStatus; label: string; dot: string; bar: string; count: string }[] = [
   { status: "Open",        label: "Open",        dot: "#D4A843", bar: "#D4A843", count: "text-[#8A6A2E]" },
   { status: "In Progress", label: "In Progress", dot: "#655E7A", bar: "#655E7A", count: "text-[#4A4360]" },
-  { status: "Resolved",    label: "Resolved",    dot: "#2F6B57", bar: "#2F6B57", count: "text-[#1F4B3D]" },
   { status: "Closed",      label: "Closed",      dot: "#999",    bar: "#bbb",    count: "text-[#666]" },
 ];
 
@@ -135,7 +134,7 @@ export default function TicketsPage() {
         </div>
       ) : (
         <div className="overflow-x-auto -mx-4 md:-mx-0 pb-4">
-          <div className="grid grid-flow-col auto-cols-[minmax(280px,1fr)] md:grid-cols-4 md:auto-cols-auto gap-3 px-4 md:px-0 min-w-full">
+          <div className="grid grid-flow-col auto-cols-[minmax(280px,1fr)] md:grid-cols-3 md:auto-cols-auto gap-3 px-4 md:px-0 min-w-full">
             {COLUMNS.map((col) => {
               const list = ticketsByStatus(col.status);
               const isHover = hoverColumn === col.status;
