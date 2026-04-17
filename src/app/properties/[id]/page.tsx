@@ -725,7 +725,7 @@ export default function PropertyDetailPage() {
                       <tr className="bg-[#fafafa]">
                         <td colSpan={3} />
                         <td className="px-4 py-3 text-[11px] font-semibold text-[#999] uppercase">Total this month</td>
-                        <td className="px-4 py-3 font-bold text-[#7A5252] tabular-nums">-{fmtCurrency(totalExp)}</td>
+                        <td className="px-4 py-3 font-bold text-[#7A5252] tabular-nums">-{fmtCurrency(expenses.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0))}</td>
                       </tr>
                       <tr className="bg-[#fafafa]">
                         <td colSpan={4} />
