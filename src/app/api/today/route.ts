@@ -204,28 +204,41 @@ export async function GET(req: NextRequest) {
     const nextArrivals = (data.nextArrivals || []).filter((a: any) => isInScope(scope, a.property || ""));
 
     // Payment totals in the raw aggregate are unscoped. Recompute from scoped
-    // reservations fetched fresh — cheap enough.
+    // reservations — paginated to get ALL pages, not just the first 100.
     const thisMonth = new Date().toISOString().slice(0, 7);
-    const allRes: any = await notion.databases.query({
-      database_id: DB_ID,
-      filter: { property: "Deleted", checkbox: { equals: false } },
-      page_size: 100,
-    });
+    const allPages: any[] = [];
+    let cursor: string | undefined = undefined;
+    do {
+      const payRes: any = await notion.databases.query({
+        database_id: DB_ID,
+        filter: { property: "Deleted", checkbox: { equals: false } },
+        start_cursor: cursor,
+        page_size: 100,
+      });
+      allPages.push(...payRes.results);
+      cursor = payRes.has_more ? payRes.next_cursor : undefined;
+    } while (cursor);
 
     let balance = 0, paidThisMonth = 0, pending = 0, forecast = 0;
     const todayStr = new Date().toISOString().split("T")[0];
-    for (const p of allRes.results) {
+    for (const p of allPages) {
       const propertyName = prop(p, "Property") || "";
       if (!isInScope(scope, propertyName)) continue;
       const status = prop(p, "Status");
       const payoutStatus = prop(p, "Payout Status");
       const ownerPayout = prop(p, "Owner Payout") || 0;
-      const checkin = prop(p, "Check In") || "";
-      const checkout = prop(p, "Check Out") || "";
+      const checkin = (prop(p, "Check In") || "").split("T")[0];
+      const checkout = (prop(p, "Check Out") || "").split("T")[0];
       const psLower = (payoutStatus || "").toLowerCase();
+
+      // Paid this month
       if (payoutStatus === "Paid" && checkout.startsWith(thisMonth)) paidThisMonth += ownerPayout;
-      if (status === "In-House") balance += ownerPayout;
-      if (status === "Completed" && (psLower === "pending" || psLower === "on hold")) pending += ownerPayout;
+      // Balance = sum of completed + pending/on-hold payouts (same as the home page expects)
+      if (status === "Completed" && (psLower === "pending" || psLower === "on hold")) {
+        balance += ownerPayout;
+        pending += ownerPayout;
+      }
+      // Forecast = future bookings not yet paid
       if (checkin > todayStr && status !== "Cancelled" && payoutStatus !== "Paid") forecast += ownerPayout;
     }
 
