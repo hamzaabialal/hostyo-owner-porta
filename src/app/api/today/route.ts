@@ -196,10 +196,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(data);
     }
 
-    // Filter the list fields by property scope
+    // Filter ALL list fields by property scope
     const arrivals = (data.arrivals || []).filter((a: any) => isInScope(scope, a.property || ""));
     const departures = (data.departures || []).filter((a: any) => isInScope(scope, a.property || ""));
     const upcoming = (data.upcoming || []).filter((a: any) => isInScope(scope, a.property || ""));
+    const inHouse = (data.inHouse || []).filter((a: any) => isInScope(scope, a.property || ""));
+    const nextArrivals = (data.nextArrivals || []).filter((a: any) => isInScope(scope, a.property || ""));
 
     // Payment totals in the raw aggregate are unscoped. Recompute from scoped
     // reservations fetched fresh — cheap enough.
@@ -210,30 +212,36 @@ export async function GET(req: NextRequest) {
       page_size: 100,
     });
 
-    let balance = 0, paidThisMonth = 0, pending = 0;
+    let balance = 0, paidThisMonth = 0, pending = 0, forecast = 0;
+    const todayStr = new Date().toISOString().split("T")[0];
     for (const p of allRes.results) {
       const propertyName = prop(p, "Property") || "";
       if (!isInScope(scope, propertyName)) continue;
       const status = prop(p, "Status");
       const payoutStatus = prop(p, "Payout Status");
       const ownerPayout = prop(p, "Owner Payout") || 0;
+      const checkin = prop(p, "Check In") || "";
       const checkout = prop(p, "Check Out") || "";
       const psLower = (payoutStatus || "").toLowerCase();
       if (payoutStatus === "Paid" && checkout.startsWith(thisMonth)) paidThisMonth += ownerPayout;
       if (status === "In-House") balance += ownerPayout;
       if (status === "Completed" && (psLower === "pending" || psLower === "on hold")) pending += ownerPayout;
+      if (checkin > todayStr && status !== "Cancelled" && payoutStatus !== "Paid") forecast += ownerPayout;
     }
 
-    const fmt = (n: number) => "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmt = (n: number) => `€${n.toLocaleString("en-IE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
     return NextResponse.json({
       arrivals,
       departures,
       upcoming,
+      inHouse,
+      nextArrivals,
       payment: {
         balance: fmt(balance),
         paidThisMonth: fmt(paidThisMonth),
         pending: fmt(pending),
+        forecast: fmt(forecast),
       },
     });
   } catch (error: any) {
