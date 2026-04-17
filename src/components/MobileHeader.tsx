@@ -59,16 +59,23 @@ export default function MobileHeader({ title }: { title: string }) {
           <img src="/property-icons/ios_1024.png" alt="Hostyo" className="w-7 h-7 rounded-md object-contain" />
           <h1 className="text-[15px] font-semibold text-[#111]">{title}</h1>
         </div>
-        <button onClick={() => setNotifOpen(true)} className="relative p-2 text-[#888] hover:text-[#555] transition-colors">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
-          </svg>
-          {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 min-w-[16px] h-[16px] bg-[#FF5A5F] rounded-full ring-2 ring-white flex items-center justify-center text-[9px] font-bold text-white px-0.5">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Help / Support — dispatches event to open the TopBar help drawer */}
+          <button onClick={() => window.dispatchEvent(new CustomEvent("hostyo:open-support"))} className="w-8 h-8 flex items-center justify-center text-[#888] hover:text-[#555] transition-colors">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/>
+            </svg>
+          </button>
+          {/* Notifications — simple dot indicator */}
+          <button onClick={() => setNotifOpen(true)} className="relative w-8 h-8 flex items-center justify-center text-[#888] hover:text-[#555] transition-colors">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+            </svg>
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-[#80020E] rounded-full ring-[1.5px] ring-white" />
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Notifications Drawer */}

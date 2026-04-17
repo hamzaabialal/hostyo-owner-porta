@@ -381,7 +381,7 @@ export default function FinancesEarningsPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return data.filter((r) => {
+    const result = data.filter((r) => {
       if (filterProperty && r.property !== filterProperty) return false;
       if (filterPayoutStatus && r.payoutStatus.toLowerCase() !== filterPayoutStatus.toLowerCase()) return false;
       if (filterChannel && r.channel !== filterChannel) return false;
@@ -389,6 +389,21 @@ export default function FinancesEarningsPage() {
       if (dateTo && r.date > dateTo) return false;
       if (q && !r.guest.toLowerCase().includes(q) && !r.ref.toLowerCase().includes(q)) return false;
       return true;
+    });
+    // Sort: Pending status cards by closest payout date first (checkout + 3 days),
+    // then completed/paid sorted by most recent checkout
+    return result.sort((a, b) => {
+      const aIsPending = a.payoutStatus.toLowerCase() === "pending" || a.payoutStatus.toLowerCase() === "on hold";
+      const bIsPending = b.payoutStatus.toLowerCase() === "pending" || b.payoutStatus.toLowerCase() === "on hold";
+      // Pending items come first
+      if (aIsPending && !bIsPending) return -1;
+      if (!aIsPending && bIsPending) return 1;
+      // Within pending: sort by checkout date ascending (closest payout first)
+      if (aIsPending && bIsPending) {
+        return (a.checkoutDate || "").localeCompare(b.checkoutDate || "");
+      }
+      // Within non-pending: most recent first
+      return (b.checkoutDate || "").localeCompare(a.checkoutDate || "");
     });
   }, [data, filterProperty, filterPayoutStatus, filterChannel, search, dateFrom, dateTo]);
 

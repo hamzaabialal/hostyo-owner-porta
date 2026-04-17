@@ -60,6 +60,14 @@ export default function MobileNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#eaeaea] z-50 md:hidden safe-area-bottom">
+      <style jsx>{`
+        @keyframes navPop {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.2); }
+          100% { transform: scale(1); }
+        }
+        .nav-pop { animation: navPop 0.25s ease-out; }
+      `}</style>
       <div className="flex items-center justify-around h-[60px] px-1">
         {tabs.map((tab) => {
           const active = tab.match(pathname);
@@ -67,11 +75,11 @@ export default function MobileNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 transition-colors ${
+              className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 transition-colors active:scale-90 ${
                 active ? "text-accent" : "text-[#999]"
               }`}
             >
-              <span className={active ? "text-accent" : "text-[#bbb]"}>{tab.icon}</span>
+              <span className={`transition-transform ${active ? "text-accent nav-pop" : "text-[#bbb]"}`}>{tab.icon}</span>
               <span className={`text-[10px] font-medium ${active ? "font-semibold" : ""}`}>{tab.label}</span>
             </Link>
           );

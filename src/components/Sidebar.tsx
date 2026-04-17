@@ -14,10 +14,13 @@ const navItems = [
 
 const financesIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[18px] h-[18px]"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 14h2"/></svg>;
 
-const financesSubNav = [
+const financesSubNavBase = [
   { label: "Overview", href: "/finances" },
   { label: "Earnings", href: "/finances/earnings" },
   { label: "Expenses", href: "/finances/expenses" },
+];
+const financesSubNavAdmin = [
+  ...financesSubNavBase,
   { label: "Payouts", href: "/finances/payouts" },
 ];
 
@@ -120,7 +123,8 @@ export default function Sidebar() {
         </button>
         {!collapsed && financesOpen && (
           <div className="ml-[30px] border-l border-[#eaeaea] pl-2 mb-1">
-            {financesSubNav.map((sub) => {
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {(((session?.user as any)?.role === "admin" ? financesSubNavAdmin : financesSubNavBase)).map((sub) => {
               const active = isFinancesSubActive(sub.href);
               return (
                 <Link key={sub.href} href={sub.href}
