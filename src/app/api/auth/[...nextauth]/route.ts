@@ -100,6 +100,7 @@ const handler = NextAuth({
       if (user && (user as any).role) {
         token.role = (user as any).role;
         token.properties = (user as any).properties || "";
+        token.propertiesRefreshedAt = Date.now();
       }
       // For Google OAuth login, look up role from Notion Users DB
       if (account?.provider === "google" && user?.email && USERS_DB) {
@@ -120,6 +121,7 @@ const handler = NextAuth({
               token.role = isAdmin ? "admin" : "owner";
               token.properties = getProp(dbUser, "Properties") || "";
             }
+            token.propertiesRefreshedAt = Date.now();
           } else {
             // Auto-create user in Notion for first-time Google login — pending approval
             await notion.pages.create({
@@ -134,12 +136,45 @@ const handler = NextAuth({
             });
             token.role = "pending";
             token.properties = "";
+            token.propertiesRefreshedAt = Date.now();
           }
         } catch (e) {
           console.error("Google OAuth user lookup error:", e);
           token.role = "owner";
         }
       }
+
+      // Periodic refresh of role + properties from Notion (every 2 minutes).
+      // This way, when an admin updates a user's Properties or Approved status,
+      // the change takes effect without forcing the user to log out.
+      const REFRESH_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+      const lastRefresh = (token.propertiesRefreshedAt as number) || 0;
+      const needsRefresh = Date.now() - lastRefresh > REFRESH_INTERVAL_MS;
+      if (needsRefresh && token.email && USERS_DB) {
+        try {
+          const res = await notion.databases.query({
+            database_id: USERS_DB,
+            filter: { property: "Email", email: { equals: (token.email as string).toLowerCase().trim() } },
+            page_size: 1,
+          });
+          if (res.results.length > 0) {
+            const dbUser = res.results[0];
+            const isAdmin = getProp(dbUser, "Is Admin") === true;
+            const isApproved = getProp(dbUser, "Approved") === true;
+            if (!isAdmin && !isApproved) {
+              token.role = "pending";
+              token.properties = "";
+            } else {
+              token.role = isAdmin ? "admin" : "owner";
+              token.properties = getProp(dbUser, "Properties") || "";
+            }
+          }
+          token.propertiesRefreshedAt = Date.now();
+        } catch (e) {
+          console.error("JWT refresh error:", e);
+        }
+      }
+
       if (!token.role) token.role = "owner";
       return token;
     },
