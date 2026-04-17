@@ -123,6 +123,7 @@ export default function Sidebar() {
         </button>
         {!collapsed && financesOpen && (
           <div className="ml-[30px] border-l border-[#eaeaea] pl-2 mb-1">
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {(((session?.user as any)?.role === "admin" ? financesSubNavAdmin : financesSubNavBase)).map((sub) => {
               const active = isFinancesSubActive(sub.href);
               return (

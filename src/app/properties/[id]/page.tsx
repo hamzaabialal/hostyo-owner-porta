@@ -295,10 +295,7 @@ export default function PropertyDetailPage() {
     return reconcileProperty(property.name || "", reservations, expenses);
   }, [property, reservations, expenses]);
 
-  const currentDeficit = useMemo(() => {
-    if (reconciledRows.length === 0) return 0;
-    return reconciledRows[reconciledRows.length - 1].deficitAfter;
-  }, [reconciledRows]);
+  // currentDeficit removed — no longer displayed in stat cards
 
   // totalReleasedToOwner removed — balance is now computed from pendingBalance
 
@@ -673,17 +670,6 @@ export default function PropertyDetailPage() {
 
       {/* ═══ Expenses Tab ═══ */}
       {tab === "expenses" && (() => {
-        const totalExp = expenses.reduce((s: number, e: { amount?: number }) => s + (e.amount || 0), 0);
-
-        // Split expenses by type for display
-        /* eslint-disable @typescript-eslint/no-explicit-any */
-        const propertyLevelExp = expenses.filter((e: any) => !(e.reservation || "").trim());
-        const reservationLinkedExp = expenses.filter((e: any) => !!(e.reservation || "").trim());
-        const propertyLevelPaidTotal = propertyLevelExp
-          .filter((e: any) => (e.status || "").toLowerCase() === "paid")
-          .reduce((s: number, e: any) => s + (e.amount || 0), 0);
-        /* eslint-enable @typescript-eslint/no-explicit-any */
-
         return (
           <div className="space-y-5">
             {/* Expense table — no stat cards, just the list */}
