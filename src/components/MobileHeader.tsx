@@ -23,6 +23,7 @@ function notifIcon(type: AppNotification["type"]) {
     payout: { bg: "#EAF3EF", stroke: "#2F6B57", path: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>' },
     expense: { bg: "#F6EDED", stroke: "#7A5252", path: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>' },
     property: { bg: "#F6F1E6", stroke: "#8A6A2E", path: '<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>' },
+    document: { bg: "#EEF0F5", stroke: "#5E6673", path: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>' },
     system: { bg: "#f5f5f5", stroke: "#888", path: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>' },
   };
   const i = icons[type] || icons.system;

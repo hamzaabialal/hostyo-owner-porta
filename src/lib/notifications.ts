@@ -1,11 +1,12 @@
 // Simple client-side notification/activity log store
 export interface AppNotification {
   id: string;
-  type: "reservation" | "expense" | "payout" | "property" | "system";
+  type: "reservation" | "expense" | "payout" | "property" | "system" | "document";
   title: string;
   description: string;
   timestamp: string;
   read: boolean;
+  href?: string;
 }
 
 const STORAGE_KEY = "hostyo_notifications";
@@ -17,7 +18,9 @@ function getIcon(type: AppNotification["type"]): string {
     case "expense": return "receipt";
     case "payout": return "dollar";
     case "property": return "home";
+    case "document": return "file";
     case "system": return "info";
+    default: return "info";
   }
 }
 

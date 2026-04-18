@@ -1,5 +1,28 @@
+import { addNotification } from "@/lib/notifications";
+
 // Property document management — backed by server API (Vercel Blob)
 // Documents are shared across all users (admin uploads, owners can view)
+
+const LAST_SEEN_KEY = "hostyo_docs_last_seen";
+
+function getLastSeen(propertyId: string): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const raw = localStorage.getItem(LAST_SEEN_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    return map[propertyId] || "";
+  } catch { return ""; }
+}
+
+function setLastSeen(propertyId: string, timestamp: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(LAST_SEEN_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    map[propertyId] = timestamp;
+    localStorage.setItem(LAST_SEEN_KEY, JSON.stringify(map));
+  } catch { /* ignore */ }
+}
 
 export interface PropertyDocument {
   id: string;
@@ -16,6 +39,7 @@ export interface PropertyDocument {
 
 /**
  * Fetch documents for a property from the server.
+ * Detects new documents since the last fetch and triggers a notification.
  * Falls back to localStorage for offline/migration support.
  */
 export async function fetchDocuments(propertyId: string, propertyName?: string): Promise<PropertyDocument[]> {
@@ -24,11 +48,45 @@ export async function fetchDocuments(propertyId: string, propertyName?: string):
     if (propertyName) params.set("propertyName", propertyName);
     const res = await fetch(`/api/documents?${params.toString()}`);
     const data = await res.json();
-    if (data.ok && data.data) return data.data;
+    if (data.ok && data.data) {
+      // Check for new documents since last seen and notify
+      detectNewDocuments(propertyId, propertyName || "", data.data);
+      return data.data;
+    }
   } catch { /* fallback below */ }
 
-  // Fallback to localStorage (legacy data)
   return getDocumentsLocal(propertyId);
+}
+
+/**
+ * Compares fetched documents to the last-seen timestamp and raises notifications
+ * for any new "Admin" uploads. Updates the last-seen timestamp afterwards.
+ */
+function detectNewDocuments(propertyId: string, propertyName: string, docs: PropertyDocument[]) {
+  if (typeof window === "undefined" || !propertyId) return;
+  const lastSeen = getLastSeen(propertyId);
+  // First-ever fetch — don't notify for all existing docs, just mark the latest as seen
+  if (!lastSeen && docs.length > 0) {
+    setLastSeen(propertyId, docs[0].createdAt);
+    return;
+  }
+  if (!lastSeen) return;
+
+  const newDocs = docs.filter((d) => d.source === "Admin" && d.createdAt > lastSeen);
+  if (newDocs.length === 0) return;
+
+  // Raise one notification per new document (up to 3 to avoid spam)
+  for (const doc of newDocs.slice(0, 3)) {
+    addNotification({
+      type: "document",
+      title: "New document uploaded",
+      description: `${doc.name} was added to ${propertyName || "your property"}.`,
+      href: `/properties/${propertyId}?tab=documents`,
+    });
+  }
+
+  // Update last-seen to the newest doc's timestamp
+  setLastSeen(propertyId, docs[0].createdAt);
 }
 
 /**
