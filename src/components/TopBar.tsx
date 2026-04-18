@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getNotifications, markAllRead, markAsRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
-import { addTicket, getTickets, addComment, markTicketRead, hasNewUpdate, type SupportTicket, type TicketAttachment } from "@/lib/tickets";
+import { createTicket, fetchTickets, addTicketComment, markTicketRead, hasNewUpdateForUser, type SupportTicket, type TicketAttachment } from "@/lib/tickets";
 
 function stopPropagation(ev: { stopPropagation: () => void }): void {
   ev.stopPropagation();
@@ -112,8 +112,18 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
   // My tickets
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [search, setSearch] = useState("");
-  const refreshTickets = useCallback(() => { if (userEmail) setTickets(getTickets(userEmail)); }, [userEmail]);
-  useEffect(() => { refreshTickets(); }, [refreshTickets]);
+  const refreshTickets = useCallback(async () => {
+    if (userEmail) {
+      const list = await fetchTickets();
+      setTickets(list);
+    }
+  }, [userEmail]);
+  useEffect(() => {
+    refreshTickets();
+    // Poll every 20 seconds so new admin replies surface while the drawer is open
+    const interval = setInterval(() => refreshTickets(), 20000);
+    return () => clearInterval(interval);
+  }, [refreshTickets]);
 
   // Conversation state
   const [replyText, setReplyText] = useState("");
@@ -159,30 +169,39 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
   const handleSubmit = async () => {
     if (!subject.trim() || !message.trim() || submitting) return;
     setSubmitting(true);
-    addTicket({ subject: subject.trim(), message: message.trim(), submittedBy: userName, submittedEmail: userEmail, submittedImage: userImage, attachments: files });
+    const created = await createTicket({ subject: subject.trim(), message: message.trim(), submittedBy: userName, submittedImage: userImage, attachments: files });
+    setSubmitting(false);
+    if (!created) {
+      setUploadError("Failed to submit ticket. Please try again.");
+      return;
+    }
     setSent(true);
     setSubject(""); setMessage(""); setFiles([]);
-    refreshTickets();
+    await refreshTickets();
     setTimeout(() => { setSent(false); setTab("list"); }, 1500);
   };
 
   // Open a ticket conversation
-  const openConversation = (t: SupportTicket) => {
-    markTicketRead(t.id);
-    setOpenTicket({ ...t, lastReadByUser: new Date().toISOString() });
-    refreshTickets();
+  const openConversation = async (t: SupportTicket) => {
+    setOpenTicket(t);
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    await markTicketRead(t.id, "user");
+    await refreshTickets();
   };
 
   // Send reply in conversation
   const handleSendReply = async () => {
     if ((!replyText.trim() && replyFiles.length === 0) || replySending || !openTicket) return;
     setReplySending(true);
-    addComment(openTicket.id, { author: "User", authorName: userName, authorEmail: userEmail, authorImage: userImage, message: replyText.trim(), attachments: replyFiles });
+    const updated = await addTicketComment(openTicket.id, {
+      message: replyText.trim(),
+      authorName: userName,
+      authorImage: userImage,
+      attachments: replyFiles,
+    });
     setReplyText(""); setReplyFiles([]);
-    const fresh = getTickets(userEmail).find((t) => t.id === openTicket.id);
-    if (fresh) { markTicketRead(fresh.id); setOpenTicket(fresh); }
-    refreshTickets();
+    if (updated) { setOpenTicket(updated); }
+    await refreshTickets();
     setReplySending(false);
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
@@ -404,7 +423,7 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
               ) : (
                 <div className="space-y-0">
                   {filteredTickets.map((t) => {
-                    const isNew = hasNewUpdate(t);
+                    const isNew = hasNewUpdateForUser(t);
                     return (
                       <button key={t.id} onClick={() => openConversation(t)}
                         className={`w-full flex items-center gap-3 py-3.5 text-left transition-colors hover:bg-[#f9f9f9] -mx-2 px-2 rounded-lg ${isNew ? "border-l-[3px] border-l-[#80020E] pl-3" : "border-l-[3px] border-l-transparent"}`}>

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
-import { getTickets, updateTicket, deleteTicket, addComment, type SupportTicket, type TicketAttachment } from "@/lib/tickets";
+import { fetchTickets, patchTicket, deleteTicketServer, addTicketComment, markTicketRead, type SupportTicket, type TicketAttachment } from "@/lib/tickets";
 
 const STATUS_OPTIONS = ["Open", "In Progress", "Closed"] as const;
 type TicketStatus = (typeof STATUS_OPTIONS)[number];
@@ -52,11 +52,18 @@ export default function TicketsPage() {
 
   const isAdmin = session?.user?.role === "admin";
 
-  useEffect(() => {
-    setTickets(getTickets());
-  }, []);
+  const refresh = async () => {
+    const list = await fetchTickets();
+    setTickets(list);
+  };
 
-  const refresh = () => setTickets(getTickets());
+  useEffect(() => {
+    refresh();
+    // Poll every 20 seconds so admin sees new tickets without refreshing
+    const interval = setInterval(refresh, 20000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const matchesFilters = (t: SupportTicket): boolean => {
     if (filterPriority && t.priority !== filterPriority) return false;
@@ -79,14 +86,16 @@ export default function TicketsPage() {
 
   const handleDragStart = (id: string) => setDraggingId(id);
   const handleDragEnd = () => { setDraggingId(null); setHoverColumn(null); };
-  const handleDrop = (status: TicketStatus) => {
+  const handleDrop = async (status: TicketStatus) => {
     if (!draggingId) return;
     const ticket = tickets.find((t) => t.id === draggingId);
     if (!ticket || ticket.status === status) { setDraggingId(null); setHoverColumn(null); return; }
-    updateTicket(draggingId, { status });
-    refresh();
+    // Optimistic update
+    setTickets((prev) => prev.map((t) => t.id === draggingId ? { ...t, status } : t));
     setDraggingId(null);
     setHoverColumn(null);
+    await patchTicket(draggingId, { status });
+    refresh();
   };
 
   if (!isAdmin) {
@@ -222,27 +231,41 @@ export default function TicketsPage() {
 
       {/* Ticket Detail Drawer */}
       {selectedTicket && (
-        <TicketDrawer ticket={selectedTicket} onClose={() => { setSelectedTicket(null); refresh(); }} onUpdate={(updates) => {
-          updateTicket(selectedTicket.id, updates);
-          setSelectedTicket({ ...selectedTicket, ...updates });
-          refresh();
-        }} onDelete={() => {
-          deleteTicket(selectedTicket.id);
-          setSelectedTicket(null);
-          refresh();
-        }} />
+        <TicketDrawer
+          ticket={selectedTicket}
+          onClose={() => { setSelectedTicket(null); refresh(); }}
+          onUpdate={async (updates) => {
+            // Optimistic update
+            setSelectedTicket({ ...selectedTicket, ...updates });
+            const updated = await patchTicket(selectedTicket.id, updates as Parameters<typeof patchTicket>[1]);
+            if (updated) setSelectedTicket(updated);
+            refresh();
+          }}
+          onCommentAdded={(updated) => setSelectedTicket(updated)}
+          onDelete={async () => {
+            await deleteTicketServer(selectedTicket.id);
+            setSelectedTicket(null);
+            refresh();
+          }}
+        />
       )}
     </AppShell>
   );
 }
 
 /* ── Ticket Detail Drawer ── */
-function TicketDrawer({ ticket, onClose, onUpdate, onDelete }: {
+function TicketDrawer({ ticket, onClose, onUpdate, onCommentAdded, onDelete }: {
   ticket: SupportTicket;
   onClose: () => void;
   onUpdate: (updates: Partial<SupportTicket>) => void;
+  onCommentAdded: (updated: SupportTicket) => void;
   onDelete: () => void;
 }) {
+  // Mark ticket as read by admin when opened
+  useEffect(() => {
+    markTicketRead(ticket.id, "admin").catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket.id]);
   const [commentText, setCommentText] = useState("");
   const [commentFiles, setCommentFiles] = useState<TicketAttachment[]>([]);
   const [uploadingComment, setUploadingComment] = useState(false);
@@ -297,18 +320,14 @@ function TicketDrawer({ ticket, onClose, onUpdate, onDelete }: {
     if ((!commentText.trim() && commentFiles.length === 0) || sendingComment) return;
     setSendingComment(true);
     try {
-      addComment(ticket.id, {
-        author: "Admin",
-        authorName: "Admin",
+      const updated = await addTicketComment(ticket.id, {
         message: commentText.trim(),
+        authorName: "Admin",
         attachments: commentFiles,
       });
       setCommentText("");
       setCommentFiles([]);
-      // Refresh the parent — passing the new comment list forces the drawer to re-render
-      // with the updated ticket from localStorage
-      const fresh = getTickets().find((t) => t.id === ticket.id);
-      if (fresh) onUpdate({ comments: fresh.comments });
+      if (updated) onCommentAdded(updated);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } finally {
       setSendingComment(false);

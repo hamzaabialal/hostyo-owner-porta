@@ -1,11 +1,12 @@
-// Client-side support ticket store (localStorage)
+// Server-side ticket store (Vercel Blob via /api/tickets).
+// Admins and owners share the same data source — true two-way communication.
 
 export interface TicketComment {
   id: string;
-  author: string;        // "User" or "Admin"
+  author: string;
   authorName: string;
   authorEmail?: string;
-  authorImage?: string;  // profile picture URL
+  authorImage?: string;
   message: string;
   attachments: TicketAttachment[];
   createdAt: string;
@@ -13,8 +14,8 @@ export interface TicketComment {
 
 export interface TicketAttachment {
   name: string;
-  url: string;           // Vercel Blob URL (or data URL for legacy)
-  type: string;          // mime type
+  url: string;
+  type: string;
   size: number;
 }
 
@@ -32,102 +33,129 @@ export interface SupportTicket {
   adminNote: string;
   comments: TicketComment[];
   attachments: TicketAttachment[];
-  /** ISO timestamp of when the user last read this ticket (for "new update" badge) */
   lastReadByUser?: string;
+  lastReadByAdmin?: string;
 }
 
-const STORAGE_KEY = "hostyo_tickets";
-
-function readAll(): SupportTicket[] {
-  if (typeof window === "undefined") return [];
+/** Fetch tickets from the server. Admins get all; owners get their own. */
+export async function fetchTickets(): Promise<SupportTicket[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const tickets: SupportTicket[] = raw ? JSON.parse(raw) : [];
-    return tickets.map((t) => ({
-      ...t,
-      comments: t.comments || [],
-      attachments: t.attachments || [],
-    }));
-  } catch { return []; }
+    const res = await fetch("/api/tickets", { cache: "no-store" });
+    const data = await res.json();
+    if (data.ok && Array.isArray(data.data)) return data.data;
+  } catch { /* ignore */ }
+  return [];
 }
 
-function writeAll(tickets: SupportTicket[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
+/** Create a new ticket */
+export async function createTicket(
+  ticket: Omit<SupportTicket, "id" | "createdAt" | "updatedAt" | "status" | "priority" | "adminNote" | "comments" | "submittedEmail" | "lastReadByUser" | "lastReadByAdmin"> & { attachments?: TicketAttachment[] }
+): Promise<SupportTicket | null> {
+  try {
+    const res = await fetch("/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ticket),
+    });
+    const data = await res.json();
+    return data.ok ? data.ticket : null;
+  } catch { return null; }
 }
 
-export function getTickets(currentEmail?: string): SupportTicket[] {
-  const all = readAll();
-  if (!currentEmail) return all;
-  const mine = currentEmail.toLowerCase().trim();
-  return all.filter((t) => (t.submittedEmail || "").toLowerCase().trim() === mine);
+/** Update ticket fields (admin: status/priority/adminNote; anyone: markRead) */
+export async function patchTicket(
+  id: string,
+  updates: { status?: SupportTicket["status"]; priority?: SupportTicket["priority"]; adminNote?: string; markRead?: "user" | "admin" }
+): Promise<SupportTicket | null> {
+  try {
+    const res = await fetch("/api/tickets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...updates }),
+    });
+    const data = await res.json();
+    return data.ok ? data.ticket : null;
+  } catch { return null; }
 }
 
-export function getTicketById(id: string): SupportTicket | null {
-  return readAll().find((t) => t.id === id) || null;
+/** Add a comment to a ticket */
+export async function addTicketComment(
+  ticketId: string,
+  comment: { message: string; authorName: string; authorImage?: string; attachments?: TicketAttachment[] }
+): Promise<SupportTicket | null> {
+  try {
+    const res = await fetch("/api/tickets/comment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketId, ...comment }),
+    });
+    const data = await res.json();
+    return data.ok ? data.ticket : null;
+  } catch { return null; }
 }
 
-export function addTicket(
-  ticket: Omit<SupportTicket, "id" | "createdAt" | "updatedAt" | "status" | "priority" | "adminNote" | "comments" | "attachments" | "lastReadByUser"> & { attachments?: TicketAttachment[] }
-): SupportTicket {
-  const tickets = readAll();
-  const now = new Date().toISOString();
-  const newTicket: SupportTicket = {
-    ...ticket,
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    status: "Open",
-    priority: "Medium",
-    adminNote: "",
-    comments: [],
-    attachments: ticket.attachments || [],
-    createdAt: now,
-    updatedAt: now,
-    lastReadByUser: now,
-  };
-  tickets.unshift(newTicket);
-  writeAll(tickets);
-  return newTicket;
+/** Mark a ticket as read by the current user */
+export async function markTicketRead(id: string, as: "user" | "admin" = "user"): Promise<void> {
+  try {
+    await fetch("/api/tickets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, markRead: as }),
+    });
+  } catch { /* ignore */ }
 }
 
-export function updateTicket(id: string, updates: Partial<SupportTicket>) {
-  const tickets = readAll().map((t) =>
-    t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
-  );
-  writeAll(tickets);
+/** Delete a ticket (admin only) */
+export async function deleteTicketServer(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/tickets?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    const data = await res.json();
+    return !!data.ok;
+  } catch { return false; }
 }
 
-export function addComment(ticketId: string, comment: Omit<TicketComment, "id" | "createdAt">): TicketComment {
-  const tickets = readAll();
-  const newComment: TicketComment = {
-    ...comment,
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    createdAt: new Date().toISOString(),
-  };
-  const updated = tickets.map((t) =>
-    t.id === ticketId
-      ? { ...t, comments: [...(t.comments || []), newComment], updatedAt: new Date().toISOString() }
-      : t
-  );
-  writeAll(updated);
-  return newComment;
-}
-
-/** Mark a ticket as read by the user (clears "new update" badge) */
-export function markTicketRead(id: string) {
-  const tickets = readAll().map((t) =>
-    t.id === id ? { ...t, lastReadByUser: new Date().toISOString() } : t
-  );
-  writeAll(tickets);
-}
-
-/** Check if a ticket has unread admin comments since the user last read it */
-export function hasNewUpdate(ticket: SupportTicket): boolean {
+/** Check if an admin comment is unread by the user (for "new update" badge) */
+export function hasNewUpdateForUser(ticket: SupportTicket): boolean {
   const lastRead = ticket.lastReadByUser || ticket.createdAt;
-  return (ticket.comments || []).some(
-    (c) => c.author === "Admin" && c.createdAt > lastRead
-  );
+  return (ticket.comments || []).some((c) => c.author === "Admin" && c.createdAt > lastRead);
 }
 
-export function deleteTicket(id: string) {
-  const tickets = readAll().filter((t) => t.id !== id);
-  writeAll(tickets);
+/** Check if a user comment is unread by the admin */
+export function hasNewUpdateForAdmin(ticket: SupportTicket): boolean {
+  const lastRead = ticket.lastReadByAdmin || "";
+  // No read tracking yet → treat as unread if there are any user comments newer than creation
+  if (!lastRead) return (ticket.comments || []).some((c) => c.author === "User");
+  return (ticket.comments || []).some((c) => c.author === "User" && c.createdAt > lastRead);
+}
+
+// ── Backward-compat shims (for any components still importing the old names) ──
+
+/** @deprecated Use fetchTickets() */
+export async function getTickets(): Promise<SupportTicket[]> {
+  return fetchTickets();
+}
+
+/** @deprecated Use createTicket() */
+export async function addTicket(ticket: Parameters<typeof createTicket>[0]): Promise<SupportTicket | null> {
+  return createTicket(ticket);
+}
+
+/** @deprecated Use patchTicket() */
+export async function updateTicket(id: string, updates: Parameters<typeof patchTicket>[1]): Promise<SupportTicket | null> {
+  return patchTicket(id, updates);
+}
+
+/** @deprecated Use addTicketComment() */
+export async function addComment(ticketId: string, comment: { author?: string; authorName: string; authorImage?: string; message: string; attachments?: TicketAttachment[] }): Promise<SupportTicket | null> {
+  return addTicketComment(ticketId, { message: comment.message, authorName: comment.authorName, authorImage: comment.authorImage, attachments: comment.attachments });
+}
+
+/** @deprecated Use deleteTicketServer() */
+export async function deleteTicket(id: string): Promise<boolean> {
+  return deleteTicketServer(id);
+}
+
+/** @deprecated Use hasNewUpdateForUser() */
+export function hasNewUpdate(ticket: SupportTicket): boolean {
+  return hasNewUpdateForUser(ticket);
 }
