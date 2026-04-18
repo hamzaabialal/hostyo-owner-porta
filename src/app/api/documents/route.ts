@@ -41,6 +41,7 @@ async function writeMeta(docs: DocumentMeta[]): Promise<void> {
     token: process.env.BLOB_READ_WRITE_TOKEN,
     addRandomSuffix: false,
     allowOverwrite: true,
+    cacheControlMaxAge: 0,
   });
 }
 

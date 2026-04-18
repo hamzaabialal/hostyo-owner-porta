@@ -66,6 +66,8 @@ async function writeTickets(tickets: SupportTicket[]): Promise<void> {
     token: process.env.BLOB_READ_WRITE_TOKEN,
     addRandomSuffix: false,
     allowOverwrite: true,
+    // Disable CDN caching so reads always get the latest content
+    cacheControlMaxAge: 0,
   });
 }
 
