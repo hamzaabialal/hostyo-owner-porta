@@ -27,6 +27,8 @@ interface Reservation {
   status: string;
   nights: number;
   ownerPayout: number;
+  adjustedPayout?: number;
+  deficitAdjustment?: number;
   netBooking: number;
   payoutStatus: string;
   grossAmount: number;
@@ -304,6 +306,8 @@ export default function FinancesOverviewPage() {
   }, [liveReservations, now]);
 
   // Owner-specific: Next payout (earliest pending completed reservation)
+  // Next payout = the NEXT upcoming pending reservation (single, not summed).
+  // Uses adjustedPayout if it's set (reconciliation happened), else raw owner payout.
   const nextPayout = useMemo(() => {
     const pending = liveReservations
       .filter((r) => {
@@ -311,18 +315,26 @@ export default function FinancesOverviewPage() {
         const ps = (r.payoutStatus || "").toLowerCase();
         return ps === "pending" || ps === "on hold";
       })
+      // Earliest checkout first — that's the next one to be paid
       .sort((a, b) => (a.checkout || "").localeCompare(b.checkout || ""));
+
     if (pending.length === 0) return { amount: 0, date: "" };
-    // Sum all pending payouts, use the latest checkout + 3 days as expected date
-    const total = pending.reduce((s, r) => s + (r.ownerPayout || 0), 0);
-    const lastCheckout = pending[pending.length - 1]?.checkout || "";
+
+    const next = pending[0];
+    // Prefer adjusted payout if it's set (non-zero), otherwise raw owner payout
+    const amount = (next.adjustedPayout && next.adjustedPayout !== 0)
+      ? next.adjustedPayout
+      : ((next.deficitAdjustment !== undefined && next.deficitAdjustment !== 0)
+          ? (next.ownerPayout || 0) + next.deficitAdjustment
+          : (next.ownerPayout || 0));
+
     let expectedDate = "";
-    if (lastCheckout) {
-      const d = new Date(lastCheckout + "T00:00:00");
+    if (next.checkout) {
+      const d = new Date(next.checkout + "T00:00:00");
       d.setDate(d.getDate() + 3);
       expectedDate = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
     }
-    return { amount: total, date: expectedDate };
+    return { amount, date: expectedDate };
   }, [liveReservations]);
 
   // Owner-specific: Earned this month (owner payouts from completed reservations this month)
@@ -444,38 +456,39 @@ export default function FinancesOverviewPage() {
               <div className="flex flex-col justify-between text-[10px] text-[#bbb] text-right w-[40px] h-[200px] pb-6 flex-shrink-0">
                 {[...Array(6)].map((_, i) => <span key={i}>€{((maxEarning / 5) * (5 - i) / 1000).toFixed(1)}k</span>)}
               </div>
-              <div className="flex-1 overflow-x-auto hide-scrollbar">
-                <div className="flex items-end gap-1.5 md:gap-2.5 h-[200px] border-b border-[#f0f0f0] pb-0 relative" style={{ minWidth: `${monthlyEarnings.length * 52}px` }}>
-                  {monthlyEarnings.map((d) => {
-                    const total = d.paid + d.forecast;
-                    const paidPct = (d.paid / maxEarning) * 100;
-                    const forecastPct = (d.forecast / maxEarning) * 100;
-                    const isHovered = hoveredEarningMonth === d.key;
-                    return (
-                      <div key={d.key} className="flex-1 flex flex-col items-center gap-1 h-full justify-end relative"
-                        onMouseEnter={() => setHoveredEarningMonth(d.key)}
-                        onMouseLeave={() => setHoveredEarningMonth((c) => (c === d.key ? null : c))}>
-                        {isHovered && (
-                          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 bg-[#111] text-white text-[11px] rounded-lg px-2.5 py-2 shadow-lg whitespace-nowrap pointer-events-none">
-                            <div className="font-semibold mb-1">{d.month} {d.year}</div>
-                            <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#80020E]" /><span className="text-white/70">Paid</span><span className="ml-2 tabular-nums">{fmtCurrency(d.paid)}</span></div>
-                            <div className="flex items-center gap-1.5 mt-0.5"><span className="w-2 h-2 rounded-sm border border-white/40 bg-white/[0.06]" /><span className="text-white/70">Forecast</span><span className="ml-2 tabular-nums">{fmtCurrency(d.forecast)}</span></div>
-                            <div className="border-t border-white/10 mt-1 pt-1 flex items-center justify-between gap-2"><span className="text-white/70">Total</span><span className="font-semibold tabular-nums">{fmtCurrency(total)}</span></div>
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-[#111]" />
-                          </div>
-                        )}
-                        <div className="w-full flex justify-center items-end h-[170px] cursor-pointer">
-                          <div className="w-full max-w-[26px] flex flex-col justify-end h-full">
-                            {d.forecast > 0 && <div className={`w-full border border-[#80020E]/40 bg-[#80020E]/[0.06] ${d.paid > 0 ? "rounded-t border-b-0" : "rounded-t"} ${isHovered ? "bg-[#80020E]/[0.12]" : ""} transition-colors`} style={{ height: `${forecastPct}%` }} />}
-                            {d.paid > 0 && <div className={`w-full bg-[#80020E] ${d.forecast > 0 ? "rounded-b" : "rounded-t"} ${isHovered ? "brightness-110" : ""} transition-all`} style={{ height: `${paidPct}%` }} />}
-                            {total === 0 && <div className="w-full rounded-t bg-[#f0f0f0]" style={{ height: "2px" }} />}
-                          </div>
+              <div className="flex-1 flex items-end gap-1.5 md:gap-2.5 h-[200px] border-b border-[#f0f0f0] pb-0 relative min-w-0">
+                {monthlyEarnings.map((d) => {
+                  const total = d.paid + d.forecast;
+                  const paidPct = (d.paid / maxEarning) * 100;
+                  const forecastPct = (d.forecast / maxEarning) * 100;
+                  const isHovered = hoveredEarningMonth === d.key;
+                  return (
+                    <div key={d.key} className="flex-1 flex flex-col items-center gap-1 h-full justify-end relative"
+                      onMouseEnter={() => setHoveredEarningMonth(d.key)}
+                      onMouseLeave={() => setHoveredEarningMonth((c) => (c === d.key ? null : c))}
+                      onClick={() => setHoveredEarningMonth((c) => (c === d.key ? null : d.key))}>
+                      {isHovered && (
+                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 bg-[#111] text-white text-[11px] rounded-lg px-2.5 py-2 shadow-lg whitespace-nowrap pointer-events-none">
+                          <div className="font-semibold mb-1">{d.month} {d.year}</div>
+                          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#80020E]" /><span className="text-white/70">Paid</span><span className="ml-2 tabular-nums">{fmtCurrency(d.paid)}</span></div>
+                          <div className="flex items-center gap-1.5 mt-0.5"><span className="w-2 h-2 rounded-sm border border-white/40 bg-white/[0.06]" /><span className="text-white/70">Forecast</span><span className="ml-2 tabular-nums">{fmtCurrency(d.forecast)}</span></div>
+                          <div className="border-t border-white/10 mt-1 pt-1 flex items-center justify-between gap-2"><span className="text-white/70">Total</span><span className="font-semibold tabular-nums">{fmtCurrency(total)}</span></div>
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-[#111]" />
                         </div>
-                        <span className={`text-[10px] font-medium ${d.isCurrent ? "text-[#80020E] font-semibold" : "text-[#999]"}`}>{d.month}</span>
+                      )}
+                      {/* Full-column hit area makes the hover target the entire column */}
+                      <div className="absolute inset-0 cursor-pointer" aria-hidden="true" />
+                      <div className="w-full flex justify-center items-end h-[170px] cursor-pointer relative pointer-events-none">
+                        <div className="w-full max-w-[26px] flex flex-col justify-end h-full">
+                          {d.forecast > 0 && <div className={`w-full border border-[#80020E]/40 bg-[#80020E]/[0.06] ${d.paid > 0 ? "rounded-t border-b-0" : "rounded-t"} ${isHovered ? "bg-[#80020E]/[0.12]" : ""} transition-colors`} style={{ height: `${forecastPct}%` }} />}
+                          {d.paid > 0 && <div className={`w-full bg-[#80020E] ${d.forecast > 0 ? "rounded-b" : "rounded-t"} ${isHovered ? "brightness-110" : ""} transition-all`} style={{ height: `${paidPct}%` }} />}
+                          {total === 0 && <div className="w-full rounded-t bg-[#f0f0f0]" style={{ height: "2px" }} />}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+                      <span className={`text-[10px] font-medium ${d.isCurrent ? "text-[#80020E] font-semibold" : "text-[#999]"} relative pointer-events-none`}>{d.month}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

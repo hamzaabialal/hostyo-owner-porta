@@ -1052,11 +1052,9 @@ export default function PropertyDetailPage() {
           if (!files || !id) return;
           setUploading(true);
           setUploadError("");
-          let anyUploaded = false;
           for (const file of Array.from(files)) {
             try {
-              // 1. Upload file to Vercel Blob via the tickets upload endpoint
-              //    (it's admin-auth'd via middleware and returns a public URL)
+              // 1. Upload the file to Vercel Blob
               const formData = new FormData();
               formData.append("file", file);
               const uploadRes = await fetch("/api/tickets/upload", { method: "POST", body: formData });
@@ -1066,7 +1064,7 @@ export default function PropertyDetailPage() {
                 continue;
               }
 
-              // 2. Save document metadata via /api/documents so all users see it
+              // 2. Save metadata via /api/documents
               const saved = await addDocument({
                 propertyId: id,
                 propertyName: property?.name || "",
@@ -1076,15 +1074,21 @@ export default function PropertyDetailPage() {
                 type: "document",
                 source: "Admin",
               });
-              if (saved) anyUploaded = true;
-              else setUploadError("File uploaded but metadata save failed. Check admin permissions.");
+              if (!saved) {
+                setUploadError("File uploaded but metadata save failed. Check admin permissions.");
+                continue;
+              }
+              // 3. Optimistically add the new doc to the local state so it shows
+              //    immediately without waiting for the Blob list() to propagate
+              setDocs((prev) => [saved, ...prev.filter((d) => d.id !== saved.id)]);
             } catch (err) {
               const msg = err instanceof Error ? err.message : "Upload failed";
               setUploadError(msg);
             }
           }
           setUploading(false);
-          if (anyUploaded) refreshDocs();
+          // Delayed refresh from the server so we eventually sync with any concurrent changes
+          setTimeout(() => refreshDocs(), 1500);
         };
 
         const propDocs = docs.filter((d) => d.type === "document");
@@ -1186,7 +1190,12 @@ export default function PropertyDetailPage() {
                         <a href={doc.url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-md border border-[#e2e2e2] flex items-center justify-center text-[#888] hover:text-[#80020E] hover:border-[#80020E] transition-colors" title="Download">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         </a>
-                        <button onClick={async () => { await removeDocument(doc.id); refreshDocs(); }} className="w-7 h-7 rounded-md border border-[#e2e2e2] flex items-center justify-center text-[#ccc] hover:text-[#7A5252] hover:border-[#7A5252] transition-colors" title="Delete">
+                        <button onClick={async () => {
+                          // Optimistic remove — instant UI update
+                          setDocs((prev) => prev.filter((d) => d.id !== doc.id));
+                          await removeDocument(doc.id);
+                          setTimeout(() => refreshDocs(), 1500);
+                        }} className="w-7 h-7 rounded-md border border-[#e2e2e2] flex items-center justify-center text-[#ccc] hover:text-[#7A5252] hover:border-[#7A5252] transition-colors" title="Delete">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                         </button>
                       </div>

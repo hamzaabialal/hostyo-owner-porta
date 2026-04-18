@@ -3,7 +3,10 @@ import { put } from "@vercel/blob";
 import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
+
+// Allow up to 25MB uploads (matches the UI's stated limit)
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 export async function POST(req: Request) {
   try {
@@ -14,8 +17,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "No file provided" }, { status: 400 });
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ ok: false, error: "File too large (max 10MB)" }, { status: 400 });
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ ok: false, error: `File too large (max 25MB). This file is ${(file.size / 1024 / 1024).toFixed(1)}MB` }, { status: 400 });
     }
 
     const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
