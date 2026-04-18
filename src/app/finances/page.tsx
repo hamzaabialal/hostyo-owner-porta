@@ -531,20 +531,19 @@ export default function FinancesOverviewPage() {
         <div className="flex items-center justify-between mb-5">
           <div>
             <div className="text-[14px] font-semibold text-[#111]">Monthly management fees</div>
-            <div className="text-[11px] text-[#999] mt-0.5">Scroll to see upcoming months</div>
+            <div className="text-[11px] text-[#999] mt-0.5">Collected vs pending / forecast</div>
           </div>
           <div className="flex items-center gap-4 text-[11px] text-[#999]">
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#80020E]" />Collected</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm border border-[#80020E]/40 bg-[#80020E]/[0.06]" />Pending / Forecast</span>
           </div>
         </div>
-        {/* Y-axis + scrollable bars */}
+        {/* Y-axis + bars */}
         <div className="flex gap-2">
           <div className="flex flex-col justify-between text-[10px] text-[#bbb] text-right w-[40px] h-[200px] pb-6 flex-shrink-0">
             {[...Array(6)].map((_, i) => <span key={i}>€{((maxFee / 5) * (5 - i) / 1000).toFixed(1)}k</span>)}
           </div>
-          <div className="flex-1 overflow-x-auto hide-scrollbar">
-          <div className="flex items-end gap-1.5 md:gap-2.5 h-[200px] border-b border-[#f0f0f0] pb-0 relative" style={{ minWidth: `${monthlyFees.length * 52}px` }}>
+          <div className="flex-1 flex items-end gap-1.5 md:gap-2.5 h-[200px] border-b border-[#f0f0f0] pb-0 relative min-w-0">
             {monthlyFees.map((d) => {
               const total = d.collected + d.pending;
               const collectedPct = (d.collected / maxFee) * 100;
@@ -560,7 +559,7 @@ export default function FinancesOverviewPage() {
                 >
                   {/* Tooltip */}
                   {isHovered && (
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 bg-[#111] text-white text-[11px] rounded-lg px-2.5 py-2 shadow-lg whitespace-nowrap pointer-events-none">
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 bg-[#111] text-white text-[11px] rounded-lg px-2.5 py-2 shadow-lg whitespace-nowrap pointer-events-none">
                       <div className="font-semibold mb-1">{d.month} {d.year}</div>
                       <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#80020E]" /><span className="text-white/70">Collected</span><span className="ml-2 tabular-nums">{fmtCurrency(d.collected)}</span></div>
                       <div className="flex items-center gap-1.5 mt-0.5"><span className="w-2 h-2 rounded-sm border border-white/40 bg-white/[0.06]" /><span className="text-white/70">Pending</span><span className="ml-2 tabular-nums">{fmtCurrency(d.pending)}</span></div>
@@ -568,12 +567,13 @@ export default function FinancesOverviewPage() {
                         <span className="text-white/70">Total</span>
                         <span className="font-semibold tabular-nums">{fmtCurrency(total)}</span>
                       </div>
-                      {/* Caret */}
                       <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-[#111]" />
                     </div>
                   )}
+                  {/* Full-column hit area for easier hover */}
+                  <div className="absolute inset-0 cursor-pointer" aria-hidden="true" />
                   {/* Bar — single column with stacked collected (solid) + pending (outlined) */}
-                  <div className="w-full flex justify-center items-end h-[170px] cursor-pointer">
+                  <div className="w-full flex justify-center items-end h-[170px] cursor-pointer relative pointer-events-none">
                     <div className="w-full max-w-[26px] flex flex-col justify-end h-full">
                       {d.pending > 0 && (
                         <div
@@ -592,11 +592,10 @@ export default function FinancesOverviewPage() {
                       )}
                     </div>
                   </div>
-                  <span className={`text-[10px] font-medium ${d.isCurrent ? "text-[#80020E] font-semibold" : "text-[#999]"}`}>{d.month}</span>
+                  <span className={`text-[10px] font-medium ${d.isCurrent ? "text-[#80020E] font-semibold" : "text-[#999]"} relative pointer-events-none`}>{d.month}</span>
                 </div>
               );
             })}
-          </div>
           </div>
         </div>
       </div>}

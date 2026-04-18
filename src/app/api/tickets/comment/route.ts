@@ -54,12 +54,20 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date().toISOString();
+
+  // Determine comment author:
+  // - If the commenter IS the ticket submitter, the comment is from "User" (owner voice).
+  // - Otherwise, the commenter is replying on someone else's ticket, so they're "Admin" (support voice).
+  // This works correctly even if an admin submits their own ticket — their replies stay "User".
+  const isTicketOwner = (t.submittedEmail || "").toLowerCase() === scope.email;
+  const commentAuthor = isTicketOwner ? "User" : "Admin";
+
   const comment = {
     id: generateId(),
-    author: scope.isAdmin ? "Admin" : "User",
-    authorName: authorName || (scope.isAdmin ? "Admin" : "User"),
+    author: commentAuthor,
+    authorName: authorName || (isTicketOwner ? (t.submittedBy || "User") : "Admin"),
     authorEmail: scope.email,
-    authorImage: authorImage || "",
+    authorImage: authorImage || (isTicketOwner ? t.submittedImage : ""),
     message: String(message || "").trim(),
     attachments: attachments || [],
     createdAt: now,
@@ -69,9 +77,8 @@ export async function POST(req: NextRequest) {
     ...t,
     comments: [...(t.comments || []), comment],
     updatedAt: now,
-    // Mark the other party as "unread" implicitly by NOT updating their lastRead
-    // Mark the sender as up-to-date
-    ...(scope.isAdmin ? { lastReadByAdmin: now } : { lastReadByUser: now }),
+    // Mark the sender as up-to-date on read state, leave the other side as unread
+    ...(isTicketOwner ? { lastReadByUser: now } : { lastReadByAdmin: now }),
   };
   all[idx] = updated;
   await writeTickets(all);
