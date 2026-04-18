@@ -55,6 +55,14 @@ function notifIcon(type: AppNotification["type"]) {
           </svg>
         </div>
       );
+    case "document":
+      return (
+        <div className="w-8 h-8 rounded-full bg-[#EEF0F5] flex items-center justify-center flex-shrink-0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5E6673" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>
+          </svg>
+        </div>
+      );
     default:
       return (
         <div className="w-8 h-8 rounded-full bg-[#f5f5f5] flex items-center justify-center flex-shrink-0">
@@ -559,7 +567,7 @@ export default function TopBar({ title }: { title: string }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-white border-b border-[#eaeaea] px-6 md:px-8 h-[56px] flex items-center justify-between">
+      <header className="hidden md:flex sticky top-0 z-40 bg-white border-b border-[#eaeaea] px-6 md:px-8 h-[56px] items-center justify-between">
         <h1 className="text-[15px] font-semibold text-[#111]">{title}</h1>
 
         <div className="flex items-center gap-2.5">

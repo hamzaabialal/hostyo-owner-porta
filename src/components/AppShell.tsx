@@ -116,10 +116,9 @@ export default function AppShell({ title, children }: { title: string; children:
       <div className={`flex-1 flex flex-col min-h-screen min-w-0 transition-all duration-200 ${sidebarCollapsed ? "md:ml-[68px]" : "md:ml-[220px]"}`}>
         {/* Mobile header - shown only on mobile */}
         <MobileHeader title={title} />
-        {/* Desktop top bar - hidden on mobile */}
-        <div className="hidden md:block">
-          <TopBar title={title} />
-        </div>
+        {/* TopBar is always mounted (header itself hides on mobile) so the help/support
+            drawer listener keeps working when invoked from the mobile ? icon */}
+        <TopBar title={title} />
 
         <main className="flex-1 p-4 md:p-8 pb-20 md:pb-8 min-w-0">{children}</main>
       </div>
