@@ -24,9 +24,14 @@ async function readMeta(): Promise<DocumentMeta[]> {
   try {
     const blobs = await list({ prefix: "documents/_meta", token: process.env.BLOB_READ_WRITE_TOKEN });
     if (blobs.blobs.length === 0) return [];
-    const res = await fetch(blobs.blobs[0].url);
+    // Bust cache with a query string — Vercel Blob CDN can serve stale content otherwise
+    const url = blobs.blobs[0].url + "?t=" + Date.now();
+    const res = await fetch(url, { cache: "no-store" });
     return res.ok ? await res.json() : [];
-  } catch { return []; }
+  } catch (err) {
+    console.error("readMeta error:", err);
+    return [];
+  }
 }
 
 async function writeMeta(docs: DocumentMeta[]): Promise<void> {
@@ -61,10 +66,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const scope = await getUserScope(req);
   if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!scope.isAdmin) return NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 });
 
   const body = await req.json();
   const { propertyId, propertyName, name, url, size, type, source } = body;
+
+  // Admins can add docs to any property; owners can add to their own properties
+  if (!scope.isAdmin && propertyName && !isInScope(scope, propertyName)) {
+    return NextResponse.json({ error: "Forbidden — property not in your scope" }, { status: 403 });
+  }
 
   const all = await readMeta();
   const newDoc: DocumentMeta = {
@@ -75,7 +84,7 @@ export async function POST(req: NextRequest) {
     url: url || "",
     size: size || "0 KB",
     type: type || "document",
-    source: source || "Admin",
+    source: scope.isAdmin ? (source || "Admin") : "Admin",
     createdAt: new Date().toISOString(),
   };
   all.unshift(newDoc);
