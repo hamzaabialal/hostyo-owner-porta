@@ -208,6 +208,7 @@ export default function PropertyDetailPage() {
   const [docs, setDocs] = useState<PropertyDocument[]>([]);
   const [ownerProfile, setOwnerProfile] = useState({ fullName: "", legalName: "", billingAddress: "" });
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refreshDocs = useCallback(() => {
@@ -1050,29 +1051,40 @@ export default function PropertyDetailPage() {
         const handleUpload = async (files: FileList | null) => {
           if (!files || !id) return;
           setUploading(true);
+          setUploadError("");
+          let anyUploaded = false;
           for (const file of Array.from(files)) {
             try {
+              // 1. Upload file to Vercel Blob via the tickets upload endpoint
+              //    (it's admin-auth'd via middleware and returns a public URL)
               const formData = new FormData();
               formData.append("file", file);
-              const res = await fetch("/api/submit/upload", { method: "POST", body: formData });
-              const text = await res.text();
-              let data;
-              try { data = JSON.parse(text); } catch { continue; }
-              if (data.ok) {
-                await addDocument({
-                  propertyId: id,
-                  propertyName: property?.name || "",
-                  name: file.name,
-                  url: data.url,
-                  size: formatFileSize(file.size),
-                  type: "document",
-                  source: "Admin",
-                });
+              const uploadRes = await fetch("/api/tickets/upload", { method: "POST", body: formData });
+              const uploadData = await uploadRes.json().catch(() => ({ ok: false, error: "Invalid response" }));
+              if (!uploadData.ok) {
+                setUploadError(uploadData.error || `Failed to upload ${file.name}`);
+                continue;
               }
-            } catch { /* skip */ }
+
+              // 2. Save document metadata via /api/documents so all users see it
+              const saved = await addDocument({
+                propertyId: id,
+                propertyName: property?.name || "",
+                name: file.name,
+                url: uploadData.url,
+                size: formatFileSize(file.size),
+                type: "document",
+                source: "Admin",
+              });
+              if (saved) anyUploaded = true;
+              else setUploadError("File uploaded but metadata save failed. Check admin permissions.");
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : "Upload failed";
+              setUploadError(msg);
+            }
           }
           setUploading(false);
-          refreshDocs();
+          if (anyUploaded) refreshDocs();
         };
 
         const propDocs = docs.filter((d) => d.type === "document");
@@ -1096,6 +1108,11 @@ export default function PropertyDetailPage() {
               <div className="text-[14px] font-medium text-[#111] mb-1">{uploading ? "Uploading..." : "Drop files here to upload"}</div>
               <div className="text-[12px] text-[#999]">or <button onClick={() => fileInputRef.current?.click()} className="text-[#80020E] font-medium hover:underline">browse files</button> from your device</div>
               <div className="text-[10px] text-[#bbb] mt-2">PDF · DOC · JPG · PNG · XLS · UP TO 25MB</div>
+              {uploadError && (
+                <div className="mt-3 text-[12px] text-[#B7484F] bg-[#F6EDED] border border-[#E8D8D8] rounded-lg px-3 py-2 inline-block">
+                  {uploadError}
+                </div>
+              )}
               <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx" className="hidden" onChange={(e) => handleUpload(e.target.files)} />
             </div>
 
