@@ -40,6 +40,7 @@ async function writeMeta(docs: DocumentMeta[]): Promise<void> {
     access: "public",
     token: process.env.BLOB_READ_WRITE_TOKEN,
     addRandomSuffix: false,
+    allowOverwrite: true,
   });
 }
 
