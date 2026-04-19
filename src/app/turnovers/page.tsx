@@ -189,7 +189,7 @@ export default function TurnoversPage() {
     });
 
     return cards;
-  }, [properties, reservations]);
+  }, [properties, reservations, turnovers]);
 
   const filteredCards = useMemo(() => {
     return cleaningCards.filter((c) => {
@@ -746,11 +746,10 @@ function AddTurnoverModal({ properties, reservations, onClose, onSaved }: {
     if (!prop) return [];
     const propName = (prop.name || "").trim().toLowerCase();
     const today = new Date().toISOString().split("T")[0];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return Array.from(new Set(reservations
-      .filter((r: any) => (r.property || "").trim().toLowerCase() === propName)
-      .filter((r: any) => r.status !== "Cancelled" && (r.checkout || "") >= today)
-      .map((r: any) => r.checkout)
+      .filter((r) => (r.property || "").trim().toLowerCase() === propName)
+      .filter((r) => r.status !== "Cancelled" && (r.checkout || "") >= today)
+      .map((r) => r.checkout)
       .filter(Boolean)))
       .sort() as string[];
   }, [propertyId, properties, reservations]);
@@ -873,15 +872,13 @@ function AddIssueModal({ properties, reservations, onClose, onSaved }: {
 
   const suggestedDates = useMemo(() => {
     if (!propertyId) return [] as string[];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const prop = properties.find((p: any) => p.id === propertyId);
+    const prop = properties.find((p) => p.id === propertyId);
     if (!prop) return [];
     const propName = (prop.name || "").trim().toLowerCase();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return Array.from(new Set(reservations
-      .filter((r: any) => (r.property || "").trim().toLowerCase() === propName)
-      .filter((r: any) => r.status !== "Cancelled")
-      .map((r: any) => r.checkout)
+      .filter((r) => (r.property || "").trim().toLowerCase() === propName)
+      .filter((r) => r.status !== "Cancelled")
+      .map((r) => r.checkout)
       .filter(Boolean)))
       .sort((a, b) => (b as string).localeCompare(a as string)) as string[];
   }, [propertyId, properties, reservations]);
