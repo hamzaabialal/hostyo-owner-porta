@@ -251,7 +251,8 @@ export default function InventoryView({ properties }: { properties: Property[] }
   };
 
   const cleaningProperties = useMemo(() => {
-    return properties.filter((p: any) => p.cleaning === true);
+    const filtered = properties.filter((p: any) => p.cleaning === true);
+    return filtered.length > 0 ? filtered : properties;
   }, [properties]);
 
   const propertyFilterOptions = useMemo(() => {
@@ -809,6 +810,8 @@ function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, on
 
   const customCats = customCategoriesByProp[propertyId] || [];
   const categoryOptions = Array.from(new Set([...defaultCats, ...customCats]));
+  const [customCategory, setCustomCategory] = useState("");
+  const [showCustomCategory, setShowCustomCategory] = useState(false);
 
   const handleFile = async (file: File) => {
     setUploading(true);
@@ -853,17 +856,39 @@ function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, on
           </div>
           <div>
             <label className="block text-[12px] font-medium text-[#555] mb-1.5">{isAsset ? "Room" : "Category"}</label>
-            <input
-              type="text"
-              list="cat-options"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder={isAsset ? "e.g. Kitchen" : "e.g. Cleaning Supplies"}
-              className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E]"
-            />
-            <datalist id="cat-options">
-              {categoryOptions.map((c) => <option key={c} value={c} />)}
-            </datalist>
+            {showCustomCategory ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customCategory}
+                  onChange={(e) => { setCustomCategory(e.target.value); setCategory(e.target.value); }}
+                  placeholder={isAsset ? "New room name" : "New category name"}
+                  autoFocus
+                  className="flex-1 h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E]"
+                />
+                <button type="button"
+                  onClick={() => { setShowCustomCategory(false); setCustomCategory(""); setCategory(categoryOptions[0] || ""); }}
+                  className="h-[40px] px-3 text-[12px] text-[#666] border border-[#e2e2e2] rounded-lg hover:border-[#80020E]">Cancel</button>
+              </div>
+            ) : (
+              <select
+                value={category}
+                onChange={(e) => {
+                  if (e.target.value === "__custom__") {
+                    setShowCustomCategory(true);
+                    setCustomCategory("");
+                    setCategory("");
+                  } else {
+                    setCategory(e.target.value);
+                  }
+                }}
+                className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]"
+              >
+                <option value="">Select {isAsset ? "room" : "category"}</option>
+                {categoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                <option value="__custom__">+ Add new {isAsset ? "room" : "category"}...</option>
+              </select>
+            )}
           </div>
           <div>
             <label className="block text-[12px] font-medium text-[#555] mb-1.5">{isAsset ? "Asset name" : "Item name"}</label>
