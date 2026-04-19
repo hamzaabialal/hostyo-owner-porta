@@ -328,7 +328,7 @@ export default function CleanerPage() {
     );
   }
 
-  const isLocked = record.status === "Submitted" || record.status === "Completed" || record.cleanerLinkExpired;
+  const isLocked = record.status === "Submitted" || record.status === "Completed" || record.cleanerLinkExpired === true;
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] pb-24">
