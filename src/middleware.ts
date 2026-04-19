@@ -5,7 +5,12 @@ import type { NextRequest } from "next/server";
 const SECRET = process.env.NEXTAUTH_SECRET || "hostyo-default-secret-change-me";
 
 // Public paths that don't require authentication
-const PUBLIC_PATHS = ["/login", "/signup", "/submit", "/pending-approval", "/api/auth", "/api/submit"];
+const PUBLIC_PATHS = [
+  "/login", "/signup", "/submit", "/pending-approval",
+  "/api/auth", "/api/submit",
+  "/clean",              // public cleaner submission page
+  "/api/turnovers/cleaner", // public cleaner API (token-authenticated)
+];
 
 // API routes that require authentication
 const PROTECTED_API_PATHS = [
@@ -19,10 +24,12 @@ const PROTECTED_API_PATHS = [
   "/api/debug",
   "/api/tickets",
   "/api/documents",
+  "/api/turnovers",
+  "/api/inventory",
 ];
 
 // Admin-only paths
-const ADMIN_PATHS = ["/users", "/tickets", "/finances/payouts"];
+const ADMIN_PATHS = ["/users", "/tickets", "/finances/payouts", "/turnovers"];
 const ADMIN_API_PATHS = ["/api/users"];
 
 export async function middleware(req: NextRequest) {
