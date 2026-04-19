@@ -143,8 +143,16 @@ export default function Sidebar() {
         {(session?.user as any)?.role === "admin" && (() => {
           const usersActive = pathname.startsWith("/users");
           const ticketsActive = pathname.startsWith("/tickets");
+          const turnoversActive = pathname.startsWith("/turnovers");
           return (
             <>
+              <Link href="/turnovers" title={collapsed ? "Turnovers" : undefined}
+                className={`flex items-center ${collapsed ? "justify-center" : ""} gap-2.5 ${collapsed ? "px-0 py-2.5" : "px-3 py-2.5"} rounded-lg text-[14px] mb-0.5 transition-colors ${
+                  turnoversActive ? "bg-accent-light text-accent font-semibold" : "text-text-secondary hover:bg-[#f5f5f5] hover:text-text-primary"
+                }`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[18px] h-[18px]"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                {!collapsed && "Turnovers"}
+              </Link>
               <Link href="/users" title={collapsed ? "Users" : undefined}
                 className={`flex items-center ${collapsed ? "justify-center" : ""} gap-2.5 ${collapsed ? "px-0 py-2.5" : "px-3 py-2.5"} rounded-lg text-[14px] mb-0.5 transition-colors ${
                   usersActive ? "bg-accent-light text-accent font-semibold" : "text-text-secondary hover:bg-[#f5f5f5] hover:text-text-primary"
