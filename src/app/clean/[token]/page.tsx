@@ -435,7 +435,6 @@ export default function CleanerPage() {
                           {sub.items.map((it) => {
                             const key = itemKey(cat.id, sub.id, it.id);
                             const photos = record.items[key] || [];
-                            const hasPhoto = photos.length > 0;
                             return (
                               <CleanerItemRow
                                 key={it.id}

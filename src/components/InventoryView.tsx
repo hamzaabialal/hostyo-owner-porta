@@ -619,7 +619,7 @@ function AssetRow({ item, onPatch, onDelete, onViewAudit }: {
       } else {
         alert(res?.error || "Upload failed");
       }
-    } catch (e) {
+    } catch {
       alert("Upload failed");
     } finally {
       setUploading(false);
