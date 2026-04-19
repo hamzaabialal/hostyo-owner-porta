@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
@@ -100,6 +100,8 @@ export default function TurnoversPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterProperty, setFilterProperty] = useState<string>("");
+  const [showAddTurnover, setShowAddTurnover] = useState(false);
+  const [showAddIssue, setShowAddIssue] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -187,7 +189,7 @@ export default function TurnoversPage() {
     });
 
     return cards;
-  }, [properties, reservations]);
+  }, [properties, reservations, turnovers]);
 
   const filteredCards = useMemo(() => {
     return cleaningCards.filter((c) => {
@@ -313,7 +315,7 @@ export default function TurnoversPage() {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
               Filters
             </button>
-            <button className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg bg-[#80020E] text-white text-[12px] font-medium hover:bg-[#6b010c] transition-colors">
+            <button onClick={() => setShowAddTurnover(true)} className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg bg-[#80020E] text-white text-[12px] font-medium hover:bg-[#6b010c] transition-colors">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add turnover
             </button>
@@ -434,7 +436,7 @@ export default function TurnoversPage() {
               <option value="created">Sort by created time</option>
               <option value="severity">Sort by severity</option>
             </select>
-            <button className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg bg-[#80020E] text-white text-[12px] font-medium hover:bg-[#6b010c] transition-colors">
+            <button onClick={() => setShowAddIssue(true)} className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg bg-[#80020E] text-white text-[12px] font-medium hover:bg-[#6b010c] transition-colors">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add issue
             </button>
@@ -689,6 +691,365 @@ export default function TurnoversPage() {
 
       {/* ═══ Inventory Tab ═══ */}
       {tab === "inventory" && <InventoryView properties={properties} />}
+
+      {showAddTurnover && (
+        <AddTurnoverModal
+          properties={properties}
+          reservations={reservations}
+          onClose={() => setShowAddTurnover(false)}
+          onSaved={async () => {
+            const tData = await fetch("/api/turnovers").then((r) => r.json()).catch(() => ({ data: [] }));
+            setTurnovers(tData?.data || []);
+            setShowAddTurnover(false);
+          }}
+        />
+      )}
+
+      {showAddIssue && (
+        <AddIssueModal
+          properties={properties}
+          reservations={reservations}
+          onClose={() => setShowAddIssue(false)}
+          onSaved={async () => {
+            const iData = await fetch("/api/turnovers?issues=1").then((r) => r.json()).catch(() => ({ data: [] }));
+            setIssuesList(iData?.data || []);
+            setShowAddIssue(false);
+          }}
+        />
+      )}
     </AppShell>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Add Turnover Modal                                                 */
+/* ------------------------------------------------------------------ */
+function AddTurnoverModal({ properties, reservations, onClose, onSaved }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  properties: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  reservations: any[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [propertyId, setPropertyId] = useState("");
+  const [departureDate, setDepartureDate] = useState("");
+  const [cleanerName, setCleanerName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Suggest upcoming checkouts for the selected property
+  const suggestedDates = useMemo(() => {
+    if (!propertyId) return [] as string[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prop = properties.find((p: any) => p.id === propertyId);
+    if (!prop) return [];
+    const propName = (prop.name || "").trim().toLowerCase();
+    const today = new Date().toISOString().split("T")[0];
+    return Array.from(new Set(reservations
+      .filter((r) => (r.property || "").trim().toLowerCase() === propName)
+      .filter((r) => r.status !== "Cancelled" && (r.checkout || "") >= today)
+      .map((r) => r.checkout)
+      .filter(Boolean)))
+      .sort() as string[];
+  }, [propertyId, properties, reservations]);
+
+  const handleSave = async () => {
+    setError("");
+    if (!propertyId || !departureDate) {
+      setError("Please select a property and departure date.");
+      return;
+    }
+    setSaving(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prop = properties.find((p: any) => p.id === propertyId);
+      const res = await fetch("/api/turnovers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          propertyName: prop?.name,
+          propertyBedrooms: prop?.bedrooms,
+          propertyBathrooms: prop?.bathrooms,
+          propertyLocation: [prop?.city, prop?.country].filter(Boolean).join(", "),
+          propertyCoverUrl: prop?.coverUrl,
+          departureDate,
+          cleanerName,
+        }),
+      }).then((r) => r.json());
+      if (res?.error) {
+        setError(res.error);
+      } else {
+        onSaved();
+      }
+    } catch {
+      setError("Failed to create turnover");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-[100]" onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[480px] max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-5 py-4 border-b border-[#eaeaea] flex items-center justify-between">
+          <div className="text-[15px] font-bold text-[#111]">Add turnover</div>
+          <button onClick={onClose} className="p-1.5 text-[#999] hover:text-[#555]">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-4 overflow-y-auto">
+          <div>
+            <label className="block text-[12px] font-medium text-[#555] mb-1.5">Property</label>
+            <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)}
+              className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
+              <option value="">Select property</option>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#555] mb-1.5">Departure date</label>
+            {suggestedDates.length > 0 ? (
+              <select value={departureDate} onChange={(e) => setDepartureDate(e.target.value)}
+                className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E] mb-2">
+                <option value="">Select upcoming checkout...</option>
+                {suggestedDates.map((d) => (
+                  <option key={d} value={d}>{fmtDate(d)}</option>
+                ))}
+              </select>
+            ) : null}
+            <input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)}
+              className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E]" />
+            <div className="text-[11px] text-[#999] mt-1">
+              {suggestedDates.length > 0 ? "Pick from upcoming checkouts, or enter a custom date." : "No upcoming checkouts found — enter a date manually."}
+            </div>
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#555] mb-1.5">Cleaner name (optional)</label>
+            <input type="text" value={cleanerName} onChange={(e) => setCleanerName(e.target.value)}
+              placeholder="e.g. Maria"
+              className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E]" />
+          </div>
+          {error && <div className="text-[12px] text-[#B7484F] bg-[#F6EDED] px-3 py-2 rounded-lg">{error}</div>}
+        </div>
+        <div className="px-5 py-3 border-t border-[#eaeaea] bg-[#fafafa] flex justify-end gap-2">
+          <button onClick={onClose} className="h-[36px] px-4 text-[12px] font-medium text-[#666] hover:text-[#111] transition-colors">Cancel</button>
+          <button onClick={handleSave} disabled={!propertyId || !departureDate || saving}
+            className="h-[36px] px-4 rounded-lg bg-[#80020E] text-white text-[12px] font-semibold hover:bg-[#6b010c] transition-colors disabled:opacity-50">
+            {saving ? "Adding..." : "Add turnover"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Add Issue Modal                                                    */
+/* ------------------------------------------------------------------ */
+function AddIssueModal({ properties, reservations, onClose, onSaved }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  properties: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  reservations: any[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [propertyId, setPropertyId] = useState("");
+  const [departureDate, setDepartureDate] = useState("");
+  const [category, setCategory] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [severity, setSeverity] = useState<"Low" | "Medium" | "High">("Medium");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const suggestedDates = useMemo(() => {
+    if (!propertyId) return [] as string[];
+    const prop = properties.find((p) => p.id === propertyId);
+    if (!prop) return [];
+    const propName = (prop.name || "").trim().toLowerCase();
+    return Array.from(new Set(reservations
+      .filter((r) => (r.property || "").trim().toLowerCase() === propName)
+      .filter((r) => r.status !== "Cancelled")
+      .map((r) => r.checkout)
+      .filter(Boolean)))
+      .sort((a, b) => (b as string).localeCompare(a as string)) as string[];
+  }, [propertyId, properties, reservations]);
+
+  const handleFile = async (file: File) => {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/inventory/upload", { method: "POST", body: fd }).then((r) => r.json());
+      if (res?.ok && res.url) setPhotoUrl(res.url);
+      else setError(res?.error || "Upload failed");
+    } catch { setError("Upload failed"); }
+    finally { setUploading(false); }
+  };
+
+  const handleSave = async () => {
+    setError("");
+    if (!propertyId || !departureDate || !description.trim()) {
+      setError("Property, departure date and description are required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      // Ensure turnover record exists first
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prop = properties.find((p: any) => p.id === propertyId);
+      await fetch("/api/turnovers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          propertyName: prop?.name,
+          propertyBedrooms: prop?.bedrooms,
+          propertyBathrooms: prop?.bathrooms,
+          propertyLocation: [prop?.city, prop?.country].filter(Boolean).join(", "),
+          propertyCoverUrl: prop?.coverUrl,
+          departureDate,
+        }),
+      });
+      // Now add the issue
+      const res = await fetch("/api/turnovers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          departureDate,
+          addIssue: {
+            category: category || undefined,
+            title: title || undefined,
+            description: description.trim(),
+            severity,
+            photoUrl: photoUrl || undefined,
+          },
+        }),
+      }).then((r) => r.json());
+      if (res?.error) {
+        setError(res.error);
+      } else {
+        onSaved();
+      }
+    } catch {
+      setError("Failed to add issue");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-[100]" onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-5 py-4 border-b border-[#eaeaea] flex items-center justify-between">
+          <div className="text-[15px] font-bold text-[#111]">Add issue</div>
+          <button onClick={onClose} className="p-1.5 text-[#999] hover:text-[#555]">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-4 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[12px] font-medium text-[#555] mb-1.5">Property</label>
+              <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)}
+                className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
+                <option value="">Select property</option>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-[#555] mb-1.5">Departure date</label>
+              {suggestedDates.length > 0 ? (
+                <select value={departureDate} onChange={(e) => setDepartureDate(e.target.value)}
+                  className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
+                  <option value="">Select checkout...</option>
+                  {suggestedDates.map((d) => <option key={d} value={d}>{fmtDate(d)}</option>)}
+                </select>
+              ) : (
+                <input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)}
+                  className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E]" />
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[12px] font-medium text-[#555] mb-1.5">Category</label>
+              <select value={category} onChange={(e) => setCategory(e.target.value)}
+                className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
+                <option value="">Select category</option>
+                <option value="Kitchen">Kitchen</option>
+                <option value="Bathroom">Bathroom</option>
+                <option value="Bedroom">Bedroom</option>
+                <option value="Living Room">Living Room</option>
+                <option value="Hallway">Hallway</option>
+                <option value="Exterior">Exterior</option>
+                <option value="Appliance">Appliance</option>
+                <option value="Plumbing">Plumbing</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-[#555] mb-1.5">Severity</label>
+              <select value={severity} onChange={(e) => setSeverity(e.target.value as "Low" | "Medium" | "High")}
+                className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#555] mb-1.5">Title (optional)</label>
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Broken appliance"
+              className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E]" />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#555] mb-1.5">Description</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the issue..." rows={4}
+              className="w-full px-3 py-2 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E] resize-y" />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#555] mb-1.5">Photo (optional)</label>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            {photoUrl ? (
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-[#eaeaea]" />
+                <button type="button" onClick={() => fileRef.current?.click()} className="text-[12px] text-[#80020E] font-medium hover:underline">Replace</button>
+                <button type="button" onClick={() => setPhotoUrl("")} className="text-[12px] text-[#999] hover:text-[#B7484F]">Remove</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+                className="w-full h-[70px] border-2 border-dashed border-[#e2e2e2] rounded-lg text-[12px] text-[#888] hover:border-[#80020E] hover:text-[#80020E] transition-colors">
+                {uploading ? "Uploading..." : "Click to upload photo"}
+              </button>
+            )}
+          </div>
+          {error && <div className="text-[12px] text-[#B7484F] bg-[#F6EDED] px-3 py-2 rounded-lg">{error}</div>}
+        </div>
+        <div className="px-5 py-3 border-t border-[#eaeaea] bg-[#fafafa] flex justify-end gap-2">
+          <button onClick={onClose} className="h-[36px] px-4 text-[12px] font-medium text-[#666] hover:text-[#111] transition-colors">Cancel</button>
+          <button onClick={handleSave} disabled={!propertyId || !departureDate || !description.trim() || saving}
+            className="h-[36px] px-4 rounded-lg bg-[#80020E] text-white text-[12px] font-semibold hover:bg-[#6b010c] transition-colors disabled:opacity-50">
+            {saving ? "Adding..." : "Add issue"}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
