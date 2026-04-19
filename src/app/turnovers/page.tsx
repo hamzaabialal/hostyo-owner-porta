@@ -125,6 +125,7 @@ export default function TurnoversPage() {
   const cleaningCards = useMemo<TurnoverCard[]>(() => {
     const today = new Date().toISOString().split("T")[0];
     const cleaningProps = properties.filter((p: Property) => p.cleaning === true);
+    const seen = new Set<string>();
 
     const cards: TurnoverCard[] = [];
     for (const p of cleaningProps) {
@@ -179,6 +180,42 @@ export default function TurnoversPage() {
         completedSteps: completed,
         totalSteps: total,
       });
+      seen.add(`${p.id}__${departure}`);
+    }
+
+    // Include any manually-created turnovers that aren't already surfaced via reservations
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const t of turnovers as any[]) {
+      const key = `${t.propertyId}__${t.departureDate}`;
+      if (seen.has(key)) continue;
+      const p = properties.find((pp: Property) => pp.id === t.propertyId);
+      const propName = t.propertyName || p?.name || "Property";
+      const propReservations = reservations
+        .filter((r: Reservation) => (r.property || "").trim().toLowerCase() === (propName || "").trim().toLowerCase())
+        .filter((r: Reservation) => r.status !== "Cancelled");
+      const nextArrivalRes = propReservations
+        .filter((r: Reservation) => (r.checkin || "") >= (t.departureDate || ""))
+        .sort((a: Reservation, b: Reservation) => (a.checkin || "").localeCompare(b.checkin || ""))[0];
+
+      const completed = Object.keys(t.items || {}).length;
+      const total = Math.max(5, completed);
+      const cardStatus: TurnoverStatus =
+        t.status === "Submitted" || t.status === "Completed" ? t.status as TurnoverStatus :
+        t.status === "In progress" ? "In progress" : "Pending";
+
+      cards.push({
+        propertyId: t.propertyId,
+        propertyName: propName,
+        location: t.propertyLocation || [p?.city, p?.country].filter(Boolean).join(", ") || p?.address || "",
+        coverUrl: t.propertyCoverUrl || p?.coverUrl || "",
+        departure: t.departureDate || "",
+        nextArrival: nextArrivalRes?.checkin || "",
+        guests: nextArrivalRes ? ((nextArrivalRes.adults || 0) + (nextArrivalRes.children || 0) || 2) : 2,
+        status: cardStatus,
+        completedSteps: completed,
+        totalSteps: total,
+      });
+      seen.add(key);
     }
 
     // Sort by closest departure first
