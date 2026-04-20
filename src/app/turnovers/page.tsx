@@ -744,6 +744,7 @@ export default function TurnoversPage() {
         <AddIssueModal
           properties={properties}
           reservations={reservations}
+          turnovers={turnovers}
           onClose={() => setShowAddIssue(false)}
           onSaved={async () => {
             const [iData, tData] = await Promise.all([
@@ -889,11 +890,13 @@ function AddTurnoverModal({ properties, reservations, onClose, onSaved }: {
 /* ------------------------------------------------------------------ */
 /*  Add Issue Modal                                                    */
 /* ------------------------------------------------------------------ */
-function AddIssueModal({ properties, reservations, onClose, onSaved }: {
+function AddIssueModal({ properties, reservations, turnovers, onClose, onSaved }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   properties: any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reservations: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  turnovers: any[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -914,13 +917,41 @@ function AddIssueModal({ properties, reservations, onClose, onSaved }: {
     const prop = properties.find((p) => p.id === propertyId);
     if (!prop) return [];
     const propName = (prop.name || "").trim().toLowerCase();
-    return Array.from(new Set(reservations
-      .filter((r) => (r.property || "").trim().toLowerCase() === propName)
-      .filter((r) => r.status !== "Cancelled")
-      .map((r) => r.checkout)
-      .filter(Boolean)))
-      .sort((a, b) => (b as string).localeCompare(a as string)) as string[];
-  }, [propertyId, properties, reservations]);
+    // Combine reservation checkouts AND existing turnover departure dates for this property
+    const dates = new Set<string>();
+    for (const r of reservations) {
+      if ((r.property || "").trim().toLowerCase() !== propName) continue;
+      if (r.status === "Cancelled") continue;
+      if (r.checkout) dates.add(r.checkout);
+    }
+    for (const t of turnovers) {
+      if (t.propertyId === propertyId && t.departureDate) dates.add(t.departureDate);
+    }
+    return Array.from(dates).sort((a, b) => (b as string).localeCompare(a as string));
+  }, [propertyId, properties, reservations, turnovers]);
+
+  // Auto-select the "current" departure date for the picked property:
+  //   1. Existing turnover for this property (most recent), OR
+  //   2. Next upcoming checkout, OR
+  //   3. Most recent past checkout
+  // This keeps the issue attached to the EXISTING cleaning card rather than
+  // creating a new turnover record with an arbitrary date.
+  useEffect(() => {
+    if (!propertyId) { setDepartureDate(""); return; }
+    const today = new Date().toISOString().split("T")[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const existing = (turnovers as any[])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((t: any) => t.propertyId === propertyId)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .sort((a: any, b: any) => (b.departureDate || "").localeCompare(a.departureDate || ""))[0];
+    if (existing?.departureDate) { setDepartureDate(existing.departureDate); return; }
+    const upcoming = suggestedDates.filter((d) => d >= today).sort()[0];
+    if (upcoming) { setDepartureDate(upcoming); return; }
+    const mostRecentPast = suggestedDates[0]; // already sorted desc
+    if (mostRecentPast) { setDepartureDate(mostRecentPast); return; }
+    setDepartureDate("");
+  }, [propertyId, turnovers, suggestedDates]);
 
   const handleFile = async (file: File) => {
     setUploading(true);
@@ -945,7 +976,7 @@ function AddIssueModal({ properties, reservations, onClose, onSaved }: {
       const prop = properties.find((p) => p.id === propertyId);
       // PATCH auto-creates the turnover record if it doesn't exist yet
       // (admin-only). This avoids regenerating the cleaner token via POST.
-      const res = await fetch("/api/turnovers", {
+      const httpRes = await fetch("/api/turnovers", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -964,14 +995,17 @@ function AddIssueModal({ properties, reservations, onClose, onSaved }: {
             photoUrl: photoUrl || undefined,
           },
         }),
-      }).then((r) => r.json());
-      if (res?.error) {
-        setError(res.error);
-      } else {
-        onSaved();
+      });
+      const res = await httpRes.json().catch(() => ({} as { error?: string; ok?: boolean }));
+      if (!httpRes.ok || res?.error) {
+        console.error("Add issue failed", { status: httpRes.status, body: res });
+        setError(res?.error || `Failed (HTTP ${httpRes.status})`);
+        return;
       }
-    } catch {
-      setError("Failed to add issue");
+      onSaved();
+    } catch (e) {
+      console.error("Add issue exception", e);
+      setError("Failed to add issue — check console");
     } finally {
       setSaving(false);
     }
@@ -1004,12 +1038,27 @@ function AddIssueModal({ properties, reservations, onClose, onSaved }: {
                 <select value={departureDate} onChange={(e) => setDepartureDate(e.target.value)}
                   className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
                   <option value="">Select checkout...</option>
-                  {suggestedDates.map((d) => <option key={d} value={d}>{fmtDate(d)}</option>)}
+                  {suggestedDates.map((d) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const existing = (turnovers as any[]).find((t: any) => t.propertyId === propertyId && t.departureDate === d);
+                    return <option key={d} value={d}>{fmtDate(d)}{existing ? " — existing turnover" : ""}</option>;
+                  })}
                 </select>
               ) : (
                 <input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)}
                   className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E]" />
               )}
+              {propertyId && departureDate && (() => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const existing = (turnovers as any[]).find((t: any) => t.propertyId === propertyId && t.departureDate === departureDate);
+                return (
+                  <div className={`text-[10px] mt-1 ${existing ? "text-[#2F6B57]" : "text-[#8A6A2E]"}`}>
+                    {existing
+                      ? "✓ Attaching to existing turnover"
+                      : "⚠ This will create a new turnover for this date"}
+                  </div>
+                );
+              })()}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

@@ -55,7 +55,7 @@ async function fetchProperties() {
       skipAutomation: getProp(p, "Skip Automation") || false,
       balance: getProp(p, "Balance") || 0,
       deficitStatus: getProp(p, "Deficit Status") || "",
-      cleaning: getProp(p, "Cleaning") === true,
+      cleaning: getProp(p, "Cleaning Enabled") === true || getProp(p, "Cleaning") === true,
       propertyType: getProp(p, "Property Type") || "",
       bedrooms: getProp(p, "Bedrooms") || 0,
       bathrooms: getProp(p, "Bathrooms") || 0,
