@@ -1,8 +1,17 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 
-const tabs = [
+type Tab = {
+  label: string;
+  href: string;
+  match: (p: string) => boolean;
+  icon: React.ReactNode;
+  adminOnly?: boolean;
+};
+
+const tabs: Tab[] = [
   {
     label: "Home",
     href: "/dashboard",
@@ -34,6 +43,17 @@ const tabs = [
     ),
   },
   {
+    label: "Turnovers",
+    href: "/turnovers",
+    match: (p: string) => p.startsWith("/turnovers"),
+    adminOnly: true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[22px] h-[22px]">
+        <path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+      </svg>
+    ),
+  },
+  {
     label: "Finances",
     href: "/finances",
     match: (p: string) => p.startsWith("/finances"),
@@ -57,6 +77,10 @@ const tabs = [
 
 export default function MobileNav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isAdmin = (session?.user as any)?.role === "admin";
+  const visibleTabs = tabs.filter((t) => !t.adminOnly || isAdmin);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#eaeaea] z-50 md:hidden safe-area-bottom">
@@ -69,7 +93,7 @@ export default function MobileNav() {
         .nav-pop { animation: navPop 0.25s ease-out; }
       `}</style>
       <div className="flex items-center justify-around h-[60px] px-1">
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const active = tab.match(pathname);
           return (
             <Link
@@ -80,7 +104,7 @@ export default function MobileNav() {
               }`}
             >
               <span className={`transition-transform ${active ? "text-accent nav-pop" : "text-[#bbb]"}`}>{tab.icon}</span>
-              <span className={`text-[10px] font-medium ${active ? "font-semibold" : ""}`}>{tab.label}</span>
+              <span className={`${visibleTabs.length > 5 ? "text-[9px]" : "text-[10px]"} font-medium ${active ? "font-semibold" : ""}`}>{tab.label}</span>
             </Link>
           );
         })}
