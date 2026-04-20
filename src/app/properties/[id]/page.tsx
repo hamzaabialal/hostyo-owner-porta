@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
 import ChannelBadge from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
@@ -203,7 +204,14 @@ export default function PropertyDetailPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "reservations" | "earnings" | "expenses" | "documents">("overview");
+  const [tab, setTab] = useState<"overview" | "reservations" | "earnings" | "expenses" | "documents" | "turnovers">("overview");
+  const { data: session } = useSession();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isAdmin = (session?.user as any)?.role === "admin";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [turnovers, setTurnovers] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [issuesForProperty, setIssuesForProperty] = useState<any[]>([]);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [docs, setDocs] = useState<PropertyDocument[]>([]);
   const [ownerProfile, setOwnerProfile] = useState({ fullName: "", legalName: "", billingAddress: "" });
@@ -270,6 +278,21 @@ export default function PropertyDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Admin-only: fetch turnovers + issues for this property
+  useEffect(() => {
+    if (!isAdmin || !id) return;
+    Promise.all([
+      fetch("/api/turnovers").then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch("/api/turnovers?issues=1").then((r) => r.json()).catch(() => ({ data: [] })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ]).then(([tData, iData]: any[]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setTurnovers((tData?.data || []).filter((t: any) => t.propertyId === id));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setIssuesForProperty((iData?.data || []).filter((i: any) => i.propertyId === id));
+    }).catch(() => {});
+  }, [id, isAdmin]);
+
   const propReservations = useMemo(() =>
     reservations.sort((a, b) => (b.checkin || "").localeCompare(a.checkin || "")),
   [reservations]);
@@ -326,6 +349,7 @@ export default function PropertyDetailPage() {
     { key: "earnings" as const, label: "Earnings" },
     { key: "expenses" as const, label: "Expenses" },
     { key: "documents" as const, label: "Documents" },
+    ...(isAdmin && property?.cleaning ? [{ key: "turnovers" as const, label: "Turnovers" }] : []),
   ];
 
   return (
@@ -1203,6 +1227,151 @@ export default function PropertyDetailPage() {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══ Turnovers Tab (admin-only) ═══ */}
+      {tab === "turnovers" && isAdmin && (() => {
+        const today = new Date().toISOString().split("T")[0];
+        const propName = (property.name || "").trim().toLowerCase();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const propReservations = (reservations as any[])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter((r: any) => r.status !== "Cancelled");
+
+        // Build cleaning cards for this property across all past + upcoming checkouts
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const checkoutDates = Array.from(new Set(propReservations.map((r: any) => r.checkout).filter(Boolean))) as string[];
+
+        type Card = {
+          departure: string;
+          nextArrival: string;
+          guests: number;
+          status: "Pending" | "In progress" | "Submitted" | "Completed";
+          completed: number;
+          total: number;
+        };
+        const cards: Card[] = checkoutDates.map((departure) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const nextArrivalRes = propReservations
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .filter((r: any) => (r.checkin || "") >= departure)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .sort((a: any, b: any) => (a.checkin || "").localeCompare(b.checkin || ""))[0];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const existing = (turnovers as any[]).find((t: any) => t.propertyId === id && t.departureDate === departure);
+          const completed = existing ? Object.keys(existing.items || {}).length : 0;
+          const status: Card["status"] = existing
+            ? (existing.status === "Submitted" || existing.status === "Completed" ? existing.status
+              : existing.status === "In progress" ? "In progress" : "Pending")
+            : "Pending";
+          return {
+            departure,
+            nextArrival: nextArrivalRes?.checkin || "",
+            guests: nextArrivalRes ? ((nextArrivalRes.adults || 0) + (nextArrivalRes.children || 0) || 2) : 2,
+            status,
+            completed,
+            total: Math.max(5, completed),
+          };
+        });
+
+        // Sort: upcoming first (soonest), then past (most recent first)
+        cards.sort((a, b) => {
+          const aPast = a.departure < today;
+          const bPast = b.departure < today;
+          if (aPast !== bPast) return aPast ? 1 : -1;
+          if (aPast && bPast) return b.departure.localeCompare(a.departure);
+          return a.departure.localeCompare(b.departure);
+        });
+
+        const statusStyle = (s: Card["status"]) =>
+          s === "Completed" ? { dot: "#2F6B57", text: "text-[#2F6B57]" } :
+          s === "Submitted" ? { dot: "#3B5BA5", text: "text-[#3B5BA5]" } :
+          { dot: "#D4A843", text: "text-[#8A6A2E]" };
+
+        return (
+          <div className="space-y-5">
+            {/* Open issues summary */}
+            {issuesForProperty.length > 0 && (
+              <div className="bg-white border border-[#eaeaea] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[14px] font-bold text-[#111]">Recent issues</div>
+                  <span className="text-[11px] text-[#999]">{issuesForProperty.filter((i) => !i.resolved).length} open</span>
+                </div>
+                <div className="space-y-2">
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {issuesForProperty.slice(0, 5).map((iss: any) => (
+                    <div key={iss.id} className="flex items-start gap-2.5 py-1.5">
+                      <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${iss.resolved ? "bg-[#2F6B57]" : iss.severity === "High" ? "bg-[#B7484F]" : "bg-[#D4A843]"}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] text-[#111] truncate">{iss.title || iss.description}</div>
+                        <div className="text-[10px] text-[#999]">
+                          {iss.category && <span className="mr-1.5">{iss.category}</span>}
+                          {iss.resolved ? "Resolved" : iss.severity || "Pending"} · {fmtDateFull(iss.departureDate)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cleaning cards */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-[14px] font-bold text-[#111]">Cleaning turnovers</div>
+                <button onClick={() => router.push("/turnovers")}
+                  className="text-[12px] font-medium text-[#80020E] hover:underline">View all →</button>
+              </div>
+              {cards.length === 0 ? (
+                <div className="bg-white border border-[#eaeaea] rounded-xl p-10 text-center">
+                  <div className="text-[13px] text-[#888]">No reservations yet — turnovers will appear here once guests book.</div>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {cards.map((c) => {
+                    const sc = statusStyle(c.status);
+                    const pct = (c.completed / c.total) * 100;
+                    return (
+                      <div key={c.departure}
+                        onClick={() => router.push(`/turnovers/${id}?departure=${encodeURIComponent(c.departure)}`)}
+                        className="bg-white border border-[#eaeaea] rounded-xl p-3 md:p-4 flex flex-col md:flex-row md:items-center gap-3 hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-[#ddd] transition-all cursor-pointer">
+                        <div className="flex items-start gap-3 md:flex-1 min-w-0">
+                          <div className="w-[44px] h-[44px] md:w-[56px] md:h-[56px] rounded-lg bg-[#f5f5f5] flex items-center justify-center flex-shrink-0">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="1.8">
+                              <path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                            </svg>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[13px] md:text-[14px] font-semibold text-[#111]">Checkout {fmtDateFull(c.departure)}</div>
+                            <div className="text-[11px] text-[#999] mt-0.5 flex items-center gap-3 flex-wrap">
+                              <span>Next arrival: {c.nextArrival ? fmtDateFull(c.nextArrival) : "—"}</span>
+                              <span className="inline-flex items-center gap-1">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                                {c.guests} guests
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-stretch md:items-end gap-1.5 md:min-w-[240px]">
+                          <div className="flex items-center justify-between md:justify-end gap-3 flex-wrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: sc.dot }} />
+                              <span className={`text-[12px] font-medium ${sc.text}`}>{c.status}</span>
+                            </div>
+                            <div className="text-[10px] md:text-[11px] text-[#999] whitespace-nowrap">{c.completed} / {c.total} completed</div>
+                          </div>
+                          <div className="w-full h-[6px] bg-[#f0f0f0] rounded-full overflow-hidden">
+                            <div className="h-full rounded-full bg-[#80020E]" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         );

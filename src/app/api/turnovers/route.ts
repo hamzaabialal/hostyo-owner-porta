@@ -186,10 +186,35 @@ export async function PATCH(req: NextRequest) {
   const scope = await getUserScope(req);
   const all = await readAll();
   const id = recordId(propertyId, departureDate);
-  const record = all.find((r) => r.id === id);
-  if (!record) return NextResponse.json({ error: "Turnover not found" }, { status: 404 });
+  let record = all.find((r) => r.id === id);
 
   const isAdmin = scope?.isAdmin === true;
+
+  // Admin may auto-create a record when adding an issue/note/photo against a
+  // turnover that doesn't exist yet. This does NOT generate a cleanerToken —
+  // that stays the job of the POST endpoint (cleaner assignment).
+  if (!record && isAdmin) {
+    const nowIso = new Date().toISOString();
+    record = {
+      id,
+      propertyId,
+      propertyName: body.propertyName,
+      propertyBedrooms: body.propertyBedrooms,
+      propertyBathrooms: body.propertyBathrooms,
+      propertyLocation: body.propertyLocation,
+      propertyCoverUrl: body.propertyCoverUrl,
+      departureDate,
+      status: "Pending",
+      items: {},
+      issues: [],
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    all.push(record);
+  }
+
+  if (!record) return NextResponse.json({ error: "Turnover not found" }, { status: 404 });
+
   const isCleaner = !!token && record.cleanerToken === token && record.cleanerLinkExpired !== true;
 
   if (!isAdmin && !isCleaner) {
