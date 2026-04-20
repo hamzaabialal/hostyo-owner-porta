@@ -1235,7 +1235,6 @@ export default function PropertyDetailPage() {
       {/* ═══ Turnovers Tab (admin-only) ═══ */}
       {tab === "turnovers" && isAdmin && (() => {
         const today = new Date().toISOString().split("T")[0];
-        const propName = (property.name || "").trim().toLowerCase();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const propReservations = (reservations as any[])
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
