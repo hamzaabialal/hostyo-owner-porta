@@ -55,7 +55,9 @@ async function readAll(): Promise<InventoryItem[]> {
 }
 
 async function writeAll(items: InventoryItem[]): Promise<void> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return;
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error("BLOB_READ_WRITE_TOKEN env var is not configured");
+  }
   await put(META_KEY, JSON.stringify(items), {
     access: "public",
     token: process.env.BLOB_READ_WRITE_TOKEN,

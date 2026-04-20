@@ -75,7 +75,9 @@ async function readAll(): Promise<TurnoverRecord[]> {
 }
 
 async function writeAll(records: TurnoverRecord[]): Promise<void> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return;
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error("BLOB_READ_WRITE_TOKEN env var is not configured");
+  }
   await put(META_KEY, JSON.stringify(records), {
     access: "public",
     token: process.env.BLOB_READ_WRITE_TOKEN,
@@ -133,6 +135,7 @@ export async function GET(req: NextRequest) {
 
 /** POST — assign cleaner + generate link (admin only) */
 export async function POST(req: NextRequest) {
+  try {
   const scope = await getUserScope(req);
   if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!scope.isAdmin) return NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 });
@@ -172,10 +175,16 @@ export async function POST(req: NextRequest) {
   if (idx >= 0) all[idx] = record;
   await writeAll(all);
   return NextResponse.json({ ok: true, data: record });
+  } catch (err) {
+    console.error("POST /api/turnovers failed:", err);
+    const message = err instanceof Error ? err.message : "Failed to create turnover";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 /** PATCH — update record (admin-only fields vs cleaner-allowed fields) */
 export async function PATCH(req: NextRequest) {
+  try {
   const body = await req.json();
   const { propertyId, departureDate, token } = body;
   if (!propertyId || !departureDate) {
@@ -307,4 +316,9 @@ export async function PATCH(req: NextRequest) {
   if (idx >= 0) all[idx] = record;
   await writeAll(all);
   return NextResponse.json({ ok: true, data: record });
+  } catch (err) {
+    console.error("PATCH /api/turnovers failed:", err);
+    const message = err instanceof Error ? err.message : "Failed to save turnover";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
