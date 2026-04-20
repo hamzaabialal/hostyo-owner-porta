@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { put, list } from "@vercel/blob";
+import { put } from "@vercel/blob";
 import { randomUUID } from "crypto";
+import { findTurnover, pageToTurnover } from "@/lib/notion-turnovers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -30,14 +31,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Storage not configured" }, { status: 500 });
     }
 
-    // Validate cleaner token
-    const blobs = await list({ prefix: "turnovers/_meta", token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (blobs.blobs.length === 0) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
-    const metaRes = await fetch(blobs.blobs[0].url + "?t=" + Date.now(), { cache: "no-store" });
-    const all: any[] = metaRes.ok ? await metaRes.json() : [];
-    const id = `${propertyId}__${departureDate}`;
-    const record = all.find((r) => r.id === id);
-    if (!record || record.cleanerToken !== token || record.cleanerLinkExpired) {
+    // Validate cleaner token against Notion turnover record
+    const page = await findTurnover(propertyId, departureDate);
+    if (!page) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    const record = pageToTurnover(page);
+    if (!record.cleanerToken || record.cleanerToken !== token) {
       return NextResponse.json({ ok: false, error: "Link is no longer valid" }, { status: 403 });
     }
 

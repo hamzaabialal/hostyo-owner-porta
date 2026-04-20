@@ -22,6 +22,9 @@ export const DB = {
   expenses: process.env.NOTION_EXPENSES_DB || "",
   payoutCycles: process.env.NOTION_PAYOUT_CYCLES_DB || "",
   reports: process.env.NOTION_REPORTS_DB || "",
+  turnovers: process.env.NOTION_TURNOVERS_DB || "",
+  issues: process.env.NOTION_ISSUES_DB || "",
+  inventory: process.env.NOTION_INVENTORY_DB || "",
 };
 
 // ── Helper: Extract property value from Notion page ──

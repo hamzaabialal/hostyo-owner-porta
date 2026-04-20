@@ -1,39 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
-import { put, list } from "@vercel/blob";
-import { randomUUID } from "crypto";
+import {
+  findTurnover, findTurnoverById, updateTurnover, pageToTurnover,
+} from "@/lib/notion-turnovers";
+import { listIssuesForTurnover, createIssue, pageToIssue } from "@/lib/notion-issues";
 
 export const dynamic = "force-dynamic";
-
-const META_KEY = "turnovers/_meta.json";
-
-async function readAll(): Promise<any[]> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return [];
-  try {
-    const blobs = await list({ prefix: "turnovers/_meta", token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (blobs.blobs.length === 0) return [];
-    const res = await fetch(blobs.blobs[0].url + "?t=" + Date.now(), { cache: "no-store" });
-    return res.ok ? await res.json() : [];
-  } catch { return []; }
-}
-
-async function writeAll(records: any[]): Promise<void> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    throw new Error("BLOB_READ_WRITE_TOKEN env var is not configured");
-  }
-  await put(META_KEY, JSON.stringify(records), {
-    access: "public",
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    cacheControlMaxAge: 0,
-  });
-}
 
 /**
  * Public endpoint for cleaner actions:
  *   addPhoto, removePhoto, addIssue, startTimer, submit, updateNotes
- * Auth: cleaner token + propertyId + departureDate (must match record).
+ * Auth: cleaner token + propertyId + departureDate (must match turnover record).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -43,15 +20,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing params" }, { status: 400 });
     }
 
-    const all = await readAll();
-    const id = `${propertyId}__${departureDate}`;
-    const record = all.find((r) => r.id === id);
-    if (!record || record.cleanerToken !== token || record.cleanerLinkExpired) {
+    const page = await findTurnover(propertyId, departureDate);
+    if (!page) {
+      return NextResponse.json({ error: "Turnover not found" }, { status: 404 });
+    }
+    const current = pageToTurnover(page);
+    if (!current.cleanerToken || current.cleanerToken !== token) {
       return NextResponse.json({ error: "Link is no longer valid" }, { status: 403 });
     }
 
     const now = new Date().toISOString();
     const { addPhoto, removePhoto, addIssue, startTimer, submit, notes } = body;
+    const updates: Record<string, unknown> = {};
+    let newItems = { ...current.items };
+    let itemsChanged = false;
 
     if (addPhoto && addPhoto.itemKey && addPhoto.url) {
       const photo = {
@@ -64,54 +46,46 @@ export async function POST(req: NextRequest) {
         size: addPhoto.size,
         name: addPhoto.name,
       };
-      const existing = record.items[addPhoto.itemKey] || [];
-      record.items[addPhoto.itemKey] = [...existing, photo];
-      if (record.status === "Pending") record.status = "In progress";
+      newItems[addPhoto.itemKey] = [...(newItems[addPhoto.itemKey] || []), photo];
+      itemsChanged = true;
+      if (current.status === "Pending") updates.status = "In progress";
     }
-
     if (removePhoto && removePhoto.itemKey) {
-      const list = record.items[removePhoto.itemKey] || [];
-      record.items[removePhoto.itemKey] = list.filter((p: any) => p.url !== removePhoto.url);
-      if (record.items[removePhoto.itemKey].length === 0) delete record.items[removePhoto.itemKey];
+      newItems[removePhoto.itemKey] = (newItems[removePhoto.itemKey] || []).filter((p: any) => p.url !== removePhoto.url);
+      if (newItems[removePhoto.itemKey].length === 0) delete newItems[removePhoto.itemKey];
+      itemsChanged = true;
     }
-
     if (addIssue && addIssue.description) {
-      const issue = {
-        id: randomUUID(),
+      await createIssue({
+        turnoverPageId: page.id,
+        departureDate,
         category: addIssue.category,
         title: addIssue.title,
         description: String(addIssue.description).trim(),
-        photoUrl: addIssue.photoUrl || undefined,
         severity: addIssue.severity,
-        categoryId: addIssue.categoryId,
-        subcategoryId: addIssue.subcategoryId,
-        itemId: addIssue.itemId,
-        createdAt: now,
-      };
-      record.issues = [...(record.issues || []), issue];
+        photoUrl: addIssue.photoUrl,
+      });
+    }
+    if (startTimer && !current.timerStartedAt) {
+      updates.timerStartedAt = now;
+      if (current.status === "Pending") updates.status = "In progress";
+    }
+    if (notes !== undefined) updates.notes = String(notes);
+    if (submit) updates.status = "Submitted";
+
+    if (itemsChanged) updates.items = newItems;
+    if (Object.keys(updates).length > 0) {
+      await updateTurnover(page.id, updates);
     }
 
-    if (startTimer && !record.timerStartedAt) {
-      record.timerStartedAt = now;
-      if (record.status === "Pending") record.status = "In progress";
-    }
-
-    if (notes !== undefined) {
-      record.notes = String(notes);
-    }
-
-    if (submit) {
-      record.status = "Submitted";
-      record.submittedAt = now;
-    }
-
-    record.updatedAt = now;
-    const idx = all.findIndex((r) => r.id === id);
-    if (idx >= 0) all[idx] = record;
-    await writeAll(all);
-
-    return NextResponse.json({ ok: true, data: record });
+    const freshPage = await findTurnoverById(page.id);
+    const issues = await listIssuesForTurnover(page.id);
+    const rec = freshPage
+      ? pageToTurnover(freshPage, issues.map(pageToIssue))
+      : current;
+    return NextResponse.json({ ok: true, data: { ...rec, id: rec.compositeId } });
   } catch (err: any) {
+    console.error("POST /api/turnovers/cleaner/submit failed:", err);
     return NextResponse.json({ error: err?.message || "Failed" }, { status: 500 });
   }
 }
