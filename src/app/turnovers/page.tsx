@@ -56,13 +56,6 @@ function fmtRelativeTime(iso: string): string {
   } catch { return iso; }
 }
 
-function daysUntil(iso: string): number {
-  if (!iso) return 999999;
-  const d = new Date(iso + "T00:00:00").getTime();
-  const today = new Date(new Date().toISOString().split("T")[0] + "T00:00:00").getTime();
-  return Math.round((d - today) / 86400000);
-}
-
 function statusColor(status: TurnoverStatus): { dot: string; text: string } {
   switch (status) {
     case "Completed": return { dot: "#2F6B57", text: "text-[#2F6B57]" };
@@ -218,11 +211,16 @@ export default function TurnoversPage() {
       seen.add(key);
     }
 
-    // Sort by closest departure first
+    // Sort: upcoming turnovers first (closest departure first), then past ones
+    // ordered most-recent first. "Closest at top, furthest at bottom."
     cards.sort((a, b) => {
       const aDate = a.departure || "9999";
       const bDate = b.departure || "9999";
-      return aDate.localeCompare(bDate);
+      const aPast = aDate < today;
+      const bPast = bDate < today;
+      if (aPast !== bPast) return aPast ? 1 : -1; // upcoming before past
+      if (aPast && bPast) return bDate.localeCompare(aDate); // past: most recent first
+      return aDate.localeCompare(bDate); // upcoming: soonest first
     });
 
     return cards;
@@ -379,54 +377,54 @@ export default function TurnoversPage() {
                 {filteredCards.map((c) => {
                   const sc = statusColor(c.status);
                   const progressPct = (c.completedSteps / c.totalSteps) * 100;
-                  const days = daysUntil(c.departure);
-                  const daysLabel = days === 0 ? "Today" : days === 1 ? "Tomorrow" : days > 0 ? `in ${days} days` : `${Math.abs(days)}d ago`;
                   return (
                     <div
                       key={c.propertyId}
                       onClick={() => router.push(`/turnovers/${c.propertyId}?departure=${encodeURIComponent(c.departure)}`)}
-                      className="bg-white border border-[#eaeaea] rounded-xl p-4 flex items-center gap-4 hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-[#ddd] transition-all cursor-pointer"
+                      className="bg-white border border-[#eaeaea] rounded-xl p-3 md:p-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-[#ddd] transition-all cursor-pointer"
                     >
-                      {/* Photo */}
-                      <div className="w-[72px] h-[60px] rounded-lg bg-[#f5f5f5] overflow-hidden flex-shrink-0">
-                        {c.coverUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={c.coverUrl} alt={c.propertyName} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                          </div>
-                        )}
-                      </div>
+                      {/* Top row on mobile: photo + name/location + status pill */}
+                      <div className="flex items-start gap-3 md:contents">
+                        {/* Photo */}
+                        <div className="w-[56px] h-[56px] md:w-[72px] md:h-[60px] rounded-lg bg-[#f5f5f5] overflow-hidden flex-shrink-0">
+                          {c.coverUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={c.coverUrl} alt={c.propertyName} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                            </div>
+                          )}
+                        </div>
 
-                      {/* Property info */}
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[15px] font-semibold text-[#111] truncate">{c.propertyName}</div>
-                        {c.location && <div className="text-[12px] text-[#888] truncate">{c.location}</div>}
-                        <div className="text-[11px] text-[#999] mt-1 flex items-center gap-3">
-                          <span>Next arrival: {c.nextArrival ? fmtDate(c.nextArrival) : "—"}</span>
-                          <span className="inline-flex items-center gap-1">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                            {c.guests} guests
-                          </span>
+                        {/* Property info */}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[14px] md:text-[15px] font-semibold text-[#111] truncate">{c.propertyName}</div>
+                          {c.location && <div className="text-[11px] md:text-[12px] text-[#888] truncate">{c.location}</div>}
+                          <div className="text-[11px] text-[#999] mt-1 flex items-center gap-3 flex-wrap">
+                            <span className="whitespace-nowrap">Next arrival: {c.nextArrival ? fmtDate(c.nextArrival) : "—"}</span>
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                              {c.guests} guests
+                            </span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Status + Departure */}
-                      <div className="flex flex-col items-end gap-2 flex-shrink-0 min-w-[260px]">
-                        <div className="flex items-center gap-4">
+                      {/* Status + Departure + Progress */}
+                      <div className="flex flex-col items-stretch md:items-end gap-1.5 md:gap-2 md:flex-shrink-0 md:min-w-[260px]">
+                        <div className="flex items-center justify-between md:justify-end gap-2 md:gap-4 flex-wrap">
                           <div className="flex items-center gap-1.5">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: sc.dot }} />
                             <span className={`text-[12px] font-medium ${sc.text}`}>{c.status}</span>
                           </div>
-                          <div className="text-[12px] text-[#666]">Departure: <span className="font-semibold text-[#111]">{fmtDate(c.departure)}</span></div>
-                          <div className="text-[11px] text-[#999] whitespace-nowrap">{c.completedSteps} / {c.totalSteps} completed</div>
+                          <div className="text-[11px] md:text-[12px] text-[#666] whitespace-nowrap">Departure: <span className="font-semibold text-[#111]">{fmtDate(c.departure)}</span></div>
+                          <div className="text-[10px] md:text-[11px] text-[#999] whitespace-nowrap">{c.completedSteps} / {c.totalSteps} completed</div>
                         </div>
                         {/* Progress bar */}
                         <div className="w-full h-[6px] bg-[#f0f0f0] rounded-full overflow-hidden">
                           <div className="h-full rounded-full bg-[#80020E]" style={{ width: `${progressPct}%` }} />
                         </div>
-                        <div className="text-[10px] text-[#aaa]">{daysLabel}</div>
                       </div>
                     </div>
                   );
@@ -748,8 +746,12 @@ export default function TurnoversPage() {
           reservations={reservations}
           onClose={() => setShowAddIssue(false)}
           onSaved={async () => {
-            const iData = await fetch("/api/turnovers?issues=1").then((r) => r.json()).catch(() => ({ data: [] }));
+            const [iData, tData] = await Promise.all([
+              fetch("/api/turnovers?issues=1").then((r) => r.json()).catch(() => ({ data: [] })),
+              fetch("/api/turnovers").then((r) => r.json()).catch(() => ({ data: [] })),
+            ]);
             setIssuesList(iData?.data || []);
+            setTurnovers(tData?.data || []);
             setShowAddIssue(false);
           }}
         />
@@ -940,29 +942,20 @@ function AddIssueModal({ properties, reservations, onClose, onSaved }: {
     }
     setSaving(true);
     try {
-      // Ensure turnover record exists first
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const prop = properties.find((p: any) => p.id === propertyId);
-      await fetch("/api/turnovers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          propertyId,
-          propertyName: prop?.name,
-          propertyBedrooms: prop?.bedrooms,
-          propertyBathrooms: prop?.bathrooms,
-          propertyLocation: [prop?.city, prop?.country].filter(Boolean).join(", "),
-          propertyCoverUrl: prop?.coverUrl,
-          departureDate,
-        }),
-      });
-      // Now add the issue
+      const prop = properties.find((p) => p.id === propertyId);
+      // PATCH auto-creates the turnover record if it doesn't exist yet
+      // (admin-only). This avoids regenerating the cleaner token via POST.
       const res = await fetch("/api/turnovers", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           propertyId,
           departureDate,
+          propertyName: prop?.name,
+          propertyBedrooms: prop?.bedrooms,
+          propertyBathrooms: prop?.bathrooms,
+          propertyLocation: [prop?.city, prop?.country].filter(Boolean).join(", "),
+          propertyCoverUrl: prop?.coverUrl,
           addIssue: {
             category: category || undefined,
             title: title || undefined,
@@ -1026,14 +1019,12 @@ function AddIssueModal({ properties, reservations, onClose, onSaved }: {
                 className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
                 <option value="">Select category</option>
                 <option value="Kitchen">Kitchen</option>
-                <option value="Bathroom">Bathroom</option>
                 <option value="Bedroom">Bedroom</option>
                 <option value="Living Room">Living Room</option>
+                <option value="Bathroom">Bathroom</option>
+                <option value="Balcony">Balcony</option>
                 <option value="Hallway">Hallway</option>
                 <option value="Exterior">Exterior</option>
-                <option value="Appliance">Appliance</option>
-                <option value="Plumbing">Plumbing</option>
-                <option value="Electrical">Electrical</option>
                 <option value="Other">Other</option>
               </select>
             </div>
