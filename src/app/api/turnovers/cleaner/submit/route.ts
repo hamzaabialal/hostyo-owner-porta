@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const { addPhoto, removePhoto, addIssue, startTimer, submit, notes } = body;
     const updates: Record<string, unknown> = {};
-    let newItems = { ...current.items };
+    const newItems = { ...current.items };
     let itemsChanged = false;
 
     if (addPhoto && addPhoto.itemKey && addPhoto.url) {

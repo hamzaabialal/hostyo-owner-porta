@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserScope } from "@/lib/scope";
 import {
   listInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem,
-  pageToItem, type InventoryItem, type InventoryKind,
+  pageToItem, type InventoryKind,
 } from "@/lib/notion-inventory";
 
 export const dynamic = "force-dynamic";

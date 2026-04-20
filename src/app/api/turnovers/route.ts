@@ -171,7 +171,7 @@ export async function PATCH(req: NextRequest) {
     const now = new Date().toISOString();
     const { addPhoto, removePhoto, status, notes, addIssue, resolveIssue, startTimer, stopTimer, expireLink, approve } = body;
     const updates: Record<string, unknown> = {};
-    let newItems = { ...currentRecord.items };
+    const newItems = { ...currentRecord.items };
     let itemsChanged = false;
 
     // ── Cleaner-allowed actions ──
