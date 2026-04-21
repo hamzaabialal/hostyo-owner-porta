@@ -32,11 +32,12 @@ async function describeDb(dbId: string) {
 }
 
 export async function GET() {
-  const [turnovers, issues, inventory, properties] = await Promise.all([
+  const [turnovers, issues, inventory, properties, tickets] = await Promise.all([
     describeDb(process.env.NOTION_TURNOVERS_DB || ""),
     describeDb(process.env.NOTION_ISSUES_DB || ""),
     describeDb(process.env.NOTION_INVENTORY_DB || ""),
     describeDb(process.env.NOTION_PROPERTIES_DB || ""),
+    describeDb(process.env.NOTION_TICKETS_DB || ""),
   ]);
-  return NextResponse.json({ turnovers, issues, inventory, properties });
+  return NextResponse.json({ turnovers, issues, inventory, properties, tickets });
 }

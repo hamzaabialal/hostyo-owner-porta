@@ -25,6 +25,7 @@ export const DB = {
   turnovers: process.env.NOTION_TURNOVERS_DB || "",
   issues: process.env.NOTION_ISSUES_DB || "",
   inventory: process.env.NOTION_INVENTORY_DB || "",
+  tickets: process.env.NOTION_TICKETS_DB || "",
 };
 
 // ── Helper: Extract property value from Notion page ──

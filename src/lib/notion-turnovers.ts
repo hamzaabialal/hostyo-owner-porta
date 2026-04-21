@@ -12,6 +12,15 @@ export interface TurnoverPhoto {
   name?: string;
 }
 
+export interface TimerSession {
+  cleanerName?: string;
+  startedAt?: string;
+  stoppedAt?: string;
+  durationSec?: number;
+  /** When the session was closed (either stopped or archived on regenerate) */
+  archivedAt: string;
+}
+
 export interface TurnoverRecord {
   id: string;                 // Notion page id
   compositeId: string;        // `${propertyId}__${departureDate}` (legacy; used by routes)
@@ -32,6 +41,8 @@ export interface TurnoverRecord {
   timerStartedAt?: string;
   timerStoppedAt?: string;
   timerDurationSec?: number;
+  /** Previous timer sessions (archived when admin regenerates the link for a new cleaner). */
+  timerLog: TimerSession[];
   createdAt: string;
   updatedAt: string;
   submittedAt?: string;
@@ -39,6 +50,30 @@ export interface TurnoverRecord {
 }
 
 const txt = (s?: string) => s ? [{ type: "text" as const, text: { content: s.slice(0, 2000) } }] : [];
+
+const MAX_TIMER_LOG_JSON_CHARS = 1800;
+const txtJson = (value: unknown) => {
+  try {
+    let json = JSON.stringify(value);
+    if (json.length > MAX_TIMER_LOG_JSON_CHARS && Array.isArray(value)) {
+      const arr = [...value];
+      while (json.length > MAX_TIMER_LOG_JSON_CHARS && arr.length > 0) {
+        arr.shift();
+        json = JSON.stringify(arr);
+      }
+    }
+    return json.length > 0 ? [{ type: "text" as const, text: { content: json.slice(0, 2000) } }] : [];
+  } catch { return []; }
+};
+
+function parseTimerLog(raw: string): TimerSession[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((s: any) => s && typeof s === "object");
+  } catch { return []; }
+}
 
 export function pageToTurnover(page: any, issues: any[] = []): TurnoverRecord {
   const props = page.properties || {};
@@ -72,6 +107,8 @@ export function pageToTurnover(page: any, issues: any[] = []): TurnoverRecord {
     statusVal === "Submitted" ? "Submitted" :
     statusVal === "In progress" ? "In progress" : "Pending";
 
+  const timerLog = parseTimerLog(rt(props["Timer Log"]));
+
   return {
     id: page.id,
     compositeId: `${propertyId}__${departureDate}`,
@@ -87,6 +124,7 @@ export function pageToTurnover(page: any, issues: any[] = []): TurnoverRecord {
     timerStartedAt: timerStartedAt || undefined,
     timerStoppedAt: timerStoppedAt || undefined,
     timerDurationSec,
+    timerLog,
     createdAt: page.created_time,
     updatedAt: page.last_edited_time,
     // Property metadata denormalised fields aren't stored in Notion — populated
@@ -182,6 +220,7 @@ export async function updateTurnover(pageId: string, updates: Partial<TurnoverRe
   if (updates.items !== undefined) properties["Items JSON"] = { rich_text: txt(JSON.stringify(updates.items || {})) };
   if (updates.timerStartedAt !== undefined) properties["Timer Started"] = updates.timerStartedAt ? { date: { start: updates.timerStartedAt } } : { date: null };
   if (updates.timerStoppedAt !== undefined) properties["Timer Stopped"] = updates.timerStoppedAt ? { date: { start: updates.timerStoppedAt } } : { date: null };
+  if (updates.timerLog !== undefined) properties["Timer Log"] = { rich_text: txtJson(updates.timerLog) };
 
   if (Object.keys(properties).length === 0) return null;
   await (notion as any).pages.update({ page_id: pageId, properties });

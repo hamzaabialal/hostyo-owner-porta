@@ -60,9 +60,16 @@ export default function TicketsPage() {
     setTickets((prev) => {
       const prevById = new Map(prev.map((t) => [t.id, t]));
       return list.map((t) => {
-        // If a PATCH is in flight for this ticket, keep the local (optimistic) state
+        const local = prevById.get(t.id);
+        // If a PATCH is in flight, always keep the local (optimistic) state
         if (pendingPatchesRef.current.has(t.id)) {
-          return prevById.get(t.id) || t;
+          return local || t;
+        }
+        // Otherwise: compare updatedAt. If the local copy is newer than what the
+        // server returned, it means the blob storage is still serving stale data
+        // after a recent write — keep the local copy until the server catches up.
+        if (local && local.updatedAt && t.updatedAt && local.updatedAt > t.updatedAt) {
+          return local;
         }
         return t;
       });

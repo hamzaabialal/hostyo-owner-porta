@@ -9,6 +9,13 @@ import { buildChecklist, countChecklistItems, itemKey, type ChecklistCategory } 
 /* ------------------------------------------------------------------ */
 interface TurnoverPhoto { url: string; uploadedAt: string; exifDateTime?: string; deviceModel?: string; latitude?: number; longitude?: number; }
 interface TurnoverIssue { id: string; description: string; photoUrl?: string; createdAt: string; categoryId?: string; subcategoryId?: string; itemId?: string; resolved?: boolean; }
+interface TimerSession {
+  cleanerName?: string;
+  startedAt?: string;
+  stoppedAt?: string;
+  durationSec?: number;
+  archivedAt: string;
+}
 interface TurnoverRecord {
   id: string; propertyId: string; propertyName?: string; departureDate: string;
   status: "Pending" | "In progress" | "Submitted" | "Completed";
@@ -21,6 +28,7 @@ interface TurnoverRecord {
   timerStartedAt?: string;
   timerStoppedAt?: string;
   timerDurationSec?: number;
+  timerLog?: TimerSession[];
   createdAt: string;
   updatedAt: string;
   submittedAt?: string;
@@ -270,12 +278,36 @@ export default function TurnoverDetailPage() {
           </div>
           {(record?.timerStartedAt || record?.timerDurationSec) && (
             <div className="mt-3 pt-3 border-t border-[#f0f0f0] text-[11px] text-[#666] space-y-0.5">
-              {record.timerStartedAt && <div>Timer started: <span className="font-medium text-[#111]">{fmtDateTime(record.timerStartedAt)}</span></div>}
+              <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Current session</div>
+              {record.cleanerName && <div>Cleaner: <span className="font-medium text-[#111]">{record.cleanerName}</span></div>}
+              {record.timerStartedAt && <div>Started: <span className="font-medium text-[#111]">{fmtDateTime(record.timerStartedAt)}</span></div>}
               {record.timerStoppedAt && <div>Stopped: <span className="font-medium text-[#111]">{fmtDateTime(record.timerStoppedAt)}</span></div>}
               {record.timerDurationSec !== undefined && <div>Duration: <span className="font-semibold text-[#111]">{fmtDuration(record.timerDurationSec)}</span></div>}
               {record.timerStartedAt && !record.timerStoppedAt && (
                 <button onClick={stopTimer} className="mt-1 h-[26px] px-2.5 rounded border border-[#80020E] text-[#80020E] text-[11px] font-semibold hover:bg-[#80020E]/5 transition-colors">Stop timer</button>
               )}
+            </div>
+          )}
+          {record?.timerLog && record.timerLog.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-[#f0f0f0]">
+              <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Previous sessions</div>
+              <div className="space-y-1.5">
+                {record.timerLog.map((s, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 bg-[#fafafa] border border-[#f0f0f0] rounded-md px-2.5 py-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#eee] text-[10px] font-bold text-[#666] flex-shrink-0">{i + 1}</span>
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-medium text-[#111] truncate">{s.cleanerName || "(unnamed cleaner)"}</div>
+                        <div className="text-[10px] text-[#888]">
+                          {s.startedAt ? fmtDateTime(s.startedAt) : "—"}
+                          {s.stoppedAt ? ` → ${fmtDateTime(s.stoppedAt)}` : ""}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-[11px] font-semibold text-[#555] flex-shrink-0">{fmtDuration(s.durationSec)}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

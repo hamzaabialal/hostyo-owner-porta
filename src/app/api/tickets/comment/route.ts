@@ -1,88 +1,66 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
-import { put, list } from "@vercel/blob";
 import { getUserScope } from "@/lib/scope";
+import { findTicketById, updateTicket, pageToTicket, type TicketComment } from "@/lib/notion-tickets";
 
 export const dynamic = "force-dynamic";
-
-const META_KEY = "tickets/_meta.json";
-
-async function readTickets(): Promise<any[]> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return [];
-  try {
-    const blobs = await list({ prefix: "tickets/_meta", token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (blobs.blobs.length === 0) return [];
-    const url = blobs.blobs[0].url + "?t=" + Date.now();
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch { return []; }
-}
-
-async function writeTickets(tickets: any[]): Promise<void> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return;
-  await put(META_KEY, JSON.stringify(tickets), {
-    access: "public",
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    cacheControlMaxAge: 0,
-  });
-}
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-/** POST — add a comment to a ticket */
+/** POST — add a comment to a ticket (stored as JSON on the Notion page). */
 export async function POST(req: NextRequest) {
-  const scope = await getUserScope(req);
-  if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const scope = await getUserScope(req);
+    if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
-  const { ticketId, message, authorName, authorImage, attachments } = body;
-  if (!ticketId) return NextResponse.json({ error: "Missing ticketId" }, { status: 400 });
+    const body = await req.json();
+    const { ticketId, message, authorName, authorImage, attachments } = body;
+    if (!ticketId) return NextResponse.json({ error: "Missing ticketId" }, { status: 400 });
 
-  const all = await readTickets();
-  const idx = all.findIndex((t: any) => t.id === ticketId);
-  if (idx === -1) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+    const page = await findTicketById(ticketId);
+    if (!page) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+    const current = pageToTicket(page);
 
-  const t = all[idx];
-  // Permission: owner can only comment on their own tickets
-  if (!scope.isAdmin && (t.submittedEmail || "").toLowerCase() !== scope.email) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Permission: owner can only comment on their own tickets
+    if (!scope.isAdmin && (current.submittedEmail || "").toLowerCase() !== scope.email) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const now = new Date().toISOString();
+
+    // If commenter IS the ticket submitter → "User" voice. Otherwise → "Admin" voice.
+    const isTicketOwner = (current.submittedEmail || "").toLowerCase() === scope.email;
+    const commentAuthor: "User" | "Admin" = isTicketOwner ? "User" : "Admin";
+
+    const comment: TicketComment = {
+      id: generateId(),
+      author: commentAuthor,
+      authorName: authorName || (isTicketOwner ? (current.submittedBy || "User") : "Admin"),
+      authorEmail: scope.email,
+      authorImage: authorImage || (isTicketOwner ? current.submittedImage : "") || "",
+      message: String(message || "").trim(),
+      attachments: Array.isArray(attachments) ? attachments : [],
+      createdAt: now,
+    };
+
+    const updatedComments = [...(current.comments || []), comment];
+
+    await updateTicket(ticketId, {
+      comments: updatedComments,
+      ...(isTicketOwner ? { lastReadByUser: now } : { lastReadByAdmin: now }),
+    });
+
+    const fresh = await findTicketById(ticketId);
+    return NextResponse.json({
+      ok: true,
+      comment,
+      ticket: fresh ? pageToTicket(fresh) : { ...current, comments: updatedComments, updatedAt: now },
+    });
+  } catch (err) {
+    console.error("POST /api/tickets/comment failed:", err);
+    const message = err instanceof Error ? err.message : "Failed to post comment";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const now = new Date().toISOString();
-
-  // Determine comment author:
-  // - If the commenter IS the ticket submitter, the comment is from "User" (owner voice).
-  // - Otherwise, the commenter is replying on someone else's ticket, so they're "Admin" (support voice).
-  // This works correctly even if an admin submits their own ticket — their replies stay "User".
-  const isTicketOwner = (t.submittedEmail || "").toLowerCase() === scope.email;
-  const commentAuthor = isTicketOwner ? "User" : "Admin";
-
-  const comment = {
-    id: generateId(),
-    author: commentAuthor,
-    authorName: authorName || (isTicketOwner ? (t.submittedBy || "User") : "Admin"),
-    authorEmail: scope.email,
-    authorImage: authorImage || (isTicketOwner ? t.submittedImage : ""),
-    message: String(message || "").trim(),
-    attachments: attachments || [],
-    createdAt: now,
-  };
-
-  const updated = {
-    ...t,
-    comments: [...(t.comments || []), comment],
-    updatedAt: now,
-    // Mark the sender as up-to-date on read state, leave the other side as unread
-    ...(isTicketOwner ? { lastReadByUser: now } : { lastReadByAdmin: now }),
-  };
-  all[idx] = updated;
-  await writeTickets(all);
-
-  return NextResponse.json({ ok: true, comment, ticket: updated });
 }
