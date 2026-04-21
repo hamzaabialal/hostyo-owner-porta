@@ -63,9 +63,11 @@ export default function TurnoverDetailPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [record, setRecord] = useState<TurnoverRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Collapsed-by-default. `null` => not yet expanded (= collapsed). `false` => explicitly expanded.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [cleanerName, setCleanerName] = useState("");
   const [copied, setCopied] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const loadAll = useCallback(async () => {
     try {
@@ -87,7 +89,14 @@ export default function TurnoverDetailPage() {
 
   const checklist = useMemo<ChecklistCategory[]>(() => {
     if (!property) return [];
-    return buildChecklist({ bedrooms: property.bedrooms, bathrooms: property.bathrooms });
+    return buildChecklist({
+      bedrooms: property.bedrooms,
+      bathrooms: property.bathrooms,
+      livingRoom: property.livingRoom,
+      balcony: property.balcony,
+      hallway: property.hallway,
+      amenities: property.amenities,
+    });
   }, [property]);
 
   const totalItems = useMemo(() => countChecklistItems(checklist), [checklist]);
@@ -116,7 +125,21 @@ export default function TurnoverDetailPage() {
     return { nextArrival: arrRes.checkin, guests: (arrRes.adults || 0) + (arrRes.children || 0) || 2 };
   }, [property, reservations, departureDate]);
 
-  const toggleCollapse = (catId: string) => setCollapsed((prev) => ({ ...prev, [catId]: !prev[catId] }));
+  const toggleExpanded = (catId: string) => setExpanded((prev) => ({ ...prev, [catId]: !prev[catId] }));
+
+  const updateStatus = async (newStatus: "Pending" | "In progress" | "Submitted" | "Completed") => {
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch("/api/turnovers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId, departureDate, status: newStatus, propertyName: property?.name }),
+      });
+      const data = await res.json();
+      if (data.ok) setRecord(data.data);
+      else alert(data.error || "Failed to update status");
+    } finally { setUpdatingStatus(false); }
+  };
 
   const assignCleaner = async () => {
     if (!cleanerName.trim()) { alert("Enter a cleaner name first."); return; }
@@ -185,7 +208,6 @@ export default function TurnoverDetailPage() {
   if (!property) return <AppShell title="Turnover"><div className="flex items-center justify-center h-64 text-[#999] text-sm">Property not found.</div></AppShell>;
 
   const status = record?.status || "Pending";
-  const statusCls = status === "Completed" ? "text-[#2F6B57]" : status === "Submitted" ? "text-[#3B5BA5]" : "text-[#8A6A2E]";
   const location = [property.city, property.country].filter(Boolean).join(", ") || property.address || "";
   const openIssues = (record?.issues || []).filter((i) => !i.resolved);
 
@@ -196,78 +218,98 @@ export default function TurnoverDetailPage() {
         Back to Turnovers
       </button>
 
-      {/* Header */}
+      {/* Header (title + meta only) */}
       <div className="mb-5">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-[22px] font-bold text-[#111] mb-1">{property.name}</h1>
-            {location && <div className="text-[13px] text-[#888] mb-2">{location}</div>}
-            <div className="text-[12px] text-[#666] flex items-center gap-4 flex-wrap">
-              <span>Checkout: <span className="font-semibold text-[#111]">{fmtDate(departureDate)}</span></span>
-              {nextInfo.nextArrival && <span>Next arrival: <span className="font-semibold text-[#111]">{fmtDate(nextInfo.nextArrival)}</span></span>}
-              {nextInfo.guests > 0 && <span className="inline-flex items-center gap-1">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                {nextInfo.guests} guests
-              </span>}
-            </div>
-          </div>
-          <div className="flex items-center gap-3 min-w-[220px]">
-            <div className="text-right">
-              <div className={`text-[12px] font-semibold ${statusCls}`}>{status}</div>
-              <div className="text-[11px] text-[#999]">{completedItems} / {totalItems} ({progressPct}%)</div>
-            </div>
-            <div className="w-[160px] h-[6px] bg-[#f0f0f0] rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-[#80020E] transition-all" style={{ width: `${progressPct}%` }} />
-            </div>
-          </div>
+        <h1 className="text-[22px] font-bold text-[#111] mb-1">{property.name}</h1>
+        {location && <div className="text-[13px] text-[#888] mb-2">{location}</div>}
+        <div className="text-[12px] text-[#666] flex items-center gap-4 flex-wrap">
+          <span>Checkout: <span className="font-semibold text-[#111]">{fmtDate(departureDate)}</span></span>
+          {nextInfo.nextArrival && <span>Next arrival: <span className="font-semibold text-[#111]">{fmtDate(nextInfo.nextArrival)}</span></span>}
+          {nextInfo.guests > 0 && <span className="inline-flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            {nextInfo.guests} guests
+          </span>}
         </div>
       </div>
 
-      {/* Assign cleaner + link */}
-      <div className="bg-white border border-[#eaeaea] rounded-xl p-5 mb-4">
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div>
-            <div className="text-[14px] font-bold text-[#111] mb-0.5">Cleaner assignment</div>
-            <div className="text-[11px] text-[#999]">Generate a unique link for the assigned cleaner to upload photos.</div>
+      {/* Status card + Cleaner assignment card side-by-side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {/* Status & progress card */}
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[14px] font-bold text-[#111]">Status</div>
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+              status === "Completed" ? "text-[#2F6B57] bg-[#EAF3EF]" :
+              status === "Submitted" ? "text-[#3B5BA5] bg-[#E8F0FE]" :
+              status === "In progress" ? "text-[#8A6A2E] bg-[#FBF1E2]" :
+              "text-[#8A6A2E] bg-[#FBF1E2]"
+            }`}>{status}</span>
           </div>
-          {record?.cleanerLinkExpired && <span className="text-[11px] font-semibold text-[#999] bg-[#f5f5f5] px-2 py-0.5 rounded-full">Link expired</span>}
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex-1 h-[6px] bg-[#f0f0f0] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-[#80020E] transition-all" style={{ width: `${progressPct}%` }} />
+            </div>
+            <div className="text-[11px] text-[#999] whitespace-nowrap">{completedItems} / {totalItems} · {progressPct}%</div>
+          </div>
+          <div className="text-[11px] text-[#888] mb-3">
+            Pending → In progress (auto when cleaner starts timer) → Submitted (auto when cleaner submits) → Completed (admin approves)
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-[11px] font-medium text-[#555]">Admin update:</label>
+            <select
+              value={status}
+              onChange={(e) => updateStatus(e.target.value as "Pending" | "In progress" | "Submitted" | "Completed")}
+              disabled={updatingStatus}
+              className="h-[32px] px-2 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E] disabled:opacity-50"
+            >
+              <option value="Pending">Pending</option>
+              <option value="In progress">In progress</option>
+              <option value="Submitted">Submitted</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+          {(record?.timerStartedAt || record?.timerDurationSec) && (
+            <div className="mt-3 pt-3 border-t border-[#f0f0f0] text-[11px] text-[#666] space-y-0.5">
+              {record.timerStartedAt && <div>Timer started: <span className="font-medium text-[#111]">{fmtDateTime(record.timerStartedAt)}</span></div>}
+              {record.timerStoppedAt && <div>Stopped: <span className="font-medium text-[#111]">{fmtDateTime(record.timerStoppedAt)}</span></div>}
+              {record.timerDurationSec !== undefined && <div>Duration: <span className="font-semibold text-[#111]">{fmtDuration(record.timerDurationSec)}</span></div>}
+              {record.timerStartedAt && !record.timerStoppedAt && (
+                <button onClick={stopTimer} className="mt-1 h-[26px] px-2.5 rounded border border-[#80020E] text-[#80020E] text-[11px] font-semibold hover:bg-[#80020E]/5 transition-colors">Stop timer</button>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <input
-            type="text"
-            value={cleanerName}
-            onChange={(e) => setCleanerName(e.target.value)}
-            placeholder="Cleaner name (e.g. Emma Roberts)"
-            className="flex-1 min-w-[200px] h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E] transition-colors"
-          />
-          <button onClick={assignCleaner} className="h-[38px] px-4 rounded-lg bg-[#80020E] text-white text-[13px] font-semibold hover:bg-[#6b010c] transition-colors">
-            {record?.cleanerToken ? "Regenerate link" : "Generate link"}
-          </button>
-        </div>
-
-        {cleanerUrl && !record?.cleanerLinkExpired && (
-          <div className="mt-3 flex items-center gap-2 bg-[#fafafa] border border-[#eaeaea] rounded-lg p-2.5">
-            <code className="flex-1 text-[11px] text-[#555] truncate font-mono">{cleanerUrl}</code>
-            <button onClick={copyLink} className="text-[11px] font-semibold text-[#80020E] hover:underline flex-shrink-0">
-              {copied ? "Copied!" : "Copy link"}
+        {/* Cleaner assignment card */}
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <div className="text-[14px] font-bold text-[#111] mb-0.5">Cleaner assignment</div>
+              <div className="text-[11px] text-[#999]">Generate a unique link for the assigned cleaner to upload photos.</div>
+            </div>
+            {record?.cleanerLinkExpired && <span className="text-[11px] font-semibold text-[#999] bg-[#f5f5f5] px-2 py-0.5 rounded-full">Link expired</span>}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="text"
+              value={cleanerName}
+              onChange={(e) => setCleanerName(e.target.value)}
+              placeholder="Cleaner name (e.g. Emma Roberts)"
+              className="flex-1 min-w-[200px] h-[38px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] text-[#333] bg-white outline-none focus:border-[#80020E] transition-colors"
+            />
+            <button onClick={assignCleaner} className="h-[38px] px-4 rounded-lg bg-[#80020E] text-white text-[13px] font-semibold hover:bg-[#6b010c] transition-colors">
+              {record?.cleanerToken ? "Regenerate link" : "Generate link"}
             </button>
           </div>
-        )}
-
-        {(record?.timerStartedAt || record?.timerDurationSec) && (
-          <div className="mt-3 pt-3 border-t border-[#f0f0f0] flex items-center gap-4 flex-wrap text-[12px]">
-            <span className="text-[#666]">Timer:</span>
-            {record.timerStartedAt && <span>Started <span className="font-medium text-[#111]">{fmtDateTime(record.timerStartedAt)}</span></span>}
-            {record.timerStoppedAt && <span>Stopped <span className="font-medium text-[#111]">{fmtDateTime(record.timerStoppedAt)}</span></span>}
-            {record.timerDurationSec !== undefined && <span>Duration: <span className="font-semibold text-[#111]">{fmtDuration(record.timerDurationSec)}</span></span>}
-            {record.timerStartedAt && !record.timerStoppedAt && (
-              <button onClick={stopTimer} className="ml-auto h-[28px] px-3 rounded border border-[#80020E] text-[#80020E] text-[11px] font-semibold hover:bg-[#80020E]/5 transition-colors">
-                Stop timer
+          {cleanerUrl && !record?.cleanerLinkExpired && (
+            <div className="mt-3 flex items-center gap-2 bg-[#fafafa] border border-[#eaeaea] rounded-lg p-2.5">
+              <code className="flex-1 text-[11px] text-[#555] truncate font-mono">{cleanerUrl}</code>
+              <button onClick={copyLink} className="text-[11px] font-semibold text-[#80020E] hover:underline flex-shrink-0">
+                {copied ? "Copied!" : "Copy link"}
               </button>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Issues alert */}
@@ -296,9 +338,9 @@ export default function TurnoverDetailPage() {
       )}
 
       {/* Categories */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {checklist.map((cat) => {
-          const isCollapsed = collapsed[cat.id];
+          const isExpanded = expanded[cat.id] === true;
           let catTotal = 0, catDone = 0;
           for (const sub of cat.subcategories) {
             for (const it of sub.items) {
@@ -308,17 +350,21 @@ export default function TurnoverDetailPage() {
           }
           return (
             <div key={cat.id} className="bg-white border border-[#eaeaea] rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#f0f0f0] bg-[#fafafa]">
+              <button onClick={() => toggleExpanded(cat.id)}
+                className="w-full flex items-center justify-between px-5 py-3.5 bg-white hover:bg-[#fafafa] transition-colors"
+                aria-expanded={isExpanded}
+              >
                 <div className="flex items-center gap-2.5">
                   <span className="text-[14px] font-bold text-[#111]">{cat.label}</span>
                   <span className="text-[11px] text-[#999]">{catDone} / {catTotal}</span>
                 </div>
-                <button onClick={() => toggleCollapse(cat.id)} className="text-[11px] font-medium text-[#666] hover:text-[#111] px-2.5 py-1 rounded border border-[#e2e2e2] hover:border-[#bbb] transition-colors">
-                  {isCollapsed ? "Expand" : "Collapse"}
-                </button>
-              </div>
-              {!isCollapsed && (
-                <div className="p-5 space-y-5">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2"
+                  style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
+              {isExpanded && (
+                <div className="p-5 space-y-5 border-t border-[#f0f0f0]">
                   {cat.subcategories.map((sub) => (
                     <div key={sub.id}>
                       <div className="text-[12px] font-semibold text-[#111] mb-2.5">{sub.label}</div>

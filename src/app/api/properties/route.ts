@@ -64,6 +64,14 @@ async function fetchProperties() {
       internalNotes: getProp(p, "Internal Notes") || "",
       features: getProp(p, "Features") || "",
       condition: getProp(p, "Condition") || "",
+      // Main Spaces flags (for dynamic turnover checklist)
+      livingRoom: getProp(p, "Living Room") === true,
+      balcony: getProp(p, "Balcony") === true,
+      hallway: getProp(p, "Hallway") === true,
+      // Amenities multi-select (list of names)
+      amenities: getProp(p, "Amenities") || [],
+      // Per-apartment stock subcategories (multi-select)
+      stockSubcategories: getProp(p, "Stock Subcategories") || [],
     };
   });
 }
@@ -180,5 +188,51 @@ export async function POST(request: NextRequest) {
       { error: error?.message || "Failed to create property" },
       { status: 500 }
     );
+  }
+}
+
+/** PATCH — update a property's fields (admin only).
+ * Currently supports Main Spaces (bedrooms, bathrooms, livingRoom, balcony,
+ * hallway) and Amenities (multi-select). The turnover checklist re-renders
+ * against the new values on the next fetch.
+ */
+export async function PATCH(request: NextRequest) {
+  if (!DB.properties) {
+    return NextResponse.json({ error: "Properties DB not configured" }, { status: 500 });
+  }
+  try {
+    const scope = await getUserScope(request);
+    if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!scope.isAdmin) return NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 });
+
+    const body = await request.json();
+    const { id, ...updates } = body;
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+    const properties: any = {};
+    if (updates.bedrooms !== undefined) properties["Bedrooms"] = { number: Number(updates.bedrooms) || 0 };
+    if (updates.bathrooms !== undefined) properties["Bathrooms"] = { number: Number(updates.bathrooms) || 0 };
+    if (updates.livingRoom !== undefined) properties["Living Room"] = { checkbox: !!updates.livingRoom };
+    if (updates.balcony !== undefined) properties["Balcony"] = { checkbox: !!updates.balcony };
+    if (updates.hallway !== undefined) properties["Hallway"] = { checkbox: !!updates.hallway };
+    if (Array.isArray(updates.amenities)) {
+      properties["Amenities"] = { multi_select: updates.amenities.map((name: string) => ({ name })) };
+    }
+    if (Array.isArray(updates.stockSubcategories)) {
+      properties["Stock Subcategories"] = {
+        multi_select: updates.stockSubcategories.map((name: string) => ({ name })),
+      };
+    }
+
+    if (Object.keys(properties).length === 0) {
+      return NextResponse.json({ error: "No recognised updates" }, { status: 400 });
+    }
+
+    await notion.pages.update({ page_id: id, properties });
+    invalidate("properties");
+    return NextResponse.json({ ok: true });
+  } catch (error: any) {
+    console.error("Error updating property:", error);
+    return NextResponse.json({ error: error?.message || "Failed to update property" }, { status: 500 });
   }
 }

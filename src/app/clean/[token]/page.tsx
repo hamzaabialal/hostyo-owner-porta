@@ -178,7 +178,14 @@ export default function CleanerPage() {
 
   const checklist = useMemo<ChecklistCategory[]>(() => {
     if (!property) return [];
-    return buildChecklist({ bedrooms: property.bedrooms, bathrooms: property.bathrooms });
+    return buildChecklist({
+      bedrooms: property.bedrooms,
+      bathrooms: property.bathrooms,
+      livingRoom: property.livingRoom,
+      balcony: property.balcony,
+      hallway: property.hallway,
+      amenities: property.amenities,
+    });
   }, [property]);
 
   const totalItems = useMemo(() => countChecklistItems(checklist), [checklist]);

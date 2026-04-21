@@ -12,7 +12,7 @@ export interface AssetPhotoEntry {
   url: string;
   uploadedAt: string;
   uploadedBy?: string;
-  condition?: "Working" | "Broken" | "Missing" | "New";
+  condition?: "Working" | "Broken" | "Missing";
   note?: string;
 }
 
@@ -26,7 +26,7 @@ export interface InventoryItem {
   minimumLevel: number;
   status?: "OK" | "Low" | "Out" | "Missing" | "Damaged";
   present?: boolean;
-  condition?: "Working" | "Broken" | "Missing" | "New";
+  condition?: "Working" | "Broken" | "Missing";
   photo?: string;
   photoHistory?: AssetPhotoEntry[];
   lastCheckedAt?: string;
@@ -90,7 +90,6 @@ function categoryIcon(name: string): string {
 function conditionColor(c?: string): { bg: string; text: string; dot: string } {
   switch (c) {
     case "Working": return { bg: "#EAF3EF", text: "#2F6B57", dot: "#2F6B57" };
-    case "New":     return { bg: "#E8F0FE", text: "#2E5AA8", dot: "#2E5AA8" };
     case "Broken":  return { bg: "#F6EDED", text: "#B7484F", dot: "#B7484F" };
     case "Missing": return { bg: "#FBF1E2", text: "#8A6A2E", dot: "#D4A843" };
     default:        return { bg: "#F1F1F1", text: "#666",    dot: "#bbb" };
@@ -100,7 +99,11 @@ function conditionColor(c?: string): { bg: string; text: string; dot: string } {
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
-export default function InventoryView({ properties }: { properties: Property[] }) {
+export default function InventoryView({ properties: initialProperties }: { properties: Property[] }) {
+  // Keep properties in local state so we can update stockSubcategories without a full page reload
+  const [properties, setProperties] = useState<Property[]>(initialProperties);
+  useEffect(() => { setProperties(initialProperties); }, [initialProperties]);
+
   const [subTab, setSubTab] = useState<"stock" | "assets">("stock");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,8 +116,8 @@ export default function InventoryView({ properties }: { properties: Property[] }
   const [addingFor, setAddingFor] = useState<{ propertyId: string; category?: string } | null>(null);
   const [addCategoryFor, setAddCategoryFor] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [customCategoriesByProp, setCustomCategoriesByProp] = useState<Record<string, string[]>>({});
   const [auditItem, setAuditItem] = useState<InventoryItem | null>(null);
+  const [savingCats, setSavingCats] = useState(false);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -240,14 +243,52 @@ export default function InventoryView({ properties }: { properties: Property[] }
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const addCustomCategory = (propertyId: string, name: string) => {
-    if (!name.trim()) return;
-    setCustomCategoriesByProp((prev) => ({
-      ...prev,
-      [propertyId]: [...(prev[propertyId] || []), name.trim()],
-    }));
+  // Helper: current list of stock subcategories for a property (from Notion)
+  const getSubcats = useCallback((propertyId: string): string[] => {
+    const p = properties.find((pp: any) => pp.id === propertyId);
+    return (p?.stockSubcategories as string[] | undefined) || [];
+  }, [properties]);
+
+  // Persist per-property stock subcategories via PATCH /api/properties
+  const persistSubcats = async (propertyId: string, next: string[]) => {
+    setSavingCats(true);
+    try {
+      // Optimistic local update
+      setProperties((prev: Property[]) => prev.map((p: Property) => p.id === propertyId ? { ...p, stockSubcategories: next } : p));
+      const res = await fetch("/api/properties", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: propertyId, stockSubcategories: next }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        alert(data.error || `Failed to save (HTTP ${res.status})`);
+        // Roll back on failure
+        setProperties(initialProperties);
+      }
+    } catch (e) {
+      console.error(e);
+      setProperties(initialProperties);
+    } finally { setSavingCats(false); }
+  };
+
+  const addCustomCategory = async (propertyId: string, name: string) => {
+    const clean = name.trim();
+    if (!clean) return;
+    const current = getSubcats(propertyId);
+    if (current.includes(clean)) { setAddCategoryFor(null); setNewCategoryName(""); return; }
+    await persistSubcats(propertyId, [...current, clean]);
     setAddCategoryFor(null);
     setNewCategoryName("");
+  };
+
+  const removeCategory = async (propertyId: string, name: string) => {
+    const itemsInCat = items.filter((i: InventoryItem) => i.propertyId === propertyId && i.kind === "stock" && i.category === name);
+    if (itemsInCat.length > 0) {
+      if (!confirm(`Remove "${name}" category? It still has ${itemsInCat.length} item${itemsInCat.length === 1 ? "" : "s"}. The items will stay but the category header won't appear unless you re-add it.`)) return;
+    }
+    const current = getSubcats(propertyId);
+    await persistSubcats(propertyId, current.filter((c: string) => c !== name));
   };
 
   const cleaningProperties = useMemo(() => {
@@ -300,7 +341,6 @@ export default function InventoryView({ properties }: { properties: Property[] }
           ) : (
             <>
               <option value="Working">Working</option>
-              <option value="New">New</option>
               <option value="Broken">Broken</option>
               <option value="Missing">Missing</option>
             </>
@@ -315,7 +355,7 @@ export default function InventoryView({ properties }: { properties: Property[] }
         <button onClick={() => setAddingFor({ propertyId: cleaningProperties[0]?.id || "" })}
           className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg bg-[#80020E] text-white text-[12px] font-medium hover:bg-[#6b010c] transition-colors">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          {isAssets ? "Add asset" : "Add item"}
+          {isAssets ? "Add amenity" : "Add item"}
         </button>
       </div>
 
@@ -323,16 +363,16 @@ export default function InventoryView({ properties }: { properties: Property[] }
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard bg="#FBF1E2" border="#E8DDC7" textColor="#8A6A2E" icon="arrow-down" title="Low stock items" total={stats.low.total} propertiesCount={stats.low.properties} />
         <StatCard bg="#F6EDED" border="#E8D8D8" textColor="#B7484F" icon="ban" title="Out of stock" total={stats.out.total} propertiesCount={stats.out.properties} />
-        <StatCard bg="#FBF1E2" border="#E8DDC7" textColor="#8A6A2E" icon="alert" title="Missing assets" total={stats.missing.total} propertiesCount={stats.missing.properties} />
-        <StatCard bg="#F6EDED" border="#E8D8D8" textColor="#B7484F" icon="x" title="Broken assets" total={stats.damaged.total} propertiesCount={stats.damaged.properties} />
+        <StatCard bg="#FBF1E2" border="#E8DDC7" textColor="#8A6A2E" icon="alert" title="Missing amenities" total={stats.missing.total} propertiesCount={stats.missing.properties} />
+        <StatCard bg="#F6EDED" border="#E8D8D8" textColor="#B7484F" icon="x" title="Broken amenities" total={stats.damaged.total} propertiesCount={stats.damaged.properties} />
       </div>
 
       {/* Sub-tabs */}
       <div className="flex items-center gap-0 border-b border-[#eaeaea] mb-4">
-        {(["stock", "assets"] as const).map((k) => (
-          <button key={k} onClick={() => { setSubTab(k); setFilterStatus(""); setFilterCategory(""); }}
-            className={`px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors capitalize ${subTab === k ? "text-[#80020E] border-[#80020E]" : "text-[#999] border-transparent hover:text-[#555]"}`}>
-            {k}
+        {([{ key: "stock" as const, label: "Stock" }, { key: "assets" as const, label: "Amenities" }]).map((t) => (
+          <button key={t.key} onClick={() => { setSubTab(t.key); setFilterStatus(""); setFilterCategory(""); }}
+            className={`px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors ${subTab === t.key ? "text-[#80020E] border-[#80020E]" : "text-[#999] border-transparent hover:text-[#555]"}`}>
+            {t.label}
           </button>
         ))}
       </div>
@@ -344,15 +384,24 @@ export default function InventoryView({ properties }: { properties: Property[] }
           <div className="w-14 h-14 rounded-full bg-[#f5f5f5] flex items-center justify-center mx-auto mb-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="1.8"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/></svg>
           </div>
-          <div className="text-[15px] font-semibold text-[#111] mb-1">No {subTab} items yet</div>
-          <div className="text-[13px] text-[#888] max-w-[380px] mx-auto">Click <strong>{isAssets ? "Add asset" : "Add item"}</strong> to start tracking {isAssets ? "assets" : "inventory"} for a property.</div>
+          <div className="text-[15px] font-semibold text-[#111] mb-1">No {isAssets ? "amenities" : "stock items"} yet</div>
+          <div className="text-[13px] text-[#888] max-w-[380px] mx-auto">Click <strong>{isAssets ? "Add amenity" : "Add item"}</strong> to start tracking {isAssets ? "amenities" : "inventory"} for a property.</div>
         </div>
       ) : (
         <div className="space-y-5">
           {groupedByProperty.map((group) => {
-            const customCats = customCategoriesByProp[group.propertyId] || [];
-            const categoryOrder = [...defaultCats, ...customCats];
-            const sortedCategories = [...group.categories].sort((a, b) => {
+            // Stock: source category list from Notion's "Stock Subcategories" multi-select per property
+            const propertySubcats = !isAssets ? getSubcats(group.propertyId) : [];
+            const categoryOrder = isAssets ? defaultCats : propertySubcats;
+            // Merge: include any category that either (a) appears in the Notion subcategory list,
+            // or (b) is used by at least one existing item (so we don't orphan items).
+            const existingWithItems = group.categories.map((c: { category: string; items: InventoryItem[] }) => c.category);
+            const allCategoryNames = Array.from(new Set([...categoryOrder, ...existingWithItems]));
+            const virtualCategories = allCategoryNames.map((catName: string) => {
+              const found = group.categories.find((c: { category: string; items: InventoryItem[] }) => c.category === catName);
+              return found || { category: catName, items: [] as InventoryItem[] };
+            });
+            const sortedCategories = virtualCategories.sort((a, b) => {
               const ai = categoryOrder.indexOf(a.category);
               const bi = categoryOrder.indexOf(b.category);
               if (ai === -1 && bi === -1) return a.category.localeCompare(b.category);
@@ -404,7 +453,7 @@ export default function InventoryView({ properties }: { properties: Property[] }
                       if (sort === "name") return a.name.localeCompare(b.name);
                       if (sort === "status") {
                         if (isAssets) {
-                          const order = { "Broken": 0, "Missing": 1, "New": 2, "Working": 3 } as Record<string, number>;
+                          const order = { "Broken": 0, "Missing": 1, "Working": 2 } as Record<string, number>;
                           return (order[a.condition || "Working"] ?? 9) - (order[b.condition || "Working"] ?? 9);
                         }
                         const order = { "Out": 0, "Low": 1, "Missing": 2, "Damaged": 3, "OK": 4 } as Record<string, number>;
@@ -432,12 +481,22 @@ export default function InventoryView({ properties }: { properties: Property[] }
                           </div>
                         ) : (
                           <div className="grid grid-cols-[minmax(200px,2fr)_120px_160px_120px_140px_120px_60px] gap-3 items-center px-5 py-2.5 bg-[#fafafa] text-[10px] font-semibold uppercase tracking-wider text-[#999]">
-                            <button onClick={() => setCollapsedGroups((p) => ({ ...p, [groupKey]: !p[groupKey] }))}
-                              className="flex items-center gap-1.5 text-[12px] font-bold text-[#111] normal-case tracking-normal hover:text-[#80020E] transition-colors">
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9"/></svg>
-                              <span>{categoryIcon(cat.category)}</span>
-                              {cat.category}
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button onClick={() => setCollapsedGroups((p) => ({ ...p, [groupKey]: !p[groupKey] }))}
+                                className="flex items-center gap-1.5 text-[12px] font-bold text-[#111] normal-case tracking-normal hover:text-[#80020E] transition-colors">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9"/></svg>
+                                <span>{categoryIcon(cat.category)}</span>
+                                {cat.category}
+                              </button>
+                              {propertySubcats.includes(cat.category) && (
+                                <button onClick={() => removeCategory(group.propertyId, cat.category)}
+                                  disabled={savingCats}
+                                  title="Remove category"
+                                  className="w-4 h-4 flex items-center justify-center rounded text-[#bbb] hover:text-[#B7484F] hover:bg-[#F6EDED] transition-colors disabled:opacity-40">
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                </button>
+                              )}
+                            </div>
                             <span>Category</span>
                             <span>Current level</span>
                             <span>Minimum level</span>
@@ -469,7 +528,7 @@ export default function InventoryView({ properties }: { properties: Property[] }
                             ))}
                             <div className="px-5 py-2 bg-white">
                               <button onClick={() => setAddingFor({ propertyId: group.propertyId, category: cat.category })}
-                                className="text-[11px] text-[#80020E] hover:underline font-medium">+ Add {isAssets ? "asset" : "item"} to {cat.category}</button>
+                                className="text-[11px] text-[#80020E] hover:underline font-medium">+ Add {isAssets ? "amenity" : "item"} to {cat.category}</button>
                             </div>
                           </>
                         )}
@@ -498,7 +557,7 @@ export default function InventoryView({ properties }: { properties: Property[] }
             await addItem(data);
             setAddingFor(null);
           }}
-          customCategoriesByProp={customCategoriesByProp}
+          getSubcats={getSubcats}
         />
       )}
 
@@ -694,7 +753,6 @@ function AssetRow({ item, onPatch, onDelete, onViewAudit }: {
           style={{ backgroundColor: cCol.bg, color: cCol.text, borderColor: "transparent" }}
         >
           <option value="Working">● Working</option>
-          <option value="New">● New</option>
           <option value="Broken">● Broken</option>
           <option value="Missing">● Missing</option>
         </select>
@@ -716,7 +774,7 @@ function AssetRow({ item, onPatch, onDelete, onViewAudit }: {
               <button onClick={() => { setMenuOpen(false); onViewAudit(); }} className="w-full text-left px-3 py-1.5 text-[11px] text-[#333] hover:bg-[#f5f5f5] transition-colors">View photo trail</button>
               <button onClick={() => { setMenuOpen(false); fileInputRef.current?.click(); }} className="w-full text-left px-3 py-1.5 text-[11px] text-[#333] hover:bg-[#f5f5f5] transition-colors">{item.photo ? "Replace photo" : "Upload photo"}</button>
               <div className="h-px bg-[#eee] my-1" />
-              <button onClick={() => { setMenuOpen(false); onDelete(); }} className="w-full text-left px-3 py-1.5 text-[11px] text-[#B7484F] hover:bg-[#F6EDED] transition-colors">Delete asset</button>
+              <button onClick={() => { setMenuOpen(false); onDelete(); }} className="w-full text-left px-3 py-1.5 text-[11px] text-[#B7484F] hover:bg-[#F6EDED] transition-colors">Delete amenity</button>
             </div>
           </>
         )}
@@ -785,14 +843,14 @@ function AssetAuditModal({ item, onClose }: { item: InventoryItem; onClose: () =
 /* ------------------------------------------------------------------ */
 /*  Add item modal                                                     */
 /* ------------------------------------------------------------------ */
-function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, onClose, onSave, customCategoriesByProp }: {
+function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, onClose, onSave, getSubcats }: {
   properties: Property[];
   defaultPropertyId?: string;
   defaultCategory?: string;
   kind: InventoryKind;
   onClose: () => void;
   onSave: (data: { propertyId: string; kind: InventoryKind; category: string; name: string; currentLevel: number; minimumLevel: number; condition?: string; present?: boolean; photo?: string }) => void;
-  customCategoriesByProp: Record<string, string[]>;
+  getSubcats: (propertyId: string) => string[];
 }) {
   const isAsset = kind === "asset";
   const defaultCats = isAsset ? DEFAULT_ASSET_CATEGORIES : DEFAULT_STOCK_CATEGORIES;
@@ -801,15 +859,19 @@ function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, on
   const [name, setName] = useState("");
   const [currentLevel, setCurrentLevel] = useState(0);
   const [minimumLevel, setMinimumLevel] = useState(1);
-  const [condition, setCondition] = useState<"Working" | "New" | "Broken" | "Missing">("Working");
+  const [condition, setCondition] = useState<"Working" | "Broken" | "Missing">("Working");
   const [present, setPresent] = useState(true);
   const [photo, setPhoto] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const customCats = customCategoriesByProp[propertyId] || [];
-  const categoryOptions = Array.from(new Set([...defaultCats, ...customCats]));
+  // For stock: source from the property's Notion "Stock Subcategories" list.
+  // For assets: fall back to the built-in room defaults.
+  const propertySubcats = isAsset ? [] : getSubcats(propertyId);
+  const categoryOptions = isAsset
+    ? Array.from(new Set([...defaultCats]))
+    : Array.from(new Set(propertySubcats));
   const [customCategory, setCustomCategory] = useState("");
   const [showCustomCategory, setShowCustomCategory] = useState(false);
 
@@ -840,7 +902,7 @@ function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, on
       <div className="fixed inset-0 bg-black/40 z-[100]" onClick={onClose} />
       <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[460px] max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-5 py-4 border-b border-[#eaeaea] flex items-center justify-between">
-          <div className="text-[15px] font-bold text-[#111]">Add {isAsset ? "asset" : "stock"} item</div>
+          <div className="text-[15px] font-bold text-[#111]">Add {isAsset ? "amenity" : "stock item"}</div>
           <button onClick={onClose} className="p-1.5 text-[#999] hover:text-[#555]">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -891,7 +953,7 @@ function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, on
             )}
           </div>
           <div>
-            <label className="block text-[12px] font-medium text-[#555] mb-1.5">{isAsset ? "Asset name" : "Item name"}</label>
+            <label className="block text-[12px] font-medium text-[#555] mb-1.5">{isAsset ? "Amenity name" : "Item name"}</label>
             <input
               type="text"
               value={name}
@@ -908,7 +970,6 @@ function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, on
                   <select value={condition} onChange={(e) => setCondition(e.target.value as any)}
                     className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
                     <option value="Working">Working</option>
-                    <option value="New">New</option>
                     <option value="Broken">Broken</option>
                     <option value="Missing">Missing</option>
                   </select>
@@ -960,7 +1021,7 @@ function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, on
           <button onClick={onClose} className="h-[36px] px-4 text-[12px] font-medium text-[#666] hover:text-[#111] transition-colors">Cancel</button>
           <button onClick={handleSave} disabled={!propertyId || !category || !name.trim() || saving}
             className="h-[36px] px-4 rounded-lg bg-[#80020E] text-white text-[12px] font-semibold hover:bg-[#6b010c] transition-colors disabled:opacity-50">
-            {saving ? "Adding..." : `Add ${isAsset ? "asset" : "item"}`}
+            {saving ? "Adding..." : `Add ${isAsset ? "amenity" : "item"}`}
           </button>
         </div>
       </div>
