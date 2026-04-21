@@ -60,7 +60,9 @@ async function readTickets(): Promise<SupportTicket[]> {
 }
 
 async function writeTickets(tickets: SupportTicket[]): Promise<void> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return;
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error("BLOB_READ_WRITE_TOKEN env var is not configured");
+  }
   await put(META_KEY, JSON.stringify(tickets), {
     access: "public",
     token: process.env.BLOB_READ_WRITE_TOKEN,
@@ -123,42 +125,48 @@ export async function POST(req: NextRequest) {
 
 /** PATCH — update ticket (status, priority, note, read tracking) */
 export async function PATCH(req: NextRequest) {
-  const scope = await getUserScope(req);
-  if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const scope = await getUserScope(req);
+    if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
-  const { id, status, priority, adminNote, markRead } = body;
-  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const body = await req.json();
+    const { id, status, priority, adminNote, markRead } = body;
+    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
-  const all = await readTickets();
-  const idx = all.findIndex((t) => t.id === id);
-  if (idx === -1) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+    const all = await readTickets();
+    const idx = all.findIndex((t) => t.id === id);
+    if (idx === -1) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
 
-  const t = all[idx];
+    const t = all[idx];
 
-  // Permission check — owner can only patch their own tickets' read state
-  if (!scope.isAdmin && (t.submittedEmail || "").toLowerCase() !== scope.email) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Permission check — owner can only patch their own tickets' read state
+    if (!scope.isAdmin && (t.submittedEmail || "").toLowerCase() !== scope.email) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    // Non-admins can only update read state
+    if (!scope.isAdmin && (status !== undefined || priority !== undefined || adminNote !== undefined)) {
+      return NextResponse.json({ error: "Forbidden — admin only fields" }, { status: 403 });
+    }
+
+    const now = new Date().toISOString();
+    const updated: SupportTicket = {
+      ...t,
+      ...(scope.isAdmin && status !== undefined ? { status } : {}),
+      ...(scope.isAdmin && priority !== undefined ? { priority } : {}),
+      ...(scope.isAdmin && adminNote !== undefined ? { adminNote } : {}),
+      ...(markRead === "user" ? { lastReadByUser: now } : {}),
+      ...(markRead === "admin" && scope.isAdmin ? { lastReadByAdmin: now } : {}),
+      updatedAt: status !== undefined || priority !== undefined ? now : t.updatedAt,
+    };
+    all[idx] = updated;
+    await writeTickets(all);
+
+    return NextResponse.json({ ok: true, ticket: updated });
+  } catch (err) {
+    console.error("PATCH /api/tickets failed:", err);
+    const message = err instanceof Error ? err.message : "Failed to update ticket";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-  // Non-admins can only update read state
-  if (!scope.isAdmin && (status !== undefined || priority !== undefined || adminNote !== undefined)) {
-    return NextResponse.json({ error: "Forbidden — admin only fields" }, { status: 403 });
-  }
-
-  const now = new Date().toISOString();
-  const updated: SupportTicket = {
-    ...t,
-    ...(scope.isAdmin && status !== undefined ? { status } : {}),
-    ...(scope.isAdmin && priority !== undefined ? { priority } : {}),
-    ...(scope.isAdmin && adminNote !== undefined ? { adminNote } : {}),
-    ...(markRead === "user" ? { lastReadByUser: now } : {}),
-    ...(markRead === "admin" && scope.isAdmin ? { lastReadByAdmin: now } : {}),
-    updatedAt: status !== undefined || priority !== undefined ? now : t.updatedAt,
-  };
-  all[idx] = updated;
-  await writeTickets(all);
-
-  return NextResponse.json({ ok: true, ticket: updated });
 }
 
 /** DELETE — admin only */

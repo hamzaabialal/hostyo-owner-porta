@@ -695,6 +695,29 @@ export default function TurnoversPage() {
                     <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Description</div>
                     <div className="text-[13px] text-[#333] leading-relaxed bg-[#fafafa] border border-[#eaeaea] rounded-lg p-3 whitespace-pre-wrap">{openIssue.description}</div>
                   </div>
+
+                  {/* Map location (falls back to property location) */}
+                  {openIssue.propertyLocation && (() => {
+                    const query = encodeURIComponent(openIssue.propertyLocation);
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">Location</div>
+                          <a href={`https://www.google.com/maps?q=${query}`} target="_blank" rel="noopener noreferrer"
+                            className="text-[11px] font-semibold text-[#80020E] hover:underline">Open in Google Maps ↗</a>
+                        </div>
+                        <div className="rounded-lg overflow-hidden border border-[#eaeaea]">
+                          <iframe
+                            title="Issue location map"
+                            src={`https://www.google.com/maps?q=${query}&output=embed`}
+                            className="w-full h-[200px]"
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Actions */}

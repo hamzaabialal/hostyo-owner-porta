@@ -90,12 +90,22 @@ export default function TicketsPage() {
     if (!draggingId) return;
     const ticket = tickets.find((t) => t.id === draggingId);
     if (!ticket || ticket.status === status) { setDraggingId(null); setHoverColumn(null); return; }
+    const previousStatus = ticket.status;
     // Optimistic update
     setTickets((prev) => prev.map((t) => t.id === draggingId ? { ...t, status } : t));
+    const id = draggingId;
     setDraggingId(null);
     setHoverColumn(null);
-    await patchTicket(draggingId, { status });
-    refresh();
+    const result = await patchTicket(id, { status });
+    if (!result) {
+      // Save failed — revert the optimistic update so the card goes back
+      console.error("Failed to update ticket status; reverting");
+      setTickets((prev) => prev.map((t) => t.id === id ? { ...t, status: previousStatus } : t));
+      alert("Couldn't update ticket status — check the browser console and try again.");
+      return;
+    }
+    // Merge server response so we have the canonical updatedAt etc.
+    setTickets((prev) => prev.map((t) => t.id === id ? { ...t, ...result } : t));
   };
 
   if (!isAdmin) {
