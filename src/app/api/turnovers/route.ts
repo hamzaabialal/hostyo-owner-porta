@@ -159,14 +159,37 @@ export async function POST(req: NextRequest) {
         items: {},
       });
     } else {
+      // Regenerating the link = treat as a fresh cleaning attempt. Archive the
+      // current timer session (if any) into the Timer Log and reset the live
+      // timer fields so the new cleaner starts from zero.
+      const current = pageToTurnover(page);
+      const hasCurrentSession = !!(current.timerStartedAt || current.timerDurationSec);
+      const nowIso = new Date().toISOString();
+      const archivedLog = hasCurrentSession
+        ? [
+            ...current.timerLog,
+            {
+              cleanerName: current.cleanerName,
+              startedAt: current.timerStartedAt,
+              stoppedAt: current.timerStoppedAt,
+              durationSec: current.timerDurationSec,
+              archivedAt: nowIso,
+            },
+          ]
+        : current.timerLog;
+
       await updateTurnover(page.id, {
         cleanerName: cleanerName || "",
         cleanerToken: token,
+        timerStartedAt: "",        // reset — blank string gets translated to { date: null }
+        timerStoppedAt: "",
+        timerLog: archivedLog,
       });
-      // re-fetch so response has fresh data (not strictly needed)
     }
 
-    const rec = pageToTurnover(page);
+    // Re-read so the response reflects the reset timer + appended log
+    const freshPage = await findTurnoverById(page.id);
+    const rec = freshPage ? pageToTurnover(freshPage) : pageToTurnover(page);
     return NextResponse.json({ ok: true, data: { ...rec, cleanerToken: token, id: rec.compositeId } });
   } catch (err) {
     console.error("POST /api/turnovers failed:", err);
