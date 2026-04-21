@@ -696,9 +696,20 @@ export default function TurnoversPage() {
                     <div className="text-[13px] text-[#333] leading-relaxed bg-[#fafafa] border border-[#eaeaea] rounded-lg p-3 whitespace-pre-wrap">{openIssue.description}</div>
                   </div>
 
-                  {/* Map location (falls back to property location) */}
-                  {openIssue.propertyLocation && (() => {
-                    const query = encodeURIComponent(openIssue.propertyLocation);
+                  {/* Map location — tries location first, falls back to property name */}
+                  {(() => {
+                    const queryText = openIssue.propertyLocation || openIssue.propertyName || "";
+                    if (!queryText) {
+                      return (
+                        <div>
+                          <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Location</div>
+                          <div className="text-[12px] text-[#999] bg-[#fafafa] border border-[#eaeaea] rounded-lg p-3">
+                            No location available. Add City/Country/Address to the property in Notion to see a map.
+                          </div>
+                        </div>
+                      );
+                    }
+                    const query = encodeURIComponent(queryText);
                     return (
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
@@ -715,6 +726,7 @@ export default function TurnoversPage() {
                             referrerPolicy="no-referrer-when-downgrade"
                           />
                         </div>
+                        <div className="text-[10px] text-[#999] mt-1.5">Based on: {queryText}</div>
                       </div>
                     );
                   })()}

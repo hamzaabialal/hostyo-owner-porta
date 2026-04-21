@@ -49,12 +49,24 @@ export default function TicketsPage() {
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [hoverColumn, setHoverColumn] = useState<TicketStatus | null>(null);
+  // Tickets with an in-flight PATCH — the poller's response is stale for these
+  // so we preserve the local (optimistic) state until the PATCH resolves.
+  const pendingPatchesRef = useRef<Set<string>>(new Set());
 
   const isAdmin = session?.user?.role === "admin";
 
   const refresh = async () => {
     const list = await fetchTickets();
-    setTickets(list);
+    setTickets((prev) => {
+      const prevById = new Map(prev.map((t) => [t.id, t]));
+      return list.map((t) => {
+        // If a PATCH is in flight for this ticket, keep the local (optimistic) state
+        if (pendingPatchesRef.current.has(t.id)) {
+          return prevById.get(t.id) || t;
+        }
+        return t;
+      });
+    });
   };
 
   useEffect(() => {
@@ -91,21 +103,25 @@ export default function TicketsPage() {
     const ticket = tickets.find((t) => t.id === draggingId);
     if (!ticket || ticket.status === status) { setDraggingId(null); setHoverColumn(null); return; }
     const previousStatus = ticket.status;
-    // Optimistic update
-    setTickets((prev) => prev.map((t) => t.id === draggingId ? { ...t, status } : t));
     const id = draggingId;
+    // Optimistic update + mark as in-flight so the poller ignores it
+    setTickets((prev) => prev.map((t) => t.id === id ? { ...t, status } : t));
+    pendingPatchesRef.current.add(id);
     setDraggingId(null);
     setHoverColumn(null);
-    const result = await patchTicket(id, { status });
-    if (!result) {
-      // Save failed — revert the optimistic update so the card goes back
-      console.error("Failed to update ticket status; reverting");
-      setTickets((prev) => prev.map((t) => t.id === id ? { ...t, status: previousStatus } : t));
-      alert("Couldn't update ticket status — check the browser console and try again.");
-      return;
+    try {
+      const result = await patchTicket(id, { status });
+      if (!result) {
+        console.error("Failed to update ticket status; reverting");
+        setTickets((prev) => prev.map((t) => t.id === id ? { ...t, status: previousStatus } : t));
+        alert("Couldn't update ticket status — check the browser console and try again.");
+        return;
+      }
+      // Merge server response so we have the canonical updatedAt etc.
+      setTickets((prev) => prev.map((t) => t.id === id ? { ...t, ...result } : t));
+    } finally {
+      pendingPatchesRef.current.delete(id);
     }
-    // Merge server response so we have the canonical updatedAt etc.
-    setTickets((prev) => prev.map((t) => t.id === id ? { ...t, ...result } : t));
   };
 
   if (!isAdmin) {
