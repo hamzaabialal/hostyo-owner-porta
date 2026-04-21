@@ -317,17 +317,46 @@ const HALLWAY: ChecklistCategory = {
   ],
 };
 
+/* Amenities category — dynamically built from the property's "Amenities" multi_select */
+function buildAmenitiesCategory(amenityNames: string[]): ChecklistCategory | null {
+  if (!amenityNames || amenityNames.length === 0) return null;
+  return {
+    id: "amenities",
+    label: "Amenities",
+    subcategories: [
+      {
+        id: "amenity-checks",
+        label: "Amenity checks",
+        items: amenityNames.map((name) => ({
+          id: slug(name),
+          label: `${name} — condition / photo`,
+        })),
+      },
+    ],
+  };
+}
+
 /**
- * Build the full checklist for a property, duplicating perRoom categories
- * (Bedroom, Bathroom) based on the property's bedroom / bathroom count.
+ * Build the full checklist for a property. Sections are included based on the
+ * property's configuration:
+ *   - Bedrooms & Bathrooms: repeated per room-count
+ *   - Living Room / Balcony / Hallway: included only if the flag is true
+ *   - Amenities: one subcategory listing each selected amenity
  */
-export function buildChecklist(property: { bedrooms?: number; bathrooms?: number }): ChecklistCategory[] {
+export function buildChecklist(property: {
+  bedrooms?: number;
+  bathrooms?: number;
+  livingRoom?: boolean;
+  balcony?: boolean;
+  hallway?: boolean;
+  amenities?: string[];
+}): ChecklistCategory[] {
   const bedCount = Math.max(1, property.bedrooms || 1);
   const bathCount = Math.max(1, property.bathrooms || 1);
 
   const categories: ChecklistCategory[] = [];
   categories.push(KITCHEN);
-  categories.push(LIVING_ROOM);
+  if (property.livingRoom !== false) categories.push(LIVING_ROOM);
 
   // Bedrooms — if only 1, keep as "Bedroom"; else number them
   if (bedCount === 1) {
@@ -355,8 +384,11 @@ export function buildChecklist(property: { bedrooms?: number; bathrooms?: number
     }
   }
 
-  categories.push(BALCONY);
-  categories.push(HALLWAY);
+  if (property.balcony) categories.push(BALCONY);
+  if (property.hallway !== false) categories.push(HALLWAY);
+
+  const amen = buildAmenitiesCategory(property.amenities || []);
+  if (amen) categories.push(amen);
 
   return categories;
 }

@@ -2,11 +2,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserScope } from "@/lib/scope";
 import { randomUUID } from "crypto";
+import { getProp, queryDatabase, DB } from "@/lib/notion";
 import {
   findTurnover, findTurnoverById, listTurnovers,
   createTurnover, updateTurnover, pageToTurnover,
 } from "@/lib/notion-turnovers";
 import { listAllIssues, listIssuesForTurnover, createIssue, setIssueResolved, pageToIssue } from "@/lib/notion-issues";
+
+/** Lightweight property info index keyed by page id — used to enrich issues/turnovers. */
+async function buildPropertyIndex(): Promise<Map<string, { name: string; location: string; coverUrl: string }>> {
+  const map = new Map<string, { name: string; location: string; coverUrl: string }>();
+  if (!DB.properties) return map;
+  const pages = await queryDatabase(DB.properties);
+  for (const p of pages as any[]) {
+    let coverUrl = "";
+    if (p.cover?.type === "file") coverUrl = p.cover.file.url;
+    else if (p.cover?.type === "external") coverUrl = p.cover.external.url;
+    if (!coverUrl) {
+      const photosProp = p.properties?.["Photos"];
+      if (photosProp?.type === "files" && photosProp.files?.length > 0) {
+        const first = photosProp.files[0];
+        coverUrl = first.file?.url || first.external?.url || "";
+      }
+    }
+    const name = getProp(p, "Name") || "";
+    const city = getProp(p, "City") || "";
+    const country = getProp(p, "Country") || "";
+    const address = getProp(p, "Address") || "";
+    map.set(p.id, {
+      name,
+      location: [city, country].filter(Boolean).join(", ") || address || "",
+      coverUrl,
+    });
+  }
+  return map;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +69,11 @@ export async function GET(req: NextRequest) {
 
     // All issues across all turnovers (for the Issues tab)
     if (issuesFlag === "1") {
-      const [issuePages, turnoverPages] = await Promise.all([listAllIssues(), listTurnovers()]);
+      const [issuePages, turnoverPages, propertyIndex] = await Promise.all([
+        listAllIssues(),
+        listTurnovers(),
+        buildPropertyIndex(),
+      ]);
       const turnoverById = new Map<string, any>();
       for (const t of turnoverPages) turnoverById.set(t.id, t);
 
@@ -47,12 +81,13 @@ export async function GET(req: NextRequest) {
         const iss = pageToIssue(p);
         const t = turnoverById.get(iss.turnoverPageId);
         const turnover = t ? pageToTurnover(t) : null;
+        const propInfo = turnover?.propertyId ? propertyIndex.get(turnover.propertyId) : undefined;
         return {
           ...iss,
           propertyId: turnover?.propertyId || "",
-          propertyName: turnover?.propertyName || "",
-          propertyLocation: "",
-          propertyCoverUrl: "",
+          propertyName: propInfo?.name || turnover?.propertyName || "",
+          propertyLocation: propInfo?.location || "",
+          propertyCoverUrl: propInfo?.coverUrl || "",
           departureDate: iss.departureDate || turnover?.departureDate || "",
         };
       });
@@ -77,12 +112,18 @@ export async function GET(req: NextRequest) {
     }
 
     // List everything
-    const pages = await listTurnovers();
-    // Fetch issues per turnover in parallel (could be slow for many turnovers)
+    const [pages, propertyIndex] = await Promise.all([listTurnovers(), buildPropertyIndex()]);
     const enriched = await Promise.all(pages.map(async (p) => {
       const issues = await listIssuesForTurnover(p.id);
       const rec = pageToTurnover(p, issues.map(pageToIssue));
-      return { ...rec, id: rec.compositeId };
+      const propInfo = propertyIndex.get(rec.propertyId);
+      return {
+        ...rec,
+        id: rec.compositeId,
+        propertyName: propInfo?.name || rec.propertyName,
+        propertyLocation: propInfo?.location,
+        propertyCoverUrl: propInfo?.coverUrl,
+      };
     }));
     return NextResponse.json({ ok: true, data: enriched });
   } catch (err) {

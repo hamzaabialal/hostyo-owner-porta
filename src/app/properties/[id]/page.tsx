@@ -70,6 +70,48 @@ function DetailCell({ label, value }: { label: string; value: string | number })
   );
 }
 
+/* Main Spaces row */
+function SpaceRow({ label, value, yesNo }: { label: string; value: string | number; yesNo?: boolean }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-[13px] text-[#333]">{label}</span>
+      {typeof yesNo === "boolean" ? (
+        <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-md ${yesNo ? "text-[#2F6B57] bg-[#EAF3EF]" : "text-[#888] bg-[#F5F5F5]"}`}>
+          {yesNo ? "Yes" : "No"}
+        </span>
+      ) : (
+        <span className="text-[13px] font-semibold text-[#111]">{value}</span>
+      )}
+    </div>
+  );
+}
+
+/* Amenity icon (emoji-based, keyed on name). */
+function amenityIcon(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("tv")) return "📺";
+  if (n.includes("wifi")) return "📶";
+  if (n.includes("coffee")) return "☕";
+  if (n.includes("microwave")) return "🔌";
+  if (n.includes("iron")) return "🧺";
+  if (n.includes("hair")) return "💨";
+  if (n.includes("wash")) return "🧼";
+  if (n.includes("dryer")) return "🌀";
+  if (n.includes("air") || n.includes("a/c")) return "❄️";
+  if (n.includes("oven")) return "🔥";
+  if (n.includes("dish")) return "🍽️";
+  if (n.includes("fridge")) return "🧊";
+  if (n.includes("kettle")) return "🫖";
+  if (n.includes("toast")) return "🍞";
+  return "•";
+}
+
+const DEFAULT_AMENITY_OPTIONS = [
+  "TV", "WiFi", "Coffee Maker", "Microwave", "Iron", "Hair Dryer",
+  "Washer", "Dryer", "Air Conditioning", "Oven", "Dishwasher", "Fridge",
+  "Kettle", "Toaster", "Balcony Furniture",
+];
+
 /* ------------------------------------------------------------------ */
 /*  Add Expense Modal                                                  */
 /* ------------------------------------------------------------------ */
@@ -218,6 +260,8 @@ export default function PropertyDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editSpaces, setEditSpaces] = useState(false);
+  const [editAmenities, setEditAmenities] = useState(false);
 
   const refreshDocs = useCallback(() => {
     if (id) {
@@ -457,12 +501,68 @@ export default function PropertyDetailPage() {
             />
           </div>
 
-          {/* Property Details */}
+          {/* Property Details — Main Spaces + Amenities */}
+          <div>
+            <h3 className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-3">Property Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Main Spaces */}
+              <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V4a4 4 0 018 0v3"/></svg>
+                    <span className="text-[14px] font-bold text-[#111]">Main Spaces</span>
+                  </div>
+                  {isAdmin && (
+                    <button onClick={() => setEditSpaces(true)} className="w-7 h-7 flex items-center justify-center rounded border border-[#eaeaea] text-[#999] hover:border-[#80020E] hover:text-[#80020E] transition-colors" title="Edit spaces">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2.5">
+                  <SpaceRow label="Bedrooms" value={property.bedrooms || 0} />
+                  <SpaceRow label="Bathrooms" value={property.bathrooms || 0} />
+                  <SpaceRow label="Balcony" value={property.balcony ? "Yes" : "No"} yesNo={property.balcony} />
+                  <SpaceRow label="Living Room" value={property.livingRoom ? "Yes" : "No"} yesNo={property.livingRoom} />
+                  <SpaceRow label="Hallway" value={property.hallway ? "Yes" : "No"} yesNo={property.hallway} />
+                </div>
+              </div>
+
+              {/* Amenities */}
+              <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <span className="text-[14px] font-bold text-[#111]">Amenities</span>
+                  </div>
+                  {isAdmin && (
+                    <button onClick={() => setEditAmenities(true)} className="w-7 h-7 flex items-center justify-center rounded border border-[#eaeaea] text-[#999] hover:border-[#80020E] hover:text-[#80020E] transition-colors" title="Edit amenities">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    </button>
+                  )}
+                </div>
+                {(property.amenities?.length || 0) === 0 ? (
+                  <div className="text-[13px] text-[#999]">No amenities listed.</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-y-2.5 gap-x-4">
+                    {(property.amenities as string[]).slice(0, 6).map((a) => (
+                      <div key={a} className="flex items-center gap-2 text-[13px] text-[#333]">
+                        <span className="text-[#999]">{amenityIcon(a)}</span>
+                        <span>{a}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(property.amenities?.length || 0) > 6 && (
+                  <div className="text-[12px] text-[#999] mt-3">+ {property.amenities.length - 6} more</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Secondary details row */}
           <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
-            <h3 className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-4">Property Details</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
-              <DetailCell label="Bedrooms" value={property.bedrooms || "—"} />
-              <DetailCell label="Bathrooms" value={property.bathrooms || "—"} />
+            <h3 className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-4">Other details</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
               <DetailCell label="Max Guests" value={property.maxGuests || "—"} />
               <DetailCell label="Cleaning Fee" value={property.cleaningFee ? `€${property.cleaningFee}` : "—"} />
               <DetailCell label="Access Code" value={property.accessCode || "—"} />
@@ -1375,6 +1475,223 @@ export default function PropertyDetailPage() {
           </div>
         );
       })()}
+
+      {/* Edit modals (admin only) */}
+      {isAdmin && editSpaces && (
+        <EditSpacesModal
+          property={property}
+          onClose={() => setEditSpaces(false)}
+          onSaved={async () => {
+            const res = await fetch("/api/properties").then((r) => r.json()).catch(() => ({ data: [] }));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const fresh = (res?.data || []).find((p: any) => p.id === id);
+            if (fresh) setProperty(fresh);
+            setEditSpaces(false);
+          }}
+        />
+      )}
+      {isAdmin && editAmenities && (
+        <EditAmenitiesModal
+          property={property}
+          onClose={() => setEditAmenities(false)}
+          onSaved={async () => {
+            const res = await fetch("/api/properties").then((r) => r.json()).catch(() => ({ data: [] }));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const fresh = (res?.data || []).find((p: any) => p.id === id);
+            if (fresh) setProperty(fresh);
+            setEditAmenities(false);
+          }}
+        />
+      )}
     </AppShell>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Edit Spaces modal                                                  */
+/* ------------------------------------------------------------------ */
+function EditSpacesModal({ property, onClose, onSaved }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  property: any;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [bedrooms, setBedrooms] = useState<number>(property?.bedrooms || 0);
+  const [bathrooms, setBathrooms] = useState<number>(property?.bathrooms || 0);
+  const [balcony, setBalcony] = useState<boolean>(!!property?.balcony);
+  const [livingRoom, setLivingRoom] = useState<boolean>(!!property?.livingRoom);
+  const [hallway, setHallway] = useState<boolean>(!!property?.hallway);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    setError(""); setSaving(true);
+    try {
+      const res = await fetch("/api/properties", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: property.id,
+          bedrooms, bathrooms, balcony, livingRoom, hallway,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) setError(data.error || `Failed (HTTP ${res.status})`);
+      else onSaved();
+    } catch (e) {
+      console.error(e);
+      setError("Failed to save");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-[100]" onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[420px] max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-5 py-4 border-b border-[#eaeaea] flex items-center justify-between">
+          <div className="text-[15px] font-bold text-[#111]">Edit Main Spaces</div>
+          <button onClick={onClose} className="p-1.5 text-[#999] hover:text-[#555]">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[12px] font-medium text-[#555] mb-1.5">Bedrooms</label>
+              <input type="number" min={0} value={bedrooms} onChange={(e) => setBedrooms(Math.max(0, Number(e.target.value) || 0))}
+                className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E]" />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-[#555] mb-1.5">Bathrooms</label>
+              <input type="number" min={0} value={bathrooms} onChange={(e) => setBathrooms(Math.max(0, Number(e.target.value) || 0))}
+                className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E]" />
+            </div>
+          </div>
+          {[
+            { label: "Balcony", val: balcony, set: setBalcony },
+            { label: "Living Room", val: livingRoom, set: setLivingRoom },
+            { label: "Hallway", val: hallway, set: setHallway },
+          ].map(({ label, val, set }) => (
+            <div key={label} className="flex items-center justify-between">
+              <span className="text-[13px] text-[#333]">{label}</span>
+              <button type="button" onClick={() => set(!val)}
+                className={`w-11 h-6 rounded-full transition-colors relative ${val ? "bg-[#2F6B57]" : "bg-[#ddd]"}`}>
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${val ? "translate-x-5" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+          ))}
+          {error && <div className="text-[12px] text-[#B7484F] bg-[#F6EDED] px-3 py-2 rounded-lg">{error}</div>}
+          <div className="text-[11px] text-[#999]">Changes update the Notion Properties database and regenerate the turnover checklist automatically.</div>
+        </div>
+        <div className="px-5 py-3 border-t border-[#eaeaea] bg-[#fafafa] flex justify-end gap-2">
+          <button onClick={onClose} className="h-[36px] px-4 text-[12px] font-medium text-[#666] hover:text-[#111]">Cancel</button>
+          <button onClick={save} disabled={saving}
+            className="h-[36px] px-4 rounded-lg bg-[#80020E] text-white text-[12px] font-semibold hover:bg-[#6b010c] disabled:opacity-50">
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Edit Amenities modal                                               */
+/* ------------------------------------------------------------------ */
+function EditAmenitiesModal({ property, onClose, onSaved }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  property: any;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const existing: string[] = property?.amenities || [];
+  const allOptions = Array.from(new Set([...DEFAULT_AMENITY_OPTIONS, ...existing]));
+  const [selected, setSelected] = useState<Set<string>>(new Set(existing));
+  const [customName, setCustomName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const toggle = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const addCustom = () => {
+    const n = customName.trim();
+    if (!n) return;
+    setSelected((prev) => new Set(prev).add(n));
+    setCustomName("");
+  };
+
+  const save = async () => {
+    setError(""); setSaving(true);
+    try {
+      const res = await fetch("/api/properties", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: property.id, amenities: Array.from(selected) }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) setError(data.error || `Failed (HTTP ${res.status})`);
+      else onSaved();
+    } catch (e) {
+      console.error(e);
+      setError("Failed to save");
+    } finally { setSaving(false); }
+  };
+
+  const displayOptions = Array.from(new Set([...allOptions, ...Array.from(selected)]));
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-[100]" onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-5 py-4 border-b border-[#eaeaea] flex items-center justify-between">
+          <div className="text-[15px] font-bold text-[#111]">Edit Amenities</div>
+          <button onClick={onClose} className="p-1.5 text-[#999] hover:text-[#555]">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-4 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-2">
+            {displayOptions.map((name) => {
+              const on = selected.has(name);
+              return (
+                <button key={name} type="button" onClick={() => toggle(name)}
+                  className={`flex items-center gap-2 h-[38px] px-3 rounded-lg border text-[12px] text-left transition-colors ${on ? "border-[#80020E] bg-[#FCEFF0] text-[#80020E] font-semibold" : "border-[#e2e2e2] text-[#333] hover:border-[#ccc]"}`}>
+                  <span>{amenityIcon(name)}</span>
+                  <span className="flex-1 truncate">{name}</span>
+                  {on && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
+                </button>
+              );
+            })}
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#555] mb-1.5">Add custom amenity</label>
+            <div className="flex gap-2">
+              <input type="text" value={customName} onChange={(e) => setCustomName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") addCustom(); }}
+                placeholder="e.g. Smart TV"
+                className="flex-1 h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] outline-none focus:border-[#80020E]" />
+              <button type="button" onClick={addCustom}
+                className="h-[40px] px-4 rounded-lg border border-[#e2e2e2] text-[12px] font-semibold text-[#555] hover:border-[#80020E] hover:text-[#80020E]">Add</button>
+            </div>
+            <div className="text-[10px] text-[#999] mt-1">Custom amenities will be added to the Notion Amenities multi-select.</div>
+          </div>
+          {error && <div className="text-[12px] text-[#B7484F] bg-[#F6EDED] px-3 py-2 rounded-lg">{error}</div>}
+        </div>
+        <div className="px-5 py-3 border-t border-[#eaeaea] bg-[#fafafa] flex justify-end gap-2">
+          <button onClick={onClose} className="h-[36px] px-4 text-[12px] font-medium text-[#666] hover:text-[#111]">Cancel</button>
+          <button onClick={save} disabled={saving}
+            className="h-[36px] px-4 rounded-lg bg-[#80020E] text-white text-[12px] font-semibold hover:bg-[#6b010c] disabled:opacity-50">
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
