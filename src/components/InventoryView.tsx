@@ -291,10 +291,9 @@ export default function InventoryView({ properties: initialProperties }: { prope
     await persistSubcats(propertyId, current.filter((c: string) => c !== name));
   };
 
-  const cleaningProperties = useMemo(() => {
-    const filtered = properties.filter((p: any) => p.cleaning === true);
-    return filtered.length > 0 ? filtered : properties;
-  }, [properties]);
+  // Show ALL properties in the Add amenity / Add item modal — admin may want to
+  // track inventory for a property even before enabling the Cleaning checkbox.
+  const cleaningProperties = useMemo(() => properties, [properties]);
 
   const propertyFilterOptions = useMemo(() => {
     const set = new Set<string>();
@@ -867,10 +866,27 @@ function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, on
   const fileRef = useRef<HTMLInputElement>(null);
 
   // For stock: source from the property's Notion "Stock Subcategories" list.
-  // For assets: fall back to the built-in room defaults.
+  // For assets: derive from the property's Main Spaces config (bedrooms, bathrooms,
+  // Living Room, Balcony, Hallway) so admins only see rooms that actually exist.
+  const selectedProperty = properties.find((p: any) => p.id === propertyId);
+  const assetRoomsForProperty = useMemo<string[]>(() => {
+    if (!isAsset || !selectedProperty) return isAsset ? defaultCats : [];
+    const rooms: string[] = ["Kitchen"];
+    if (selectedProperty.livingRoom !== false) rooms.push("Living Room");
+    const bedCount = Math.max(1, Number(selectedProperty.bedrooms) || 1);
+    if (bedCount === 1) rooms.push("Bedroom");
+    else for (let i = 1; i <= bedCount; i++) rooms.push(`Bedroom ${i}`);
+    const bathCount = Math.max(1, Number(selectedProperty.bathrooms) || 1);
+    if (bathCount === 1) rooms.push("Bathroom");
+    else for (let i = 1; i <= bathCount; i++) rooms.push(`Bathroom ${i}`);
+    if (selectedProperty.balcony) rooms.push("Balcony");
+    if (selectedProperty.hallway !== false) rooms.push("Hallway");
+    return rooms;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAsset, selectedProperty?.id, selectedProperty?.livingRoom, selectedProperty?.balcony, selectedProperty?.hallway, selectedProperty?.bedrooms, selectedProperty?.bathrooms]);
   const propertySubcats = isAsset ? [] : getSubcats(propertyId);
   const categoryOptions = isAsset
-    ? Array.from(new Set([...defaultCats]))
+    ? Array.from(new Set(assetRoomsForProperty))
     : Array.from(new Set(propertySubcats));
   const [customCategory, setCustomCategory] = useState("");
   const [showCustomCategory, setShowCustomCategory] = useState(false);
