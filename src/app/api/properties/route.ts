@@ -230,7 +230,69 @@ export async function PATCH(request: NextRequest) {
 
     await notion.pages.update({ page_id: id, properties });
     invalidate("properties");
-    return NextResponse.json({ ok: true });
+
+    // Re-read the updated page directly from Notion and shape it the same way
+    // fetchProperties() does. This avoids in-memory cache staleness between
+    // serverless instances — the client can use this response directly instead
+    // of refetching /api/properties.
+    const page: any = await (notion as any).pages.retrieve({ page_id: id });
+    let coverUrl = "";
+    if (page.cover?.type === "file") coverUrl = page.cover.file.url;
+    else if (page.cover?.type === "external") coverUrl = page.cover.external.url;
+    if (!coverUrl) {
+      const photosProp = page.properties?.["Photos"];
+      if (photosProp?.type === "files" && photosProp.files?.length > 0) {
+        const first = photosProp.files[0];
+        coverUrl = first.file?.url || first.external?.url || "";
+      }
+    }
+    const property = {
+      id: page.id,
+      name: getProp(page, "Name") || "",
+      coverUrl,
+      status: getProp(page, "Status") || "Draft",
+      address: getProp(page, "Address") || "",
+      postcode: getProp(page, "Postcode") || "",
+      location: getProp(page, "Location") || "",
+      city: getProp(page, "City") || "",
+      country: getProp(page, "Country") || "",
+      client: getProp(page, "Client") || "",
+      email: getProp(page, "Email") || "",
+      firstName: getProp(page, "First Name") || "",
+      lastName: getProp(page, "Last Name") || "",
+      phone: getProp(page, "Phone") || "",
+      iban: getProp(page, "IBAN") || "",
+      counterpartyId: getProp(page, "Counterparty Id") || "",
+      license: getProp(page, "License") || "",
+      price: getProp(page, "Price") || 0,
+      cleaningFee: getProp(page, "Cleaning Fee") || 0,
+      accessCode: getProp(page, "Access Code") || "",
+      connectedChannels: getProp(page, "Connected Channels") || [],
+      checkInGuide: getProp(page, "Check - In Guide") || "",
+      photos: getProp(page, "Photos") || "",
+      property: getProp(page, "Property") || "",
+      ical: getProp(page, "ical") || "",
+      listingId: getProp(page, "Listing ID") || 0,
+      googleDrive: getProp(page, "Google Drive") || "",
+      skipAutomation: getProp(page, "Skip Automation") || false,
+      balance: getProp(page, "Balance") || 0,
+      deficitStatus: getProp(page, "Deficit Status") || "",
+      cleaning: getProp(page, "Cleaning Enabled") === true || getProp(page, "Cleaning") === true,
+      propertyType: getProp(page, "Property Type") || "",
+      bedrooms: getProp(page, "Bedrooms") || 0,
+      bathrooms: getProp(page, "Bathrooms") || 0,
+      maxGuests: getProp(page, "Max Guests") || 0,
+      bedTypes: getProp(page, "Bed Types") || "",
+      internalNotes: getProp(page, "Internal Notes") || "",
+      features: getProp(page, "Features") || "",
+      condition: getProp(page, "Condition") || "",
+      livingRoom: getProp(page, "Living Room") === true,
+      balcony: getProp(page, "Balcony") === true,
+      hallway: getProp(page, "Hallway") === true,
+      amenities: getProp(page, "Amenities") || [],
+      stockSubcategories: getProp(page, "Stock Subcategories") || [],
+    };
+    return NextResponse.json({ ok: true, property });
   } catch (error: any) {
     console.error("Error updating property:", error);
     return NextResponse.json({ error: error?.message || "Failed to update property" }, { status: 500 });

@@ -1480,11 +1480,9 @@ export default function PropertyDetailPage() {
       {isAdmin && editSpaces && (
         <EditSpacesModal
           property={property}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onClose={() => setEditSpaces(false)}
-          onSaved={async () => {
-            const res = await fetch("/api/properties").then((r) => r.json()).catch(() => ({ data: [] }));
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const fresh = (res?.data || []).find((p: any) => p.id === id);
+          onSaved={(fresh) => {
             if (fresh) setProperty(fresh);
             setEditSpaces(false);
           }}
@@ -1494,10 +1492,7 @@ export default function PropertyDetailPage() {
         <EditAmenitiesModal
           property={property}
           onClose={() => setEditAmenities(false)}
-          onSaved={async () => {
-            const res = await fetch("/api/properties").then((r) => r.json()).catch(() => ({ data: [] }));
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const fresh = (res?.data || []).find((p: any) => p.id === id);
+          onSaved={(fresh) => {
             if (fresh) setProperty(fresh);
             setEditAmenities(false);
           }}
@@ -1514,7 +1509,8 @@ function EditSpacesModal({ property, onClose, onSaved }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   property: any;
   onClose: () => void;
-  onSaved: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onSaved: (freshProperty?: any) => void;
 }) {
   const [bedrooms, setBedrooms] = useState<number>(property?.bedrooms || 0);
   const [bathrooms, setBathrooms] = useState<number>(property?.bathrooms || 0);
@@ -1536,8 +1532,11 @@ function EditSpacesModal({ property, onClose, onSaved }: {
         }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) setError(data.error || `Failed (HTTP ${res.status})`);
-      else onSaved();
+      if (!res.ok || data.error) {
+        console.error("EditSpacesModal save failed", { status: res.status, body: data });
+        setError(data.error || `Failed (HTTP ${res.status})`);
+      }
+      else onSaved(data.property);
     } catch (e) {
       console.error(e);
       setError("Failed to save");
@@ -1602,7 +1601,8 @@ function EditAmenitiesModal({ property, onClose, onSaved }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   property: any;
   onClose: () => void;
-  onSaved: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onSaved: (freshProperty?: any) => void;
 }) {
   const existing: string[] = property?.amenities || [];
   const allOptions = Array.from(new Set([...DEFAULT_AMENITY_OPTIONS, ...existing]));
@@ -1636,8 +1636,11 @@ function EditAmenitiesModal({ property, onClose, onSaved }: {
         body: JSON.stringify({ id: property.id, amenities: Array.from(selected) }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) setError(data.error || `Failed (HTTP ${res.status})`);
-      else onSaved();
+      if (!res.ok || data.error) {
+        console.error("EditAmenitiesModal save failed", { status: res.status, body: data });
+        setError(data.error || `Failed (HTTP ${res.status})`);
+      }
+      else onSaved(data.property);
     } catch (e) {
       console.error(e);
       setError("Failed to save");
