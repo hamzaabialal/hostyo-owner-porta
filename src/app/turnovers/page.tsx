@@ -813,6 +813,14 @@ function AddTurnoverModal({ properties, reservations, onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Only "Live" properties with a real name are selectable.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const liveProperties = useMemo(() => properties.filter((p: any) => {
+    const hasName = typeof p.name === "string" && p.name.trim().length > 0;
+    const isLive = p.status === "Live";
+    return hasName && isLive;
+  }), [properties]);
+
   // Suggest upcoming checkouts for the selected property
   const suggestedDates = useMemo(() => {
     if (!propertyId) return [] as string[];
@@ -882,7 +890,7 @@ function AddTurnoverModal({ properties, reservations, onClose, onSaved }: {
               className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
               <option value="">Select property</option>
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {liveProperties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
           <div>
@@ -944,6 +952,14 @@ function AddIssueModal({ properties, reservations, turnovers, onClose, onSaved }
   const [photoUrl, setPhotoUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Only "Live" properties with a real name are selectable.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const liveProperties = useMemo(() => properties.filter((p: any) => {
+    const hasName = typeof p.name === "string" && p.name.trim().length > 0;
+    const isLive = p.status === "Live";
+    return hasName && isLive;
+  }), [properties]);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -1064,7 +1080,7 @@ function AddIssueModal({ properties, reservations, turnovers, onClose, onSaved }
                 className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
                 <option value="">Select property</option>
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {liveProperties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
             <div>
