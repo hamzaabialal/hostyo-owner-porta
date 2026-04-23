@@ -291,9 +291,17 @@ export default function InventoryView({ properties: initialProperties }: { prope
     await persistSubcats(propertyId, current.filter((c: string) => c !== name));
   };
 
-  // Show ALL properties in the Add amenity / Add item modal — admin may want to
-  // track inventory for a property even before enabling the Cleaning checkbox.
-  const cleaningProperties = useMemo(() => properties, [properties]);
+  // Only "Live" properties with a real name are selectable in the Add item /
+  // Add amenity modal. Draft / Suspended / Onboarding / Maintenance / In Review
+  // are hidden. Empty-named properties are skipped (they cause blank rows in
+  // the <select>).
+  const cleaningProperties = useMemo(() => {
+    return properties.filter((p: any) => {
+      const hasName = typeof p.name === "string" && p.name.trim().length > 0;
+      const isLive = p.status === "Live";
+      return hasName && isLive;
+    });
+  }, [properties]);
 
   const propertyFilterOptions = useMemo(() => {
     const set = new Set<string>();
