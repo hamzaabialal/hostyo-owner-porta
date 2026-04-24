@@ -26,9 +26,6 @@ function fmtCurrency(n: number) {
   return "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function fmtCurrencyShort(n: number) {
-  return "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
 
 function statusPillClass(s: string) {
   const map: Record<string, string> = {
@@ -428,77 +425,66 @@ export default function PropertyDetailPage() {
           {/* In-house / Check-out + Next arrival / Check-in cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* In-house card — label changes dynamically */}
-            <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${inHouseDaysLeft === 0 ? "bg-[#FF5A5F]" : "bg-[#2F6B57]"}`} />
-                  <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">
+            <div className="bg-white border border-[#eaeaea] rounded-xl p-5 flex items-center gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-full border border-[#e2e2e2]">
+                  <span className={`w-1.5 h-1.5 rounded-full ${inHouseDaysLeft === 0 ? "bg-[#FF5A5F]" : "bg-[#2F6B57]"}`} />
+                  <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider">
                     {inHouseDaysLeft === 0 ? "Check Out" : "In House"}
                   </span>
                 </div>
-                {inHouseRes && (
-                  <div className="text-right">
-                    <div className={`text-[22px] font-bold ${inHouseDaysLeft === 0 ? "text-[#FF5A5F]" : "text-[#111]"}`}>{inHouseDaysLeft}</div>
-                    <div className="text-[10px] text-[#999]">{inHouseDaysLeft === 0 ? "today" : "days left"}</div>
+                {inHouseRes ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <ChannelBadge channel={inHouseRes.channel || "Direct"} compact />
+                      <span className="text-[15px] font-semibold text-[#111] truncate">{inHouseRes.guest}</span>
+                    </div>
+                    <div className="text-[11px] text-[#888]">
+                      {fmtDate(inHouseRes.checkin)} → {fmtDate(inHouseRes.checkout)} · {inHouseRes.nights} nights · {(inHouseRes.adults || 0) + (inHouseRes.children || 0) || inHouseRes.guests || 1} guests
+                    </div>
                   </div>
+                ) : (
+                  <div className="text-[13px] text-[#999]">No guest currently in house</div>
                 )}
               </div>
-              {inHouseRes ? (
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <ChannelBadge channel={inHouseRes.channel || "Direct"} compact />
-                    <span className="text-[15px] font-semibold text-[#111]">{inHouseRes.guest}</span>
-                  </div>
-                  <div className="text-[11px] text-[#888]">
-                    {fmtDate(inHouseRes.checkin)} → {fmtDate(inHouseRes.checkout)} · {inHouseRes.nights} nights · {(inHouseRes.adults || 0) + (inHouseRes.children || 0) || inHouseRes.guests || 1} guests
-                  </div>
+              {inHouseRes && (
+                <div className="text-right flex-shrink-0">
+                  <div className={`text-[26px] font-bold leading-none ${inHouseDaysLeft === 0 ? "text-[#FF5A5F]" : "text-[#111]"}`}>{inHouseDaysLeft}</div>
+                  <div className="text-[10px] text-[#999] mt-1">{inHouseDaysLeft === 0 ? "today" : "days left"}</div>
                 </div>
-              ) : (
-                <div className="text-[13px] text-[#999]">No guest currently in house</div>
               )}
             </div>
 
             {/* Next arrival card — label changes on day of check-in */}
-            <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${arrivalDaysAway === 0 ? "bg-[#2F6B57]" : "bg-[#D4A843]"}`} />
-                  <span className="text-[10px] font-semibold text-[#999] uppercase tracking-wider">
+            <div className="bg-white border border-[#eaeaea] rounded-xl p-5 flex items-center gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-full border border-[#e2e2e2]">
+                  <span className={`w-1.5 h-1.5 rounded-full ${arrivalDaysAway === 0 ? "bg-[#2F6B57]" : "bg-[#D4A843]"}`} />
+                  <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider">
                     {arrivalDaysAway === 0 ? "Check In" : "Next Arrival"}
                   </span>
                 </div>
-                {nextArrival && (
-                  <div className="text-right">
-                    <div className={`text-[22px] font-bold ${arrivalDaysAway === 0 ? "text-[#2F6B57]" : "text-[#111]"}`}>{arrivalDaysAway}</div>
-                    <div className="text-[10px] text-[#999]">{arrivalDaysAway === 0 ? "today" : "days away"}</div>
+                {nextArrival ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <ChannelBadge channel={nextArrival.channel || "Direct"} compact />
+                      <span className="text-[15px] font-semibold text-[#111] truncate">{nextArrival.guest}</span>
+                    </div>
+                    <div className="text-[11px] text-[#888]">
+                      {fmtDate(nextArrival.checkin)} → {fmtDate(nextArrival.checkout)} · {nextArrival.nights} nights · {(nextArrival.adults || 0) + (nextArrival.children || 0) || nextArrival.guests || 1} guests
+                    </div>
                   </div>
+                ) : (
+                  <div className="text-[13px] text-[#999]">No upcoming arrivals</div>
                 )}
               </div>
-              {nextArrival ? (
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <ChannelBadge channel={nextArrival.channel || "Direct"} compact />
-                    <span className="text-[15px] font-semibold text-[#111]">{nextArrival.guest}</span>
-                  </div>
-                  <div className="text-[11px] text-[#888]">
-                    {fmtDate(nextArrival.checkin)} → {fmtDate(nextArrival.checkout)} · {nextArrival.nights} nights · {(nextArrival.adults || 0) + (nextArrival.children || 0) || nextArrival.guests || 1} guests
-                  </div>
+              {nextArrival && (
+                <div className="text-right flex-shrink-0">
+                  <div className={`text-[26px] font-bold leading-none ${arrivalDaysAway === 0 ? "text-[#2F6B57]" : "text-[#111]"}`}>{arrivalDaysAway}</div>
+                  <div className="text-[10px] text-[#999] mt-1">{arrivalDaysAway === 0 ? "today" : "days away"}</div>
                 </div>
-              ) : (
-                <div className="text-[13px] text-[#999]">No upcoming arrivals</div>
               )}
             </div>
-          </div>
-
-          {/* Summary stats */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <StatBox label="Total Reservations" value={reservations.length} sub="All time" />
-            <StatBox label="Total Earnings" value={fmtCurrencyShort(totalEarnings)} sub="All time" />
-            <StatBox
-              label="Current Balance"
-              value={`${pendingBalance < 0 ? "−" : ""}€${Math.abs(pendingBalance).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-              sub={pendingBalance < 0 ? "On hold" : pendingBalance === 0 ? "No pending payouts" : "Payout pending"}
-            />
           </div>
 
           {/* Property Details — Main Spaces + Amenities */}

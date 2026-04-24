@@ -55,6 +55,8 @@ export default function TicketsPage() {
 
   const isAdmin = session?.user?.role === "admin";
 
+  const [ticketsLoaded, setTicketsLoaded] = useState(false);
+
   const refresh = async () => {
     const list = await fetchTickets();
     setTickets((prev) => {
@@ -74,12 +76,21 @@ export default function TicketsPage() {
         return t;
       });
     });
+    // Sync the opened detail view so new user replies appear without reopening
+    setSelectedTicket((current) => {
+      if (!current) return current;
+      const fresh = list.find((t) => t.id === current.id);
+      if (!fresh) return current;
+      if (current.updatedAt && fresh.updatedAt && current.updatedAt > fresh.updatedAt) return current;
+      return fresh;
+    });
+    setTicketsLoaded(true);
   };
 
   useEffect(() => {
     refresh();
-    // Poll every 20 seconds so admin sees new tickets without refreshing
-    const interval = setInterval(refresh, 20000);
+    // Poll every 10 seconds so admin sees new tickets / replies without refreshing
+    const interval = setInterval(refresh, 10000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -145,7 +156,16 @@ export default function TicketsPage() {
       <div className="flex items-center justify-between gap-4 mb-4 flex-wrap -mt-1">
         <div>
           <div className="text-[13px] text-[#888]">Manage support tickets from property owners.</div>
-          <div className="text-[11px] text-[#bbb] mt-0.5">{totalVisible} of {tickets.length} ticket{tickets.length !== 1 ? "s" : ""} · drag cards between columns to update status</div>
+          <div className="text-[11px] text-[#bbb] mt-0.5">
+            {!ticketsLoaded ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block w-2.5 h-2.5 border-[1.5px] border-[#80020E] border-t-transparent rounded-full animate-spin" />
+                Loading tickets…
+              </span>
+            ) : (
+              <>{totalVisible} of {tickets.length} ticket{tickets.length !== 1 ? "s" : ""} · drag cards between columns to update status</>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
@@ -164,7 +184,12 @@ export default function TicketsPage() {
       </div>
 
       {/* Kanban board */}
-      {tickets.length === 0 ? (
+      {!ticketsLoaded ? (
+        <div className="bg-white border border-[#eaeaea] rounded-xl p-12 text-center">
+          <div className="inline-block w-7 h-7 border-2 border-[#80020E] border-t-transparent rounded-full animate-spin mb-3" />
+          <div className="text-[13px] text-[#999]">Loading tickets…</div>
+        </div>
+      ) : tickets.length === 0 ? (
         <div className="bg-white border border-[#eaeaea] rounded-xl p-12 text-center">
           <div className="w-14 h-14 rounded-full bg-[#f5f5f5] flex items-center justify-center mx-auto mb-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

@@ -68,8 +68,10 @@ export default function Sidebar() {
       {/* Logo + Collapse toggle */}
       <div className={`flex items-center ${collapsed ? "justify-center px-2" : "justify-between px-5"} pt-5 pb-4`}>
         <Link href="/dashboard" className="flex items-center overflow-hidden">
+          {/* Collapsed: transparent/standalone mark */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/property-icons/ios_1024.png" alt="Hostyo" className={`w-8 h-8 rounded-lg object-contain flex-shrink-0 ${collapsed ? "" : "hidden"}`} />
+          <img src="/ios_1024%20(2).png" alt="Hostyo" className={`w-8 h-8 object-contain flex-shrink-0 ${collapsed ? "" : "hidden"}`} />
+          {/* Expanded: full wordmark */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/property-icons/hostyo-07.png" alt="Hostyo" className={`h-8 object-contain ${collapsed ? "hidden" : ""}`} />
         </Link>

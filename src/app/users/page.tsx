@@ -164,6 +164,29 @@ export default function UsersPage() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button onClick={() => setEditUser(u)} className="text-[11px] font-medium text-[#888] hover:text-[#80020E] transition-colors">Edit</button>
+                    {!u.isAdmin && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`View the app as ${u.name || u.email}? You'll stay signed in as admin; a banner will let you stop at any time.`)) return;
+                          const res = await fetch("/api/impersonate", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ email: u.email }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok || data.error) {
+                            alert(data.error || `Failed (HTTP ${res.status})`);
+                            return;
+                          }
+                          // Force a full reload so server-rendered data reflects the new scope
+                          window.location.href = "/dashboard";
+                        }}
+                        className="text-[11px] font-medium text-[#3B5BA5] hover:text-[#2E4780] transition-colors"
+                        title="View the app as this user"
+                      >
+                        Impersonate
+                      </button>
+                    )}
                     <button onClick={async () => {
                       if (!confirm(`Delete ${u.name || u.email}?`)) return;
                       await fetch(`/api/users/${u.id}`, { method: "DELETE" });

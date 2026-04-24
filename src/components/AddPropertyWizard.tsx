@@ -1,11 +1,13 @@
 "use client";
 import { useState, useRef } from "react";
+import AddressLocationPicker from "./AddressLocationPicker";
 
 interface WizardData {
   propertyType: string;
   bedrooms: number; bathrooms: number; maxGuests: number; bedTypes: string;
   photoUrls: string[]; description: string;
   name: string; address: string; city: string; postcode: string; country: string;
+  lat?: number; lng?: number;
 }
 
 const INITIAL: WizardData = {
@@ -231,52 +233,10 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
                 <input type="text" value={data.name} onChange={(e) => update({ name: e.target.value })} placeholder="e.g. Cosy Mountain Cabin"
                   className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
               </div>
-              <div>
-                <label className="block text-[13px] font-medium text-[#333] mb-1.5">Street address</label>
-                <input type="text" value={data.address} onChange={(e) => update({ address: e.target.value })} placeholder="Start typing to search address..."
-                  className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[13px] font-medium text-[#333] mb-1.5">City</label>
-                  <input type="text" value={data.city} onChange={(e) => update({ city: e.target.value })} placeholder="City"
-                    className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-[#333] mb-1.5">Postcode</label>
-                  <input type="text" value={data.postcode} onChange={(e) => update({ postcode: e.target.value })} placeholder="Postcode"
-                    className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-[#333] mb-1.5">Country</label>
-                  <input type="text" value={data.country} onChange={(e) => update({ country: e.target.value })} placeholder="Country"
-                    className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl text-[14px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors" />
-                </div>
-              </div>
-              {/* Map — Google Maps embed */}
-              <div className="rounded-xl border border-[#e2e2e2] overflow-hidden bg-[#f0f0f0]" style={{ height: "220px" }}>
-                {(data.address || data.city || data.country) ? (
-                  <iframe
-                    title="Map preview"
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    src={`https://maps.google.com/maps?q=${encodeURIComponent(
-                      [data.address, data.city, data.postcode, data.country].filter(Boolean).join(", ")
-                    )}&output=embed&z=15`}
-                  />
-                ) : (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="text-center">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="1.5" className="mx-auto mb-1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                      <p className="text-[12px] text-[#999]">Map preview</p>
-                      <p className="text-[10px] text-[#bbb]">Enter an address above to see the map.</p>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <AddressLocationPicker
+                value={{ address: data.address, city: data.city, postcode: data.postcode, country: data.country, lat: data.lat, lng: data.lng }}
+                onChange={(v) => update(v)}
+              />
             </div>
           </div>
         )}
