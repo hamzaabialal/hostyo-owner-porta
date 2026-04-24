@@ -111,17 +111,28 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
 
   // My tickets
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [ticketsLoaded, setTicketsLoaded] = useState(false);
   const [search, setSearch] = useState("");
   const refreshTickets = useCallback(async () => {
     if (userEmail) {
       const list = await fetchTickets();
       setTickets(list);
+      setTicketsLoaded(true);
+      // If a ticket drawer is open, sync its data so new admin replies appear.
+      // Prefer whichever copy has a newer updatedAt (protects against stale polls).
+      setOpenTicket((current) => {
+        if (!current) return current;
+        const fresh = list.find((t) => t.id === current.id);
+        if (!fresh) return current;
+        if (current.updatedAt && fresh.updatedAt && current.updatedAt > fresh.updatedAt) return current;
+        return fresh;
+      });
     }
   }, [userEmail]);
   useEffect(() => {
     refreshTickets();
-    // Poll every 20 seconds so new admin replies surface while the drawer is open
-    const interval = setInterval(() => refreshTickets(), 20000);
+    // Poll every 10 seconds while the drawer is open so new admin replies surface quickly
+    const interval = setInterval(() => refreshTickets(), 10000);
     return () => clearInterval(interval);
   }, [refreshTickets]);
 
@@ -416,7 +427,12 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
                     className="w-full h-[36px] pl-9 pr-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white" />
                 </div>
               )}
-              {filteredTickets.length === 0 ? (
+              {!ticketsLoaded ? (
+                <div className="py-10 text-center">
+                  <div className="inline-block w-5 h-5 border-2 border-[#80020E] border-t-transparent rounded-full animate-spin mb-2" />
+                  <div className="text-[12px] text-[#999]">Loading tickets...</div>
+                </div>
+              ) : filteredTickets.length === 0 ? (
                 <div className="py-10 text-center">
                   <div className="text-[13px] text-[#999]">{tickets.length === 0 ? "No tickets yet" : "No matching tickets"}</div>
                 </div>

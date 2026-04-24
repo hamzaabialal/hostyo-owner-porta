@@ -120,11 +120,61 @@ export default function AppShell({ title, children }: { title: string; children:
             drawer listener keeps working when invoked from the mobile ? icon */}
         <TopBar title={title} />
 
+        <ImpersonationBanner />
+
         <main className="flex-1 p-4 md:p-8 pb-20 md:pb-8 min-w-0">{children}</main>
       </div>
 
       {/* Mobile bottom nav - shown only on mobile */}
       <MobileNav />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Impersonation banner — persistent at top when admin is viewing as  */
+/*  another user. Only renders when /api/me returns isImpersonating.   */
+/* ------------------------------------------------------------------ */
+function ImpersonationBanner() {
+  const [state, setState] = useState<{ isImpersonating: boolean; email: string; realEmail: string | null } | null>(null);
+  useEffect(() => {
+    fetch("/api/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.ok && d.isImpersonating) {
+          setState({ isImpersonating: true, email: d.email, realEmail: d.realEmail });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!state?.isImpersonating) return null;
+
+  const stop = async () => {
+    try {
+      await fetch("/api/impersonate", { method: "DELETE" });
+    } finally {
+      window.location.href = "/dashboard";
+    }
+  };
+
+  return (
+    <div className="sticky top-0 z-[60] bg-[#3B5BA5] text-white px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+          <circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 00-16 0"/>
+        </svg>
+        <div className="text-[13px] truncate">
+          Viewing as <span className="font-semibold">{state.email}</span>
+          {state.realEmail && <span className="opacity-80"> · admin: {state.realEmail}</span>}
+        </div>
+      </div>
+      <button
+        onClick={stop}
+        className="h-[28px] px-3 rounded-md bg-white/15 hover:bg-white/25 text-[12px] font-semibold transition-colors flex-shrink-0"
+      >
+        Stop impersonating
+      </button>
     </div>
   );
 }
