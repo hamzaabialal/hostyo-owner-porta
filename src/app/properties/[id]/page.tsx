@@ -26,9 +26,6 @@ function fmtCurrency(n: number) {
   return "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function fmtCurrencyShort(n: number) {
-  return "€" + Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
 
 function statusPillClass(s: string) {
   const map: Record<string, string> = {
