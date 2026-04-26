@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 import { buildChecklist, countChecklistItems, itemKey, type ChecklistCategory } from "@/lib/turnover-checklist";
 
 /* ------------------------------------------------------------------ */
@@ -61,8 +62,8 @@ export default function TurnoverDetailPage() {
   const search = useSearchParams();
   const router = useRouter();
   const { data: session } = useSession();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isAdmin = (session?.user as any)?.role === "admin";
+  void session;
+  const { isAdmin } = useEffectiveSession();
 
   const propertyId = String(params?.id || "");
   const departureDate = search?.get("departure") || "";

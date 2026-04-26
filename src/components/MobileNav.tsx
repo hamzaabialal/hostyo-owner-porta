@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 
 type Tab = {
   label: string;
@@ -77,9 +77,7 @@ const tabs: Tab[] = [
 
 export default function MobileNav() {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const { isAdmin } = useEffectiveSession();
   const visibleTabs = tabs.filter((t) => !t.adminOnly || isAdmin);
 
   return (

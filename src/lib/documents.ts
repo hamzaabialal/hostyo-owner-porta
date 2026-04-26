@@ -1,14 +1,21 @@
-import { addNotification } from "@/lib/notifications";
+import { addNotification, getNotificationOwner } from "@/lib/notifications";
 
 // Property document management — backed by server API (Vercel Blob)
-// Documents are shared across all users (admin uploads, owners can view)
+// Documents are shared across all users (admin uploads, owners can view).
+// New-document detection is tracked per-user so each user gets their own
+// "you haven't seen this yet" cursor instead of one global cursor that any
+// user could advance for everyone.
 
-const LAST_SEEN_KEY = "hostyo_docs_last_seen";
+const LAST_SEEN_PREFIX = "hostyo_docs_last_seen:";
+
+function lastSeenKey(): string {
+  return `${LAST_SEEN_PREFIX}${getNotificationOwner()}`;
+}
 
 function getLastSeen(propertyId: string): string {
   if (typeof window === "undefined") return "";
   try {
-    const raw = localStorage.getItem(LAST_SEEN_KEY);
+    const raw = localStorage.getItem(lastSeenKey());
     const map = raw ? JSON.parse(raw) : {};
     return map[propertyId] || "";
   } catch { return ""; }
@@ -17,10 +24,11 @@ function getLastSeen(propertyId: string): string {
 function setLastSeen(propertyId: string, timestamp: string) {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(LAST_SEEN_KEY);
+    const key = lastSeenKey();
+    const raw = localStorage.getItem(key);
     const map = raw ? JSON.parse(raw) : {};
     map[propertyId] = timestamp;
-    localStorage.setItem(LAST_SEEN_KEY, JSON.stringify(map));
+    localStorage.setItem(key, JSON.stringify(map));
   } catch { /* ignore */ }
 }
 
@@ -82,6 +90,7 @@ function detectNewDocuments(propertyId: string, propertyName: string, docs: Prop
       title: "New document uploaded",
       description: `${doc.name} was added to ${propertyName || "your property"}.`,
       href: `/properties/${propertyId}?tab=documents`,
+      fingerprint: `doc:${doc.id}`,
     });
   }
 

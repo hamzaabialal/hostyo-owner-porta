@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
 import InventoryView from "@/components/InventoryView";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -71,8 +72,8 @@ function statusColor(status: TurnoverStatus): { dot: string; text: string } {
 export default function TurnoversPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isAdmin = (session?.user as any)?.role === "admin";
+  void session;
+  const { isAdmin } = useEffectiveSession();
 
   const [tab, setTab] = useState<"cleaning" | "issues" | "inventory">("cleaning");
   const [properties, setProperties] = useState<Property[]>([]);

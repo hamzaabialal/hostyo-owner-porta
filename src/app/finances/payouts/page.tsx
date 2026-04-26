@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 import MobileTabs from "@/components/MobileTabs";
 import FilterDropdown from "@/components/FilterDropdown";
 import { useData } from "@/lib/DataContext";
@@ -75,8 +76,9 @@ function stopPropagation(ev: { stopPropagation: () => void }): void {
 export default function PayoutsPage() {
   const { fetchData } = useData();
   const { data: session } = useSession();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const { isAdmin } = useEffectiveSession();
+  // session is kept for any other consumers below; impersonation gate uses effective scope
+  void session;
   const [data, setData] = useState<PayoutRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterProperty, setFilterProperty] = useState("");
@@ -245,19 +247,24 @@ export default function PayoutsPage() {
       .sort((a: PayoutRow, b: PayoutRow) => (b.checkOut || "").localeCompare(a.checkOut || "")); // Most recent first
   }, [data, filterProperty, filterPayoutStatus, search]);
 
-  // Summary stats
-  const totalPaid = useMemo(() => filtered.filter((r) => r.payoutStatus === "Paid").reduce((s, r) => s + r.paidToOwner, 0), [filtered]);
-  const totalPending = useMemo(() => filtered.filter((r) => r.payoutStatus === "Pending").reduce((s, r) => s + r.paidToOwner, 0), [filtered]);
-  const totalCleaning = useMemo(() => filtered.reduce((s, r) => s + r.cleaning, 0), [filtered]);
-  const totalMgmtFee = useMemo(() => filtered.reduce((s, r) => s + r.managementFee, 0), [filtered]);
-  const totalVat = useMemo(() => filtered.reduce((s, r) => s + r.vat, 0), [filtered]);
-  const totalPlatformFee = useMemo(() => filtered.reduce((s, r) => s + r.platformFee, 0), [filtered]);
-  const overduePending = useMemo(() => filtered.filter((r) => r.payoutStatus === "Pending"), [filtered]);
-  const erroredPayouts = useMemo(() => filtered.filter((r) => {
+  // Cancelled reservations should never count as pending payouts, regardless of
+  // what their Notion `Payout Status` field still says (the cancelled sync may
+  // not have run yet, or the field may be stale via Notion's CDN).
+  const isCancelled = (r: PayoutRow) => (r.status || "").toLowerCase() === "cancelled";
+
+  // Summary stats — exclude cancelled reservations from every aggregate
+  const totalPaid = useMemo(() => filtered.filter((r: PayoutRow) => r.payoutStatus === "Paid" && !isCancelled(r)).reduce((s: number, r: PayoutRow) => s + r.paidToOwner, 0), [filtered]);
+  const totalPending = useMemo(() => filtered.filter((r: PayoutRow) => r.payoutStatus === "Pending" && !isCancelled(r)).reduce((s: number, r: PayoutRow) => s + r.paidToOwner, 0), [filtered]);
+  const totalCleaning = useMemo(() => filtered.filter((r: PayoutRow) => !isCancelled(r)).reduce((s: number, r: PayoutRow) => s + r.cleaning, 0), [filtered]);
+  const totalMgmtFee = useMemo(() => filtered.filter((r: PayoutRow) => !isCancelled(r)).reduce((s: number, r: PayoutRow) => s + r.managementFee, 0), [filtered]);
+  const totalVat = useMemo(() => filtered.filter((r: PayoutRow) => !isCancelled(r)).reduce((s: number, r: PayoutRow) => s + r.vat, 0), [filtered]);
+  const totalPlatformFee = useMemo(() => filtered.filter((r: PayoutRow) => !isCancelled(r)).reduce((s: number, r: PayoutRow) => s + r.platformFee, 0), [filtered]);
+  const overduePending = useMemo(() => filtered.filter((r: PayoutRow) => r.payoutStatus === "Pending" && !isCancelled(r)), [filtered]);
+  const erroredPayouts = useMemo(() => filtered.filter((r: PayoutRow) => {
     const s = r.payoutStatus.toLowerCase();
-    return s.includes("error") || s.includes("fail");
+    return (s.includes("error") || s.includes("fail")) && !isCancelled(r);
   }), [filtered]);
-  const onHoldPayouts = useMemo(() => filtered.filter((r: PayoutRow) => r.payoutStatus.toLowerCase().includes("hold")), [filtered]);
+  const onHoldPayouts = useMemo(() => filtered.filter((r: PayoutRow) => r.payoutStatus.toLowerCase().includes("hold") && !isCancelled(r)), [filtered]);
 
   // Per-property deficit recovery tracker (admin-side)
   // Combines the reconciliation data with the Notion "Deficit Status" field

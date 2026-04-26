@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 import ChannelBadge from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
 import { fetchDocuments, addDocument, removeDocument, formatFileSize, type PropertyDocument } from "@/lib/documents";
@@ -245,8 +246,8 @@ export default function PropertyDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"overview" | "reservations" | "earnings" | "expenses" | "documents" | "turnovers">("overview");
   const { data: session } = useSession();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isAdmin = (session?.user as any)?.role === "admin";
+  void session;
+  const { isAdmin } = useEffectiveSession();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [turnovers, setTurnovers] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

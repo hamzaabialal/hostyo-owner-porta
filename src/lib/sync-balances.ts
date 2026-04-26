@@ -300,6 +300,131 @@ export async function syncPropertyBalances(propertyNames: string[]): Promise<voi
 }
 
 /**
+ * Sync cancelled reservations.
+ *
+ * For every reservation with Status === "Cancelled", updates the Notion page so:
+ *   - Payout Status     → "Cancelled"
+ *   - Management Fee    → "Void"  (or 0 if the field is a number)
+ *   - Cleaning Fee      → "Void"  (or 0 if the field is a number)
+ *   - VAT               → "Void"  (or 0 if the field is a number)
+ *
+ * Field types vary across Notion DBs (status / select / rich_text / number),
+ * so each write is detected at runtime and adapted accordingly. If the column
+ * doesn't exist on the page at all, it's skipped silently.
+ */
+export interface CancelledSyncResult {
+  ok: boolean;
+  scanned: number;
+  updated: number;
+  errors: { ref: string; error: string }[];
+}
+
+function buildVoidValue(prop: any, voidStr: string): any | null {
+  if (!prop) return null;
+  switch (prop.type) {
+    case "status":     return { status: { name: voidStr } };
+    case "select":     return { select: { name: voidStr } };
+    case "rich_text":  return { rich_text: [{ text: { content: voidStr } }] };
+    case "number":     return { number: 0 };          // "Void" can't go in a number — zero it out
+    default:           return null;
+  }
+}
+
+function currentMatches(prop: any, voidStr: string): boolean {
+  if (!prop) return true; // missing field → nothing to do
+  switch (prop.type) {
+    case "status":    return (prop.status?.name || "") === voidStr;
+    case "select":    return (prop.select?.name || "") === voidStr;
+    case "rich_text": return ((prop.rich_text?.[0]?.plain_text) || "") === voidStr;
+    case "number":    return (prop.number ?? 0) === 0;
+    default:          return true;
+  }
+}
+
+export async function syncCancelledReservations(): Promise<CancelledSyncResult> {
+  const result: CancelledSyncResult = { ok: true, scanned: 0, updated: 0, errors: [] };
+  if (!DB.reservations) return { ...result, ok: false };
+
+  try {
+    const pages = await queryDatabase(DB.reservations, {
+      property: "Status",
+      // Try select first; queryDatabase ignores wrong filter shape and returns empty
+      select: { equals: "Cancelled" },
+    });
+
+    let candidatePages: any[] = pages;
+    // If the Status field is a "status" type rather than "select", the above
+    // returns nothing — fall back to fetching all and filtering in memory.
+    if (candidatePages.length === 0) {
+      const all = await queryDatabase(DB.reservations, {
+        property: "Deleted",
+        checkbox: { equals: false },
+      });
+      candidatePages = (all as any[]).filter((p) => {
+        const s = p.properties?.["Status"];
+        const name = s?.status?.name || s?.select?.name || "";
+        return name === "Cancelled";
+      });
+    }
+
+    result.scanned = candidatePages.length;
+
+    for (const page of candidatePages as any[]) {
+      const props = page.properties || {};
+      const ref = (props["Reservation Code"]?.rich_text?.[0]?.plain_text)
+        || (props["Reservation Code"]?.title?.[0]?.plain_text)
+        || page.id;
+
+      // Build the update payload only for fields that actually need writing
+      const updateProps: Record<string, any> = {};
+
+      // Payout Status → "Cancelled"
+      const psProp = props["Payout Status"];
+      if (psProp && !currentMatches(psProp, "Cancelled")) {
+        const v = buildVoidValue(psProp, "Cancelled");
+        if (v) updateProps["Payout Status"] = v;
+      }
+
+      // Management Fee, Cleaning, VAT → "Void" (or 0 for number columns)
+      // Try common naming variants — we can't know without the schema.
+      const targets: Array<{ candidates: string[]; voidStr: string }> = [
+        { candidates: ["Management Fee", "Management"], voidStr: "Void" },
+        { candidates: ["Cleaning Fee", "Cleaning"], voidStr: "Void" },
+        { candidates: ["VAT", "Vat"], voidStr: "Void" },
+      ];
+      for (const t of targets) {
+        for (const candidate of t.candidates) {
+          const p = props[candidate];
+          if (!p) continue;
+          if (currentMatches(p, t.voidStr)) break; // already correct, skip
+          const v = buildVoidValue(p, t.voidStr);
+          if (v) {
+            updateProps[candidate] = v;
+            break; // only update one matching candidate name
+          }
+        }
+      }
+
+      if (Object.keys(updateProps).length === 0) continue;
+
+      try {
+        await notion.pages.update({ page_id: page.id, properties: updateProps });
+        result.updated++;
+      } catch (err: any) {
+        console.error(`syncCancelledReservations: ${ref}:`, err?.message || err);
+        result.errors.push({ ref: String(ref), error: err?.message || "Unknown" });
+      }
+    }
+
+    if (result.updated > 0) invalidate("reservations");
+    return result;
+  } catch (error: any) {
+    console.error("syncCancelledReservations error:", error?.message || error);
+    return { ok: false, scanned: 0, updated: 0, errors: [{ ref: "_global_", error: error?.message || "Unknown" }] };
+  }
+}
+
+/**
  * Sync the Expenses column on a Reservation page in Notion.
  *
  * Given a reservation reference code, sums all linked expenses from the

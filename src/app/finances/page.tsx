@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 import MobileTabs from "@/components/MobileTabs";
 import ChannelBadge from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
@@ -216,8 +217,8 @@ export default function FinancesOverviewPage() {
   const { fetchData } = useData();
   const router = useRouter();
   const { data: session } = useSession();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isAdmin = (session?.user as any)?.role === "admin";
+  void session;
+  const { isAdmin } = useEffectiveSession();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
