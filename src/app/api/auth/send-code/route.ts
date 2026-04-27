@@ -3,14 +3,38 @@ import { sendEmail, generateCode, loginCodeEmailHtml, verificationEmailHtml } fr
 
 export const dynamic = "force-dynamic";
 
-// In-memory code store (per serverless instance — works for short-lived codes)
-const codeStore = new Map<string, { code: string; expires: number; type: string }>();
+// 6-digit codes are short-lived: a fresh code expires 60s after issue. The
+// resend cooldown matches so the user can request a new code as soon as the
+// old one is no longer usable. Anything longer was abusive: an old code could
+// still be entered after the user had clearly moved on.
+const CODE_TTL_MS = 60 * 1000;
+// Server-side resend cooldown: refuse a brand-new code if the previous one
+// was issued less than this many ms ago. Mirrors the client-side countdown
+// in /login and /signup so a malicious or buggy client can't bypass it.
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
-// Clean expired codes
+interface StoredCode {
+  code: string;
+  expires: number;
+  /** When this code was issued — used for the resend cooldown. */
+  createdAt: number;
+  type: string;
+}
+
+// Consolidated to a single globalThis map so /api/auth/send-code and
+// /api/auth/verify always look at the same state within a warm serverless
+// instance. (The previous code kept two parallel maps which could drift.)
+function getStore(): Map<string, StoredCode> {
+  const g = globalThis as unknown as { __verificationCodes?: Map<string, StoredCode> };
+  if (!g.__verificationCodes) g.__verificationCodes = new Map();
+  return g.__verificationCodes;
+}
+
 function cleanExpired() {
+  const store = getStore();
   const now = Date.now();
-  codeStore.forEach((val, key) => {
-    if (val.expires < now) codeStore.delete(key);
+  store.forEach((val, key) => {
+    if (val.expires < now) store.delete(key);
   });
 }
 
@@ -22,28 +46,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Email is required" }, { status: 400 });
     }
 
+    const key = email.toLowerCase();
+    const store = getStore();
     cleanExpired();
 
-    // Rate limit: max 1 code per email per 60 seconds
-    const existing = codeStore.get(email.toLowerCase());
-    if (existing && existing.expires > Date.now() - (type === "login" ? 4 * 60 * 1000 : 9 * 60 * 1000)) {
-      // Code was sent less than 1 minute ago
-      return NextResponse.json({ ok: false, error: "Please wait before requesting another code" }, { status: 429 });
+    // Resend cooldown: refuse if the previous code is younger than the cooldown.
+    const existing = store.get(key);
+    if (existing && Date.now() - existing.createdAt < RESEND_COOLDOWN_MS) {
+      const retryAfterSec = Math.ceil((RESEND_COOLDOWN_MS - (Date.now() - existing.createdAt)) / 1000);
+      return NextResponse.json(
+        { ok: false, error: `Please wait ${retryAfterSec}s before requesting another code` },
+        { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+      );
     }
 
     const code = generateCode();
-    const expiresIn = type === "login" ? 5 * 60 * 1000 : 10 * 60 * 1000;
-
-    codeStore.set(email.toLowerCase(), {
+    const now = Date.now();
+    store.set(key, {
       code,
-      expires: Date.now() + expiresIn,
+      expires: now + CODE_TTL_MS,
+      createdAt: now,
       type: type || "verify",
     });
-
-    // Also store globally for verification endpoint
-    const globalForCodes = globalThis as unknown as { __verificationCodes?: Map<string, { code: string; expires: number; type: string }> };
-    if (!globalForCodes.__verificationCodes) globalForCodes.__verificationCodes = new Map();
-    globalForCodes.__verificationCodes.set(email.toLowerCase(), { code, expires: Date.now() + expiresIn, type: type || "verify" });
 
     const html = type === "login"
       ? loginCodeEmailHtml(code, name || email.split("@")[0])
@@ -54,6 +78,9 @@ export async function POST(req: Request) {
     const sent = await sendEmail({ to: email, subject, html });
 
     if (!sent) {
+      // Roll back the code so a failed delivery doesn't lock the user out
+      // of resending for the cooldown window.
+      store.delete(key);
       return NextResponse.json({ ok: false, error: "Failed to send email. Please try again." }, { status: 500 });
     }
 
