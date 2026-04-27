@@ -6,17 +6,17 @@ import { useEffect, useRef, useState } from "react";
  * Address & location picker.
  *
  * Flow:
- *   1. User types in the address field. We hit Nominatim (free, no API key)
- *      with debounced autocomplete and render the suggestions on top of
+ *   1. The user types in the address field. We hit Nominatim (free, no API
+ *      key) with debounced autocomplete and render the suggestions on top of
  *      everything (z-[300]) so they're never hidden behind other widgets.
- *   2. Picking a suggestion fills in city/postcode/country and lat/lng.
- *   3. The map is *not* rendered inline. Once we have a location, a "Refine
- *      pin on map" button appears; clicking it opens a modal with a
- *      center-pin map ("Is the pin in the right spot?"). Closing the modal
- *      commits whatever location is under the pin.
- *   4. If the user types an address that returns no Nominatim matches at all
- *      we show an inline "We don't recognize that address — are you sure?"
- *      banner with two actions: edit the address, or confirm it manually.
+ *   2. Picking a suggestion fills in city/postcode/country and lat/lng AND
+ *      reveals the inline interactive map preview below — a draggable pin
+ *      already centred on the geocoded location, ready to be refined.
+ *   3. If the user types an address that returns no Nominatim matches, an
+ *      inline "We don't recognize that address — are you sure?" banner is
+ *      shown with two actions: edit the address, or confirm it manually.
+ *      The wizard uses the same `confirmedManual` flag (lifted out via
+ *      `onConfirmedManualChange`) to gate Continue/Submit.
  */
 
 export interface AddressValue {
@@ -82,10 +82,15 @@ function buildAddressFromNominatim(r: NominatimResult): AddressValue {
   };
 }
 
-export default function AddressLocationPicker({ value, onChange }: {
+interface AddressLocationPickerProps {
   value: AddressValue;
   onChange: (v: Partial<AddressValue>) => void;
-}) {
+  /** Lifted state: the user dismissed the unrecognized-address warning. */
+  confirmedManual: boolean;
+  onConfirmedManualChange: (v: boolean) => void;
+}
+
+export default function AddressLocationPicker({ value, onChange, confirmedManual, onConfirmedManualChange }: AddressLocationPickerProps) {
   const [query, setQuery] = useState(value.address || "");
   const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -93,27 +98,26 @@ export default function AddressLocationPicker({ value, onChange }: {
   // Tracks the last query we actually got a server response for. Used to
   // tell the difference between "still typing" and "search came back empty".
   const [lastSearched, setLastSearched] = useState("");
-  // The user clicked "Yes, my address is correct" on the unrecognized banner.
-  // Lets them keep an unverified address without nagging.
-  const [confirmedManual, setConfirmedManual] = useState(false);
-  const [mapOpen, setMapOpen] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
   const moveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Set to true right before a programmatic setView so the moveend handler
-  // can ignore that synthetic move (otherwise we'd reverse-geocode and
-  // overwrite an address the user just picked from the suggestions list).
+  // Set to true right before a programmatic setView/setLatLng so the dragend
+  // / moveend handlers can ignore that synthetic event.
   const programmaticMoveRef = useRef(false);
 
-  // Keep input in sync if parent updates value.address externally (e.g. from
-  // a reverse-geocode after the pin moves).
+  const hasLocation = value.lat != null && value.lng != null;
+  const showMap = hasLocation || confirmedManual;
+
+  // Keep the input mirror in sync if the parent updates value.address (e.g.
+  // after a reverse-geocode following a pin drag).
   useEffect(() => { setQuery(value.address || ""); }, [value.address]);
 
   // Editing the address invalidates a previous "I confirmed manually" choice.
   useEffect(() => {
-    if (confirmedManual) setConfirmedManual(false);
+    if (confirmedManual) onConfirmedManualChange(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
@@ -140,11 +144,8 @@ export default function AddressLocationPicker({ value, onChange }: {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const hasLocation = value.lat != null && value.lng != null;
-
   // Show "we don't recognize" banner when:
-  //   - we have a finished search response for the current query,
-  //   - that response was empty,
+  //   - a finished search response for the current query came back empty,
   //   - the user hasn't selected a suggestion (no lat/lng),
   //   - and they haven't already overridden the warning.
   const showUnrecognized =
@@ -160,14 +161,12 @@ export default function AddressLocationPicker({ value, onChange }: {
     onChange(buildAddressFromNominatim(r));
     setShowDropdown(false);
     setSuggestions([]);
-    setConfirmedManual(false);
+    onConfirmedManualChange(false);
   };
 
-  // Initialise the map when the modal opens. We use a "center pin" pattern
-  // (fixed crosshair pin in the viewport, drag the map underneath it) which
-  // matches the mobile-style example in the design.
+  // Initialise / refresh the inline map when it becomes visible.
   useEffect(() => {
-    if (!mapOpen) return;
+    if (!showMap) return;
     let cancelled = false;
     loadLeaflet().then((L) => {
       if (cancelled || !L || !mapDivRef.current) return;
@@ -185,54 +184,55 @@ export default function AddressLocationPicker({ value, onChange }: {
           maxZoom: 19,
         }).addTo(map);
 
-        map.on("moveend", () => {
+        const marker = L.marker([startLat, startLng], { draggable: true }).addTo(map);
+        marker.bindTooltip("Drag to refine location", { permanent: false, direction: "top" });
+
+        marker.on("dragend", () => {
           if (programmaticMoveRef.current) {
             programmaticMoveRef.current = false;
             return;
           }
-          const c = map.getCenter();
-          // Live-update the coordinates so the wizard keeps the latest pin.
-          onChange({ lat: c.lat, lng: c.lng });
+          const { lat, lng } = marker.getLatLng();
+          // Live-update the coordinates so the wizard always has the latest pin.
+          onChange({ lat, lng });
 
           // Debounce the reverse-geocode (Nominatim usage policy + UX).
           if (moveDebounceRef.current) clearTimeout(moveDebounceRef.current);
           moveDebounceRef.current = setTimeout(async () => {
             try {
               const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${c.lat}&lon=${c.lng}&addressdetails=1`,
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
                 { headers: { Accept: "application/json" } }
               );
               const data: NominatimResult = await res.json();
               if (data) {
-                onChange(buildAddressFromNominatim({ ...data, lat: String(c.lat), lon: String(c.lng) }));
+                onChange(buildAddressFromNominatim({ ...data, lat: String(lat), lon: String(lng) }));
               }
             } catch { /* ignore */ }
           }, 600);
         });
 
         mapRef.current = map;
-      } else {
-        // Re-opening an already-built map. Suppress the synthetic moveend so
-        // we don't reverse-geocode the freshly-picked address.
-        programmaticMoveRef.current = true;
-        mapRef.current.setView([startLat, startLng], startZoom);
+        markerRef.current = marker;
       }
 
-      // The map div was just inserted into the DOM — Leaflet needs a nudge
-      // to recompute tile sizes.
+      // The map div may have just been (re-)inserted into the DOM — Leaflet
+      // needs a nudge to recompute tile sizes.
       setTimeout(() => mapRef.current?.invalidateSize(), 80);
     });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapOpen]);
+  }, [showMap]);
 
-  const closeMap = () => {
-    if (moveDebounceRef.current) {
-      clearTimeout(moveDebounceRef.current);
-      moveDebounceRef.current = null;
-    }
-    setMapOpen(false);
-  };
+  // Re-centre the map and pin when the lat/lng change externally (e.g. after
+  // the user picks a different suggestion from the dropdown).
+  useEffect(() => {
+    if (!mapRef.current || !markerRef.current) return;
+    if (value.lat == null || value.lng == null) return;
+    programmaticMoveRef.current = true;
+    markerRef.current.setLatLng([value.lat, value.lng]);
+    mapRef.current.setView([value.lat, value.lng], 17);
+  }, [value.lat, value.lng]);
 
   return (
     <>
@@ -293,7 +293,7 @@ export default function AddressLocationPicker({ value, onChange }: {
               </button>
               <button
                 type="button"
-                onClick={() => setConfirmedManual(true)}
+                onClick={() => onConfirmedManualChange(true)}
                 className="h-[32px] px-3 rounded-lg border border-[#80020E] text-[12px] font-medium text-[#80020E] hover:bg-[#80020E]/5 transition-colors"
               >
                 Yes, my address is correct
@@ -302,7 +302,7 @@ export default function AddressLocationPicker({ value, onChange }: {
           </div>
           <button
             type="button"
-            onClick={() => setConfirmedManual(true)}
+            onClick={() => onConfirmedManualChange(true)}
             aria-label="Dismiss"
             className="text-[#999] hover:text-[#555] transition-colors flex-shrink-0 mt-0.5"
           >
@@ -329,74 +329,18 @@ export default function AddressLocationPicker({ value, onChange }: {
         </div>
       </div>
 
-      {(hasLocation || confirmedManual) && (
+      {showMap && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="block text-[13px] font-medium text-[#333]">Map pin</label>
+            <label className="block text-[13px] font-medium text-[#333]">Location</label>
             {hasLocation && (
               <span className="text-[10px] text-[#888] font-mono">
                 {value.lat!.toFixed(5)}, {value.lng!.toFixed(5)}
               </span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => setMapOpen(true)}
-            className="w-full h-[44px] px-4 border border-[#e2e2e2] rounded-xl flex items-center justify-center gap-2 text-[13px] font-medium text-[#333] hover:border-[#80020E] hover:text-[#80020E] transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            {hasLocation ? "Refine pin on map" : "Drop pin on map"}
-          </button>
-        </div>
-      )}
-
-      {mapOpen && (
-        <div
-          className="fixed inset-0 z-[400] bg-black/50 flex items-center justify-center p-4"
-          onClick={closeMap}
-        >
-          <div
-            className="bg-white rounded-2xl w-full max-w-[420px] flex flex-col overflow-hidden shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-3 h-[52px] border-b border-[#eaeaea] flex-shrink-0">
-              <button type="button" onClick={closeMap} aria-label="Back"
-                className="w-8 h-8 flex items-center justify-center text-[#555] hover:text-[#111]">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <span className="text-[14px] font-semibold text-[#111]">Is the pin in the right spot?</span>
-              <button type="button" onClick={closeMap} aria-label="Close"
-                className="w-8 h-8 flex items-center justify-center text-[#999] hover:text-[#555]">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div className="relative">
-              <div ref={mapDivRef} style={{ height: "360px" }} />
-              {/* Centre-pin overlay: the pin stays put while you drag the map. */}
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="flex flex-col items-center -translate-y-3">
-                  <div className="w-10 h-10 rounded-full bg-[#111] flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.25)]">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-                    </svg>
-                  </div>
-                  <div className="w-0.5 h-3 bg-[#111]" />
-                </div>
-              </div>
-              <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black/85 text-white text-[11px] rounded-full whitespace-nowrap">
-                Drag the map to reposition the pin
-              </div>
-            </div>
-            <div className="px-4 py-3 border-t border-[#eaeaea] flex-shrink-0">
-              <button
-                type="button"
-                onClick={closeMap}
-                className="w-full h-[44px] rounded-xl bg-[#111] text-white text-[14px] font-semibold hover:bg-black transition-colors"
-              >
-                Done
-              </button>
-            </div>
-          </div>
+          <p className="text-[11px] text-[#888]">Drag the pin to refine the exact location. The address will update automatically.</p>
+          <div ref={mapDivRef} className="rounded-xl border border-[#e2e2e2] overflow-hidden" style={{ height: "260px" }} />
         </div>
       )}
     </>

@@ -67,8 +67,13 @@ export async function fetchDocuments(propertyId: string, propertyName?: string):
 }
 
 /**
- * Compares fetched documents to the last-seen timestamp and raises notifications
- * for any new "Admin" uploads. Updates the last-seen timestamp afterwards.
+ * Compares fetched documents to the last-seen timestamp and raises a
+ * "New report" notification for any new admin-uploaded report.
+ *
+ * Only `type === "report"` documents trigger notifications — these are the
+ * monthly statements owners actually want to know about. Other admin
+ * uploads (contracts, etc.) are still surfaced inside the property's
+ * Documents tab but don't produce a notification by themselves.
  */
 function detectNewDocuments(propertyId: string, propertyName: string, docs: PropertyDocument[]) {
   if (typeof window === "undefined" || !propertyId) return;
@@ -80,22 +85,23 @@ function detectNewDocuments(propertyId: string, propertyName: string, docs: Prop
   }
   if (!lastSeen) return;
 
-  const newDocs = docs.filter((d) => d.source === "Admin" && d.createdAt > lastSeen);
-  if (newDocs.length === 0) return;
+  const newReports = docs.filter((d) => d.source === "Admin" && d.type === "report" && d.createdAt > lastSeen);
+  // Always advance the cursor to the newest doc's timestamp so we don't keep
+  // re-checking older docs even if none were notification-worthy this round.
+  if (docs.length > 0) setLastSeen(propertyId, docs[0].createdAt);
 
-  // Raise one notification per new document (up to 3 to avoid spam)
-  for (const doc of newDocs.slice(0, 3)) {
+  if (newReports.length === 0) return;
+
+  // Raise one notification per new report (up to 3 to avoid spam).
+  for (const doc of newReports.slice(0, 3)) {
     addNotification({
       type: "document",
-      title: "New document uploaded",
-      description: `${doc.name} was added to ${propertyName || "your property"}.`,
+      title: "New report",
+      description: `${doc.name} is available for ${propertyName || "your property"}.`,
       href: `/properties/${propertyId}?tab=documents`,
       fingerprint: `doc:${doc.id}`,
     });
   }
-
-  // Update last-seen to the newest doc's timestamp
-  setLastSeen(propertyId, docs[0].createdAt);
 }
 
 /**

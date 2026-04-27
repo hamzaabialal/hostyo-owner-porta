@@ -5,8 +5,9 @@ import TopBar from "./TopBar";
 import MobileNav from "./MobileNav";
 import MobileHeader from "./MobileHeader";
 import { useData } from "@/lib/DataContext";
-import { addNotification, setNotificationOwner } from "@/lib/notifications";
-import { useEffectiveSession } from "@/lib/useEffectiveSession";
+import { addNotification, diffAndMarkSeen, pruneObsoleteNotifications, setNotificationOwner } from "@/lib/notifications";
+import { fetchTickets } from "@/lib/tickets";
+import { primeEffectiveSessionCache, useEffectiveSession } from "@/lib/useEffectiveSession";
 
 const PREFETCH_URLS = [
   ["properties", "/api/properties"],
@@ -17,83 +18,122 @@ const PREFETCH_URLS = [
 ];
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Synthesises notifications from the data the API has already filtered to the
-// effective user. Because every entry carries a stable fingerprint, this is
-// safe to re-run on every load — duplicates are suppressed by the store.
+function stableResId(r: any): string {
+  return String(r.notionId || r.ref || `${r.guest}-${r.checkin}-${r.property}`);
+}
+function stableExpId(e: any): string {
+  return String(e.id || e.notionId || `${e.date || ""}-${e.category || ""}-${e.amount || 0}-${e.property || ""}`);
+}
+
+/**
+ * Emits notifications only for events the current user hasn't already seen.
+ * The first run for a (user, category) pair is silent — we just record what's
+ * there so that pre-existing data doesn't flood the feed when someone signs
+ * in for the first time. Subsequent runs notify on real new events.
+ *
+ * Categories tracked here:
+ *   - reservations_new      → "New reservation"
+ *   - reservations_cancelled → "Reservation cancelled"
+ *   - payouts_paid          → "Payout Sent"
+ *   - expenses_new          → "Expense submitted"
+ *
+ * "New report" comes from documents.ts (per-property document polling).
+ * "New message" comes from the ticket polling effect below.
+ */
 function seedNotifications(reservations: any[], expenses: any[]) {
-  const today = new Date().toISOString().split("T")[0];
+  const byId = new Map<string, any>();
+  for (const r of reservations) byId.set(stableResId(r), r);
 
-  const sorted = [...reservations]
-    .filter((r: any) => r.checkin || r.checkout)
-    .sort((a: any, b: any) => (b.checkout || b.checkin || "").localeCompare(a.checkout || a.checkin || ""))
-    .slice(0, 20);
+  const cancelledIds = reservations.filter((r) => r.status === "Cancelled").map(stableResId);
+  const paidIds = reservations.filter((r) => r.payoutStatus === "Paid").map(stableResId);
+  const allResIds = reservations.map(stableResId);
+  const allExpIds = expenses.map(stableExpId);
 
-  for (const r of sorted) {
-    const baseId = r.notionId || r.ref || `${r.guest}-${r.checkin}-${r.property}`;
-    if (r.status === "Cancelled") {
-      addNotification({
-        type: "reservation",
-        title: "Reservation cancelled",
-        description: `${r.guest} at ${r.property} was cancelled.`,
-        fingerprint: `res:${baseId}:cancelled`,
-      });
-    } else if (r.checkin === today) {
-      addNotification({
-        type: "reservation",
-        title: "Check-in today",
-        description: `${r.guest} is checking in at ${r.property}.`,
-        fingerprint: `res:${baseId}:checkin:${today}`,
-      });
-    } else if (r.checkout === today) {
-      addNotification({
-        type: "reservation",
-        title: "Check-out today",
-        description: `${r.guest} is checking out of ${r.property}.`,
-        fingerprint: `res:${baseId}:checkout:${today}`,
-      });
-    } else if (r.payoutStatus === "Paid") {
-      addNotification({
-        type: "payout",
-        title: "Payout completed",
-        description: `€${(r.ownerPayout || 0).toFixed(2)} paid for ${r.guest} at ${r.property}.`,
-        fingerprint: `pay:${baseId}:paid`,
-      });
-    } else if (r.payoutStatus === "Pending" && r.status === "Completed") {
-      addNotification({
-        type: "payout",
-        title: "Payout pending",
-        description: `€${(r.ownerPayout || 0).toFixed(2)} pending for ${r.guest} at ${r.property}.`,
-        fingerprint: `pay:${baseId}:pending`,
-      });
-    } else if (r.checkin > today) {
-      addNotification({
-        type: "reservation",
-        title: "Upcoming reservation",
-        description: `${r.guest} arriving at ${r.property} on ${r.checkin}.`,
-        fingerprint: `res:${baseId}:upcoming:${r.checkin}`,
-      });
-    } else {
-      addNotification({
-        type: "reservation",
-        title: "Reservation completed",
-        description: `${r.guest} stayed at ${r.property}.`,
-        fingerprint: `res:${baseId}:completed`,
-      });
-    }
+  const cancelledDiff = diffAndMarkSeen("reservations_cancelled", cancelledIds);
+  const paidDiff = diffAndMarkSeen("payouts_paid", paidIds);
+  const newResDiff = diffAndMarkSeen("reservations_new", allResIds);
+  const newExpDiff = diffAndMarkSeen("expenses_new", allExpIds);
+
+  for (const id of cancelledDiff.newIds) {
+    const r = byId.get(id);
+    if (!r) continue;
+    addNotification({
+      type: "reservation",
+      title: "Reservation cancelled",
+      description: `${r.guest} at ${r.property} was cancelled.`,
+      fingerprint: `res:${id}:cancelled`,
+    });
   }
 
-  const recentExp = [...expenses].slice(0, 8);
-  for (const e of recentExp) {
-    const baseId = e.id || e.notionId || `${e.date || ""}-${e.category || ""}-${e.amount || 0}-${e.property || ""}`;
+  for (const id of newResDiff.newIds) {
+    const r = byId.get(id);
+    if (!r || r.status === "Cancelled") continue; // cancellation already covered
+    addNotification({
+      type: "reservation",
+      title: "New reservation",
+      description: `${r.guest} at ${r.property}${r.checkin ? ` from ${r.checkin}` : ""}.`,
+      fingerprint: `res:${id}:new`,
+    });
+  }
+
+  for (const id of paidDiff.newIds) {
+    const r = byId.get(id);
+    if (!r) continue;
+    addNotification({
+      type: "payout",
+      title: "Payout Sent",
+      description: `€${(r.ownerPayout || 0).toFixed(2)} paid for ${r.guest} at ${r.property}.`,
+      fingerprint: `pay:${id}:paid`,
+    });
+  }
+
+  const expById = new Map<string, any>();
+  for (const e of expenses) expById.set(stableExpId(e), e);
+  for (const id of newExpDiff.newIds) {
+    const e = expById.get(id);
+    if (!e) continue;
     addNotification({
       type: "expense",
       title: "Expense submitted",
       description: `${e.category || "Expense"} — €${(e.amount || 0).toFixed(2)} at ${e.property || "a property"}.`,
-      fingerprint: `exp:${baseId}`,
+      fingerprint: `exp:${id}`,
     });
   }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/**
+ * Polls /api/tickets and raises a "New message" notification whenever an
+ * admin reply appears that this user hasn't been told about yet. First run is
+ * silent (so old admin replies don't reappear after a re-login).
+ */
+async function pollTicketReplies() {
+  try {
+    const tickets = await fetchTickets();
+    const adminCommentIds: string[] = [];
+    const lookup = new Map<string, { ticketSubject: string; message: string }>();
+    for (const t of tickets) {
+      for (const c of t.comments || []) {
+        if (c.author !== "Admin") continue;
+        const id = `${t.id}:${c.id}`;
+        adminCommentIds.push(id);
+        lookup.set(id, { ticketSubject: t.subject, message: c.message });
+      }
+    }
+    const diff = diffAndMarkSeen("tickets_admin_replies", adminCommentIds);
+    for (const id of diff.newIds) {
+      const meta = lookup.get(id);
+      if (!meta) continue;
+      const preview = meta.message.length > 80 ? meta.message.slice(0, 80) + "…" : meta.message;
+      addNotification({
+        type: "message",
+        title: "New message",
+        description: `Reply on "${meta.ticketSubject}": ${preview || "Open the ticket to read it."}`,
+        fingerprint: `msg:${id}`,
+      });
+    }
+  } catch { /* network blip — try again next tick */ }
+}
 
 export default function AppShell({ title, children }: { title: string; children: React.ReactNode }) {
   const { fetchData, invalidate } = useData();
@@ -137,6 +177,9 @@ export default function AppShell({ title, children }: { title: string; children:
   useEffect(() => {
     if (!effectiveEmail) return;
     const ownerChanged = setNotificationOwner(effectiveEmail);
+    // Migrate any pre-existing notifications from older app versions
+    // (rename "Payout completed" → "Payout Sent", drop dropped types).
+    pruneObsoleteNotifications();
     if (ownerChanged) {
       // Drop cached responses captured under the previous user's scope so the
       // fresh fetch returns data the new effective user is allowed to see.
@@ -157,6 +200,13 @@ export default function AppShell({ title, children }: { title: string; children:
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       seedNotifications((rr.data as any[]) || [], (er.data as any[]) || []);
     }).catch(() => {});
+
+    // Poll tickets for new admin replies. The first run is silent (handled
+    // inside pollTicketReplies via diffAndMarkSeen) so re-logins don't
+    // resurface old replies.
+    pollTicketReplies();
+    const ticketsTimer = setInterval(pollTicketReplies, 30_000);
+    return () => clearInterval(ticketsTimer);
   }, [effectiveEmail, fetchData, invalidate]);
 
   return (
@@ -189,24 +239,28 @@ export default function AppShell({ title, children }: { title: string; children:
 /*  another user. Only renders when /api/me returns isImpersonating.   */
 /* ------------------------------------------------------------------ */
 function ImpersonationBanner() {
-  const [state, setState] = useState<{ isImpersonating: boolean; email: string; realEmail: string | null } | null>(null);
-  useEffect(() => {
-    fetch("/api/me", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.ok && d.isImpersonating) {
-          setState({ isImpersonating: true, email: d.email, realEmail: d.realEmail });
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  if (!state?.isImpersonating) return null;
+  // Reuse the shared session-cached /api/me payload — fetching here too would
+  // both waste a request and risk drift from the sidebar's view of the world.
+  const { isImpersonating, effectiveEmail, realEmail } = useEffectiveSession();
+  if (!isImpersonating) return null;
 
   const stop = async () => {
     try {
       await fetch("/api/impersonate", { method: "DELETE" });
     } finally {
+      // Prime the cache with the admin's own scope so the post-redirect
+      // first paint already shows the admin nav (Turnovers, Users, Support)
+      // instead of flashing the impersonated owner's view. The user can
+      // only have reached "Stop impersonating" by being a real admin, so
+      // isAdmin: true is safe to assert here.
+      if (realEmail) {
+        primeEffectiveSessionCache({
+          email: realEmail,
+          isAdmin: true,
+          isImpersonating: false,
+          realEmail: null,
+        });
+      }
       window.location.href = "/dashboard";
     }
   };
@@ -218,8 +272,8 @@ function ImpersonationBanner() {
           <circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 00-16 0"/>
         </svg>
         <div className="text-[13px] truncate">
-          Viewing as <span className="font-semibold">{state.email}</span>
-          {state.realEmail && <span className="opacity-80"> · admin: {state.realEmail}</span>}
+          Viewing as <span className="font-semibold">{effectiveEmail}</span>
+          {realEmail && <span className="opacity-80"> · admin: {realEmail}</span>}
         </div>
       </div>
       <button

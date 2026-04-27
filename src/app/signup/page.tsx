@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
+
+// Resend protection: 60-second cooldown between requests + hard cap of 3
+// resends per signup session. The server enforces an equivalent rate limit.
+const RESEND_COOLDOWN_SECS = 60;
+const RESEND_MAX_PER_SESSION = 3;
 
 export default function SignupPage() {
   const [step, setStep] = useState<"form" | "verify">("form");
@@ -12,7 +17,14 @@ export default function SignupPage() {
   const [verifyCode, setVerifyCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // codeSent state removed — step state handles this
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendCount, setResendCount] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +51,9 @@ export default function SignupPage() {
       }
 
       setStep("verify");
+      // A fresh code was just sent — reset the resend budget and start the cooldown.
+      setResendCount(0);
+      setResendCooldown(RESEND_COOLDOWN_SECS);
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -91,6 +106,7 @@ export default function SignupPage() {
   };
 
   const handleResendCode = async () => {
+    if (resendCooldown > 0 || resendCount >= RESEND_MAX_PER_SESSION) return;
     setError("");
     try {
       const res = await fetch("/api/auth/send-code", {
@@ -99,9 +115,18 @@ export default function SignupPage() {
         body: JSON.stringify({ email, name: name.trim(), type: "verify" }),
       });
       const data = await res.json();
-      if (!data.ok) setError(data.error || "Failed to resend");
-      else setError("");
-    } catch { setError("Failed to resend code"); }
+      if (!res.ok || !data.ok) {
+        setError(data.error || "Couldn't send a new code. Please wait and try again.");
+        // Even on a server-side rate-limit (429) start the local cooldown so
+        // the user sees how long to wait.
+        setResendCooldown(RESEND_COOLDOWN_SECS);
+        return;
+      }
+      setResendCount((c) => c + 1);
+      setResendCooldown(RESEND_COOLDOWN_SECS);
+    } catch {
+      setError("Couldn't send a new code. Please try again.");
+    }
   };
 
   const handleGoogleSignup = () => {
@@ -207,7 +232,25 @@ export default function SignupPage() {
 
                 <div className="flex items-center justify-between mt-5">
                   <button onClick={() => { setStep("form"); setError(""); }} className="text-[12px] text-[#888] hover:text-[#555] transition-colors">← Back</button>
-                  <button onClick={handleResendCode} className="text-[12px] text-[#80020E] font-medium hover:underline">Resend code</button>
+                  {(() => {
+                    const limitReached = resendCount >= RESEND_MAX_PER_SESSION;
+                    const waiting = resendCooldown > 0;
+                    const disabled = limitReached || waiting;
+                    const label = limitReached
+                      ? "Resend limit reached"
+                      : waiting
+                        ? `Resend in ${resendCooldown}s`
+                        : "Resend code";
+                    return (
+                      <button
+                        onClick={handleResendCode}
+                        disabled={disabled}
+                        className={`text-[12px] font-medium transition-colors ${disabled ? "text-[#bbb] cursor-not-allowed" : "text-[#80020E] hover:underline"}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })()}
                 </div>
               </>
             )}

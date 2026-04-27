@@ -13,7 +13,7 @@
 
 export interface AppNotification {
   id: string;
-  type: "reservation" | "expense" | "payout" | "property" | "system" | "document";
+  type: "reservation" | "expense" | "payout" | "property" | "system" | "document" | "message";
   title: string;
   description: string;
   timestamp: string;
@@ -27,6 +27,17 @@ export interface AppNotification {
    * Lets us re-seed from the API on every load without spawning duplicates.
    */
   fingerprint?: string;
+}
+
+/** Result of a diffAndMarkSeen call. */
+export interface SeenDiff {
+  /** True if this is the first time we're tracking this category for the
+   *  current owner. Callers should NOT raise notifications on a first run —
+   *  the user has just signed in and we don't want to dump every existing
+   *  reservation / payout / expense into their feed. */
+  firstRun: boolean;
+  /** IDs that are present today but were not in the seen set. Empty on first run. */
+  newIds: string[];
 }
 
 const LEGACY_STORAGE_KEY = "hostyo_notifications";
@@ -79,9 +90,10 @@ function getIcon(type: AppNotification["type"]): string {
   switch (type) {
     case "reservation": return "calendar";
     case "expense": return "receipt";
-    case "payout": return "dollar";
+    case "payout": return "check";
     case "property": return "home";
     case "document": return "file";
+    case "message": return "message";
     case "system": return "info";
     default: return "info";
   }
@@ -171,4 +183,82 @@ export function clearAllNotifications() {
   if (typeof window === "undefined") return;
   persist([]);
   dispatchUpdate();
+}
+
+/**
+ * One-time migration of stored notifications: rename or drop entries from
+ * older app versions so the feed stays in sync with the current set of
+ * notification types. Idempotent — safe to call on every page load.
+ */
+export function pruneObsoleteNotifications() {
+  if (typeof window === "undefined" || currentOwner === ANON_OWNER) return;
+  const notifications = getNotifications();
+
+  // Rename in place so users keep their payout history under the new label.
+  const titleMigrations: Record<string, string> = {
+    "Payout completed": "Payout Sent",
+  };
+  // Drop entirely — these notification types are no longer produced.
+  const obsoleteTitles = new Set<string>([
+    "Payout pending",
+    "Check-in today",
+    "Check-out today",
+    "Upcoming reservation",
+    "Reservation completed",
+    "New document uploaded",
+  ]);
+
+  let changed = false;
+  const next: AppNotification[] = [];
+  for (const n of notifications) {
+    if (obsoleteTitles.has(n.title)) { changed = true; continue; }
+    const renamed = titleMigrations[n.title];
+    if (renamed) { next.push({ ...n, title: renamed }); changed = true; continue; }
+    next.push(n);
+  }
+  if (!changed) return;
+  persist(next);
+  dispatchUpdate();
+}
+
+/**
+ * Tracks which IDs we've already processed for a given category (e.g.
+ * "reservations_new", "tickets_admin_replies") so we can emit notifications
+ * only for genuinely new events without flooding the feed on first sign-in.
+ *
+ * Behaviour:
+ *   - First call ever for a (owner, category) pair returns
+ *     `{ firstRun: true, newIds: [] }` and silently records the current IDs.
+ *   - Subsequent calls return the IDs not present in the previous seen set,
+ *     and update the seen set to the union of past + present.
+ *
+ * Callers should suppress notifications when `firstRun` is true.
+ */
+export function diffAndMarkSeen(category: string, currentIds: string[]): SeenDiff {
+  if (typeof window === "undefined" || currentOwner === ANON_OWNER) {
+    return { firstRun: true, newIds: [] };
+  }
+  const key = `hostyo_notif_seen:${category}:${currentOwner}`;
+  let raw: string | null = null;
+  try { raw = localStorage.getItem(key); } catch { /* ignore */ }
+
+  // raw === null means we have never tracked this category for this user;
+  // raw === "[]" means we tracked it but the set is currently empty.
+  const firstRun = raw === null;
+  const seenIds = new Set<string>(raw ? safeParseArray(raw) : []);
+  const newIds = firstRun ? [] : currentIds.filter((id) => !seenIds.has(id));
+
+  for (const id of currentIds) seenIds.add(id);
+  try {
+    localStorage.setItem(key, JSON.stringify(Array.from(seenIds)));
+  } catch { /* quota — ignore */ }
+
+  return { firstRun, newIds };
+}
+
+function safeParseArray(raw: string): string[] {
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.map(String) : [];
+  } catch { return []; }
 }

@@ -34,8 +34,16 @@ function notifIcon(type: AppNotification["type"]) {
     case "payout":
       return (
         <div className="w-8 h-8 rounded-full bg-[#EAF3EF] flex items-center justify-center flex-shrink-0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2F6B57" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2F6B57" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+      );
+    case "message":
+      return (
+        <div className="w-8 h-8 rounded-full bg-[#EEF1F5] flex items-center justify-center flex-shrink-0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5E6673" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
           </svg>
         </div>
       );
