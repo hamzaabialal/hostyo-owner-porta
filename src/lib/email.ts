@@ -63,7 +63,7 @@ export function verificationEmailHtml(code: string, name: string) {
         <div style="background:#f8f8f8;border-radius:8px;padding:16px;margin-bottom:24px">
           <div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#111;font-family:monospace">${code}</div>
         </div>
-        <p style="font-size:12px;color:#999">This code expires in 10 minutes.</p>
+        <p style="font-size:12px;color:#999">This code expires in 1 minute.</p>
       </div>
       <p style="text-align:center;font-size:11px;color:#bbb;margin-top:20px">HOSTYO LTD · 20 Dimotikis Agoras, Larnaca, Cyprus</p>
     </div>
@@ -82,7 +82,7 @@ export function loginCodeEmailHtml(code: string, name: string) {
         <div style="background:#f8f8f8;border-radius:8px;padding:16px;margin-bottom:24px">
           <div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#111;font-family:monospace">${code}</div>
         </div>
-        <p style="font-size:12px;color:#999">This code expires in 5 minutes. If you didn&apos;t request this, please ignore.</p>
+        <p style="font-size:12px;color:#999">This code expires in 1 minute. If you didn&apos;t request this, please ignore.</p>
       </div>
       <p style="text-align:center;font-size:11px;color:#bbb;margin-top:20px">HOSTYO LTD · 20 Dimotikis Agoras, Larnaca, Cyprus</p>
     </div>
