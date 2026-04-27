@@ -5,7 +5,8 @@ import TopBar from "./TopBar";
 import MobileNav from "./MobileNav";
 import MobileHeader from "./MobileHeader";
 import { useData } from "@/lib/DataContext";
-import { addNotification, getNotifications } from "@/lib/notifications";
+import { addNotification, setNotificationOwner } from "@/lib/notifications";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 
 const PREFETCH_URLS = [
   ["properties", "/api/properties"],
@@ -16,51 +17,88 @@ const PREFETCH_URLS = [
 ];
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// Synthesises notifications from the data the API has already filtered to the
+// effective user. Because every entry carries a stable fingerprint, this is
+// safe to re-run on every load — duplicates are suppressed by the store.
 function seedNotifications(reservations: any[], expenses: any[]) {
-  const existing = getNotifications();
-  if (existing.length > 0) return; // Only seed once
-
   const today = new Date().toISOString().split("T")[0];
 
-  // Generate notifications from recent reservations
   const sorted = [...reservations]
     .filter((r: any) => r.checkin || r.checkout)
     .sort((a: any, b: any) => (b.checkout || b.checkin || "").localeCompare(a.checkout || a.checkin || ""))
-    .slice(0, 15);
+    .slice(0, 20);
 
   for (const r of sorted) {
+    const baseId = r.notionId || r.ref || `${r.guest}-${r.checkin}-${r.property}`;
     if (r.status === "Cancelled") {
-      addNotification({ type: "reservation", title: "Reservation cancelled", description: `${r.guest} at ${r.property} was cancelled.` });
+      addNotification({
+        type: "reservation",
+        title: "Reservation cancelled",
+        description: `${r.guest} at ${r.property} was cancelled.`,
+        fingerprint: `res:${baseId}:cancelled`,
+      });
     } else if (r.checkin === today) {
-      addNotification({ type: "reservation", title: "Check-in today", description: `${r.guest} is checking in at ${r.property}.` });
+      addNotification({
+        type: "reservation",
+        title: "Check-in today",
+        description: `${r.guest} is checking in at ${r.property}.`,
+        fingerprint: `res:${baseId}:checkin:${today}`,
+      });
     } else if (r.checkout === today) {
-      addNotification({ type: "reservation", title: "Check-out today", description: `${r.guest} is checking out of ${r.property}.` });
+      addNotification({
+        type: "reservation",
+        title: "Check-out today",
+        description: `${r.guest} is checking out of ${r.property}.`,
+        fingerprint: `res:${baseId}:checkout:${today}`,
+      });
     } else if (r.payoutStatus === "Paid") {
-      addNotification({ type: "payout", title: "Payout completed", description: `€${(r.ownerPayout || 0).toFixed(2)} paid for ${r.guest} at ${r.property}.` });
+      addNotification({
+        type: "payout",
+        title: "Payout completed",
+        description: `€${(r.ownerPayout || 0).toFixed(2)} paid for ${r.guest} at ${r.property}.`,
+        fingerprint: `pay:${baseId}:paid`,
+      });
     } else if (r.payoutStatus === "Pending" && r.status === "Completed") {
-      addNotification({ type: "payout", title: "Payout pending", description: `€${(r.ownerPayout || 0).toFixed(2)} pending for ${r.guest} at ${r.property}.` });
+      addNotification({
+        type: "payout",
+        title: "Payout pending",
+        description: `€${(r.ownerPayout || 0).toFixed(2)} pending for ${r.guest} at ${r.property}.`,
+        fingerprint: `pay:${baseId}:pending`,
+      });
     } else if (r.checkin > today) {
-      addNotification({ type: "reservation", title: "Upcoming reservation", description: `${r.guest} arriving at ${r.property} on ${r.checkin}.` });
+      addNotification({
+        type: "reservation",
+        title: "Upcoming reservation",
+        description: `${r.guest} arriving at ${r.property} on ${r.checkin}.`,
+        fingerprint: `res:${baseId}:upcoming:${r.checkin}`,
+      });
     } else {
-      addNotification({ type: "reservation", title: "Reservation completed", description: `${r.guest} stayed at ${r.property}.` });
+      addNotification({
+        type: "reservation",
+        title: "Reservation completed",
+        description: `${r.guest} stayed at ${r.property}.`,
+        fingerprint: `res:${baseId}:completed`,
+      });
     }
   }
 
-  // Generate from recent expenses
-  const recentExp = [...expenses].slice(0, 5);
+  const recentExp = [...expenses].slice(0, 8);
   for (const e of recentExp) {
+    const baseId = e.id || e.notionId || `${e.date || ""}-${e.category || ""}-${e.amount || 0}-${e.property || ""}`;
     addNotification({
       type: "expense",
       title: "Expense submitted",
       description: `${e.category || "Expense"} — €${(e.amount || 0).toFixed(2)} at ${e.property || "a property"}.`,
+      fingerprint: `exp:${baseId}`,
     });
   }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default function AppShell({ title, children }: { title: string; children: React.ReactNode }) {
-  const { fetchData } = useData();
-  const seeded = useRef(false);
+  const { fetchData, invalidate } = useData();
+  const { effectiveEmail } = useEffectiveSession();
+  const seededFor = useRef<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("hostyo_sidebar_collapsed") === "true";
@@ -81,30 +119,45 @@ export default function AppShell({ title, children }: { title: string; children:
       fetchData(key, url).catch(() => {});
     });
 
-    // Seed notifications from reservation + expense data
-    if (!seeded.current) {
-      seeded.current = true;
-      Promise.all([
-        fetchData("reservations", "/api/reservations"),
-        fetchData("expenses", "/api/expenses"),
-      ]).then(([resResult, expResult]: unknown[]) => {
-        const rr = resResult as { data?: unknown[] };
-        const er = expResult as { data?: unknown[] };
-        seedNotifications(rr.data || [], er.data || []);
-      }).catch(() => {});
-
-      // Auto-sync balances + deficit adjustments in the background.
-      // Throttled: only runs once per 10-minute window per browser session.
-      const SYNC_KEY = "hostyo_last_auto_sync";
-      const lastSync = Number(sessionStorage.getItem(SYNC_KEY) || "0");
-      const TEN_MINUTES = 10 * 60 * 1000;
-      if (Date.now() - lastSync > TEN_MINUTES) {
-        sessionStorage.setItem(SYNC_KEY, String(Date.now()));
-        fetch("/api/properties/sync-balances", { method: "POST" }).catch(() => {});
-      }
+    // Auto-sync balances + deficit adjustments in the background.
+    // Throttled: only runs once per 10-minute window per browser session.
+    const SYNC_KEY = "hostyo_last_auto_sync";
+    const lastSync = Number(sessionStorage.getItem(SYNC_KEY) || "0");
+    const TEN_MINUTES = 10 * 60 * 1000;
+    if (Date.now() - lastSync > TEN_MINUTES) {
+      sessionStorage.setItem(SYNC_KEY, String(Date.now()));
+      fetch("/api/properties/sync-balances", { method: "POST" }).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Once the effective user is known, route notifications into their bucket
+  // and (re-)seed from scoped API data. Re-runs when impersonation toggles or
+  // a different user signs in on this browser.
+  useEffect(() => {
+    if (!effectiveEmail) return;
+    const ownerChanged = setNotificationOwner(effectiveEmail);
+    if (ownerChanged) {
+      // Drop cached responses captured under the previous user's scope so the
+      // fresh fetch returns data the new effective user is allowed to see.
+      invalidate("reservations");
+      invalidate("expenses");
+      invalidate("payouts");
+      invalidate("properties");
+      invalidate("today");
+    }
+    if (seededFor.current === effectiveEmail) return;
+    seededFor.current = effectiveEmail;
+    Promise.all([
+      fetchData("reservations", "/api/reservations"),
+      fetchData("expenses", "/api/expenses"),
+    ]).then(([resResult, expResult]: unknown[]) => {
+      const rr = resResult as { data?: unknown[] };
+      const er = expResult as { data?: unknown[] };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      seedNotifications((rr.data as any[]) || [], (er.data as any[]) || []);
+    }).catch(() => {});
+  }, [effectiveEmail, fetchData, invalidate]);
 
   return (
     <div className="flex min-h-screen">

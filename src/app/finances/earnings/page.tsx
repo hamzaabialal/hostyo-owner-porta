@@ -523,8 +523,8 @@ export default function FinancesEarningsPage() {
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr className="bg-[#fafafa]">
-                  {["Status", "Guest / Ref", "Channel", "Gross", "Deductions", "Payout", "Expected by"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-[#999] uppercase tracking-wider border-b border-[#eaeaea]">{h}</th>
+                  {["Payout", "Guest / Ref", "Channel", "Gross", "Deductions", "Payout", "Expected by"].map((h, i) => (
+                    <th key={`${h}-${i}`} className="px-4 py-3 text-left text-[11px] font-semibold text-[#999] uppercase tracking-wider border-b border-[#eaeaea]">{h}</th>
                   ))}
                 </tr>
               </thead>

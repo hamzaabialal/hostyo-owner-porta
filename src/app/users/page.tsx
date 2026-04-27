@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 import AppShell from "@/components/AppShell";
 
 interface User {
@@ -27,7 +28,8 @@ export default function UsersPage() {
   const [filterRole, setFilterRole] = useState("");
   const [propertyOptions, setPropertyOptions] = useState<string[]>([]);
 
-  const isAdmin = session?.user?.role === "admin";
+  const { isAdmin } = useEffectiveSession();
+  void session;
 
   useEffect(() => {
     fetch("/api/users").then((r) => r.json()).then((d) => {

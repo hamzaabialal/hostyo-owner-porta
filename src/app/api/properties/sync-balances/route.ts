@@ -13,7 +13,7 @@
  * cron runs.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { syncAllPropertyBalances, syncDeficitAdjustments } from "@/lib/sync-balances";
+import { syncAllPropertyBalances, syncDeficitAdjustments, syncCancelledReservations } from "@/lib/sync-balances";
 import { getUserScope } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
@@ -24,12 +24,13 @@ export async function POST(req: NextRequest) {
   // Only admins can trigger a full sync
   if (!scope.isAdmin) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
 
-  const [balanceResult, deficitResult] = await Promise.all([
+  const [balanceResult, deficitResult, cancelledResult] = await Promise.all([
     syncAllPropertyBalances(),
     syncDeficitAdjustments(),
+    syncCancelledReservations(),
   ]);
   return NextResponse.json(
-    { ...balanceResult, deficit: deficitResult },
+    { ...balanceResult, deficit: deficitResult, cancelled: cancelledResult },
     { status: balanceResult.ok ? 200 : 500 }
   );
 }
@@ -40,12 +41,13 @@ export async function GET(req: Request) {
   if (!process.env.CRON_SECRET || auth !== expected) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
-  const [balanceResult, deficitResult] = await Promise.all([
+  const [balanceResult, deficitResult, cancelledResult] = await Promise.all([
     syncAllPropertyBalances(),
     syncDeficitAdjustments(),
+    syncCancelledReservations(),
   ]);
   return NextResponse.json(
-    { ...balanceResult, deficit: deficitResult },
+    { ...balanceResult, deficit: deficitResult, cancelled: cancelledResult },
     { status: balanceResult.ok ? 200 : 500 }
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 import AppShell from "@/components/AppShell";
 import { fetchTickets, patchTicket, deleteTicketServer, addTicketComment, markTicketRead, type SupportTicket, type TicketAttachment } from "@/lib/tickets";
 
@@ -53,7 +54,8 @@ export default function TicketsPage() {
   // so we preserve the local (optimistic) state until the PATCH resolves.
   const pendingPatchesRef = useRef<Set<string>>(new Set());
 
-  const isAdmin = session?.user?.role === "admin";
+  const { isAdmin } = useEffectiveSession();
+  void session;
 
   const [ticketsLoaded, setTicketsLoaded] = useState(false);
 

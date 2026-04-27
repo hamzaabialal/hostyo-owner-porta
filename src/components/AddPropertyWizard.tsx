@@ -112,25 +112,20 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
 
   return (
     <div className="fixed inset-0 z-[200] bg-[#fdf5f5] overflow-y-auto">
+      {/* Full-width progress bar pinned to the very top */}
+      <div className="sticky top-0 left-0 right-0 h-[3px] bg-[#f1dcdc] z-10">
+        <div
+          className="h-full bg-[#80020E] transition-[width] duration-300 ease-out"
+          style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+        />
+      </div>
+
       {/* Close button */}
-      <button onClick={handleSaveDraft} className="fixed top-4 right-4 z-10 w-10 h-10 rounded-full bg-white border border-[#e2e2e2] flex items-center justify-center text-[#999] hover:text-[#555] shadow-sm transition-colors">
+      <button onClick={handleSaveDraft} className="fixed top-4 right-4 z-20 w-10 h-10 rounded-full bg-white border border-[#e2e2e2] flex items-center justify-center text-[#999] hover:text-[#555] shadow-sm transition-colors">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
 
       <div className="max-w-[560px] mx-auto px-4 py-8 md:py-12">
-        {/* Progress */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-1.5 bg-white border border-[#e2e2e2] rounded-full px-4 py-1.5 text-[12px] font-medium text-[#555] mb-3">
-            Step <span className="text-[#80020E] font-bold">{step + 1}</span> of {STEPS.length}
-          </div>
-          <div className="flex gap-1.5 max-w-[200px] mx-auto mb-2">
-            {STEPS.map((_, i) => (
-              <div key={i} className={`flex-1 h-[3px] rounded-full ${i <= step ? "bg-[#80020E]" : "bg-[#ddd]"}`} />
-            ))}
-          </div>
-          <p className="text-[13px] font-medium text-[#555]">Add property</p>
-        </div>
-
         {error && <div className="mb-4 p-3 bg-[#F6EDED] border border-[#E8D8D8] rounded-xl text-[12px] text-[#7A5252] font-medium text-center">{error}</div>}
 
         {/* Step 1: Property Type */}

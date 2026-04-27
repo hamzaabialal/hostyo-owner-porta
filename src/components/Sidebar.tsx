@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useProfilePicture } from "@/lib/useProfilePicture";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 
 const navItems = [
   { label: "Home", href: "/dashboard", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[18px] h-[18px]"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> },
@@ -29,6 +30,7 @@ const STORAGE_KEY = "hostyo_sidebar_collapsed";
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const effective = useEffectiveSession();
   const financesActive = pathname.startsWith("/finances");
   const [financesOpen, setFinancesOpen] = useState(financesActive);
   const [collapsed, setCollapsed] = useState(() => {
@@ -125,8 +127,7 @@ export default function Sidebar() {
         </button>
         {!collapsed && financesOpen && (
           <div className="ml-[30px] border-l border-[#eaeaea] pl-2 mb-1">
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {(((session?.user as any)?.role === "admin" ? financesSubNavAdmin : financesSubNavBase)).map((sub) => {
+            {(effective.isAdmin ? financesSubNavAdmin : financesSubNavBase).map((sub) => {
               const active = isFinancesSubActive(sub.href);
               return (
                 <Link key={sub.href} href={sub.href}
@@ -141,8 +142,7 @@ export default function Sidebar() {
         )}
 
         {/* Admin-only nav items */}
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {(session?.user as any)?.role === "admin" && (() => {
+        {effective.isAdmin && (() => {
           const usersActive = pathname.startsWith("/users");
           const ticketsActive = pathname.startsWith("/tickets");
           const turnoversActive = pathname.startsWith("/turnovers");
