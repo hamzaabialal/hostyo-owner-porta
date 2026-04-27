@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { useEffectiveSession } from "@/lib/useEffectiveSession";
+import { primeEffectiveSessionCache, useEffectiveSession } from "@/lib/useEffectiveSession";
 import AppShell from "@/components/AppShell";
 
 interface User {
@@ -180,6 +180,18 @@ export default function UsersPage() {
                             alert(data.error || `Failed (HTTP ${res.status})`);
                             return;
                           }
+                          // Prime the cache with the impersonated scope so
+                          // the post-redirect page renders the right UI on
+                          // its first paint (no admin-nav flicker). The
+                          // server enforces "impersonated user is never an
+                          // admin" so isAdmin: false is always correct here.
+                          const adminEmail = (session?.user?.email || "").toLowerCase() || null;
+                          primeEffectiveSessionCache({
+                            email: u.email.toLowerCase(),
+                            isAdmin: false,
+                            isImpersonating: true,
+                            realEmail: adminEmail,
+                          });
                           // Force a full reload so server-rendered data reflects the new scope
                           window.location.href = "/dashboard";
                         }}

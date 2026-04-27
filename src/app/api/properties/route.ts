@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
   try {
     const scope = await getUserScope(request);
     if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    if (!scope.isAdmin) return NextResponse.json({ error: "Forbidden — only admins can create properties" }, { status: 403 });
+    if (!scope.isAdmin) return NextResponse.json({ error: "Only admins can create properties" }, { status: 403 });
 
     const body = await request.json();
 

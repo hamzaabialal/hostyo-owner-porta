@@ -57,13 +57,23 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  // The address picker raises this when the user dismisses the
+  // "we don't recognize that address" warning. Lifted up so the wizard can
+  // gate Continue/Submit on it without re-implementing the validation.
+  const [addressManuallyConfirmed, setAddressManuallyConfirmed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const update = (partial: Partial<WizardData>) => setData((d) => ({ ...d, ...partial }));
 
+  const isAddressVerified = () => {
+    if (!data.address.trim()) return true; // empty address → not blocking here
+    return data.lat != null || addressManuallyConfirmed;
+  };
+
   const canNext = () => {
     if (step === 0) return !!data.propertyType;
     if (step === 1) return data.bedrooms > 0 && data.bathrooms > 0 && data.maxGuests > 0;
+    if (step === 3) return isAddressVerified();
     return true;
   };
 
@@ -97,6 +107,7 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
 
   const handleSubmit = async () => {
     if (!data.name?.trim()) { setError("Property name is required"); return; }
+    if (!isAddressVerified()) { setError("Please confirm the address — pick a suggestion from the dropdown or confirm it manually."); return; }
     setError(""); setSubmitting(true);
     try {
       const res = await fetch("/api/properties", {
@@ -231,6 +242,8 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
               <AddressLocationPicker
                 value={{ address: data.address, city: data.city, postcode: data.postcode, country: data.country, lat: data.lat, lng: data.lng }}
                 onChange={(v) => update(v)}
+                confirmedManual={addressManuallyConfirmed}
+                onConfirmedManualChange={setAddressManuallyConfirmed}
               />
             </div>
           </div>

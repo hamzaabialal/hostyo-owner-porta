@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+
+// Resend protection: 60-second cooldown between requests + hard cap of 3
+// resends per 2FA session. The server also enforces a 60-second window, but
+// surfacing it in the UI prevents accidental hammering and gives the user a
+// clear countdown.
+const RESEND_COOLDOWN_SECS = 60;
+const RESEND_MAX_PER_SESSION = 3;
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -17,6 +24,14 @@ function LoginForm() {
     error === "CredentialsSignin" ? "Invalid email or password" :
     error === "PENDING_APPROVAL" ? "Your account is pending admin approval." : ""
   );
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendCount, setResendCount] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
 
   const handleCredentialLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +75,9 @@ function LoginForm() {
       }
 
       setStep("2fa");
+      // A fresh code was just sent — reset the resend budget and start the cooldown.
+      setResendCount(0);
+      setResendCooldown(RESEND_COOLDOWN_SECS);
     } catch {
       setLoginError("Something went wrong. Please try again.");
     } finally {
@@ -97,14 +115,27 @@ function LoginForm() {
   };
 
   const handleResendCode = async () => {
+    if (resendCooldown > 0 || resendCount >= RESEND_MAX_PER_SESSION) return;
     setLoginError("");
     try {
-      await fetch("/api/auth/send-code", {
+      const res = await fetch("/api/auth/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, name: userName, type: "login" }),
       });
-    } catch { /* ignore */ }
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setLoginError(data.error || "Couldn't send a new code. Please wait and try again.");
+        // Even on a server-side rate-limit (429) we want to start the local
+        // cooldown so the user sees how long to wait.
+        setResendCooldown(RESEND_COOLDOWN_SECS);
+        return;
+      }
+      setResendCount((c) => c + 1);
+      setResendCooldown(RESEND_COOLDOWN_SECS);
+    } catch {
+      setLoginError("Couldn't send a new code. Please try again.");
+    }
   };
 
   const handleGoogleLogin = () => {
@@ -206,7 +237,25 @@ function LoginForm() {
 
                 <div className="flex items-center justify-between mt-5">
                   <button onClick={() => { setStep("credentials"); setLoginError(""); setVerifyCode(""); }} className="text-[12px] text-[#888] hover:text-[#555] transition-colors">← Back</button>
-                  <button onClick={handleResendCode} className="text-[12px] text-[#80020E] font-medium hover:underline">Resend code</button>
+                  {(() => {
+                    const limitReached = resendCount >= RESEND_MAX_PER_SESSION;
+                    const waiting = resendCooldown > 0;
+                    const disabled = limitReached || waiting;
+                    const label = limitReached
+                      ? "Resend limit reached"
+                      : waiting
+                        ? `Resend in ${resendCooldown}s`
+                        : "Resend code";
+                    return (
+                      <button
+                        onClick={handleResendCode}
+                        disabled={disabled}
+                        className={`text-[12px] font-medium transition-colors ${disabled ? "text-[#bbb] cursor-not-allowed" : "text-[#80020E] hover:underline"}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })()}
                 </div>
               </>
             )}
