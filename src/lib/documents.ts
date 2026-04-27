@@ -68,12 +68,13 @@ export async function fetchDocuments(propertyId: string, propertyName?: string):
 
 /**
  * Compares fetched documents to the last-seen timestamp and raises a
- * "New report" notification for any new admin-uploaded report.
+ * "New report" notification for every new admin upload to this property.
  *
- * Only `type === "report"` documents trigger notifications — these are the
- * monthly statements owners actually want to know about. Other admin
- * uploads (contracts, etc.) are still surfaced inside the property's
- * Documents tab but don't produce a notification by themselves.
+ * In this app the admin-uploaded PDFs are the monthly statements/reports
+ * owners actually want pinged about — there isn't a separate "report" type
+ * in the upload UI (the Reports section on the property page is rendered
+ * client-side from expense data, not stored as documents). So we treat any
+ * admin-uploaded document as report-worthy.
  */
 function detectNewDocuments(propertyId: string, propertyName: string, docs: PropertyDocument[]) {
   if (typeof window === "undefined" || !propertyId) return;
@@ -85,7 +86,7 @@ function detectNewDocuments(propertyId: string, propertyName: string, docs: Prop
   }
   if (!lastSeen) return;
 
-  const newReports = docs.filter((d) => d.source === "Admin" && d.type === "report" && d.createdAt > lastSeen);
+  const newReports = docs.filter((d) => d.source === "Admin" && d.createdAt > lastSeen);
   // Always advance the cursor to the newest doc's timestamp so we don't keep
   // re-checking older docs even if none were notification-worthy this round.
   if (docs.length > 0) setLastSeen(propertyId, docs[0].createdAt);
