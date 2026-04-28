@@ -122,14 +122,20 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
   };
 
   return (
-    <div className="fixed inset-0 z-[200] bg-[#fdf5f5] overflow-y-auto">
+    // Vertical flex column so the form scrolls inside its own region and the
+    // footer is a sibling below it. With this layout, content can never end
+    // up underneath the Back/Next bar — the bar is part of the document flow,
+    // not a fixed overlay.
+    <div className="fixed inset-0 z-[200] bg-[#fdf5f5] flex flex-col">
       {/* Close button */}
-      <button onClick={handleSaveDraft} className="fixed top-4 right-4 z-20 w-10 h-10 rounded-full bg-white border border-[#e2e2e2] flex items-center justify-center text-[#999] hover:text-[#555] shadow-sm transition-colors">
+      <button onClick={handleSaveDraft} className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white border border-[#e2e2e2] flex items-center justify-center text-[#999] hover:text-[#555] shadow-sm transition-colors">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
 
-      {/* Bottom padding leaves room for the fixed footer (progress bar + Back/Next). */}
-      <div className="max-w-[560px] mx-auto px-4 py-8 md:py-12 pb-[160px]">
+      {/* Scrollable form area — takes whatever vertical space remains after
+          the footer. */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="max-w-[560px] mx-auto px-4 py-8 md:py-12">
         {error && <div className="mb-4 p-3 bg-[#F6EDED] border border-[#E8D8D8] rounded-xl text-[12px] text-[#7A5252] font-medium text-center">{error}</div>}
 
         {/* Step 1: Property Type */}
@@ -243,10 +249,11 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
         )}
 
       </div>
+      </div>
 
-      {/* Fixed footer: four segmented progress bars + Back / Next, pinned
-          to the bottom of the viewport on both desktop and mobile. */}
-      <div className="fixed bottom-0 left-0 right-0 z-10 bg-[#fdf5f5] border-t border-[#f0e6e6]">
+      {/* Footer: four segmented progress bars + Back / Next, sitting BELOW
+          the scrollable form area as a flex sibling — never overlaps content. */}
+      <div className="flex-shrink-0 bg-[#fdf5f5] border-t border-[#f0e6e6]">
         <div className="max-w-[560px] mx-auto px-4 pt-3 pb-3">
           {/* Step indicator: one filled bar per step completed */}
           <div className="flex gap-1.5 mb-3 max-w-[160px]">

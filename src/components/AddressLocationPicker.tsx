@@ -424,12 +424,7 @@ export default function AddressLocationPicker({ value, onChange, confirmedManual
           <div
             ref={mapDivRef}
             className="rounded-xl border border-[#e2e2e2] overflow-hidden"
-            // Fixed 220px on tall viewports, but shrinks on short ones so the
-            // map never overlaps the wizard's bottom Back / Next bar. The
-            // 360px subtraction reserves room for the wizard footer (~95px),
-            // the address+city/postcode/country fields above the map (~210px)
-            // and a small safety margin.
-            style={{ height: "min(220px, calc(100vh - 360px))", minHeight: "160px" }}
+            style={{ height: "260px" }}
           />
         </div>
       )}
