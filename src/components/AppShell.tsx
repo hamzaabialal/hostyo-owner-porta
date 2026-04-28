@@ -254,8 +254,13 @@ function ImpersonationBanner() {
       // only have reached "Stop impersonating" by being a real admin, so
       // isAdmin: true is safe to assert here.
       if (realEmail) {
+        // Empty name/picture so the next /api/me fetch refreshes the admin's
+        // own identity. We don't carry it here because the banner only knew
+        // the impersonated user's, not the admin's.
         primeEffectiveSessionCache({
           email: realEmail,
+          name: "",
+          profilePicture: "",
           isAdmin: true,
           isImpersonating: false,
           realEmail: null,

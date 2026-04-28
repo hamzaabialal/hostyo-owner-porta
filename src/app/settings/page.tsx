@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import AppShell from "@/components/AppShell";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 
 /* ------------------------------------------------------------------ */
 /*  Country codes                                                      */
@@ -211,6 +212,9 @@ type TabKey = (typeof TABS)[number]["key"];
 /* ------------------------------------------------------------------ */
 export default function SettingsPage() {
   const { data: session } = useSession();
+  // Effective session — drives profile fetches so an admin impersonating an
+  // owner sees the OWNER's profile here, not their own admin profile.
+  const { effectiveEmail } = useEffectiveSession();
   const [activeTab, setActiveTab] = useState<TabKey>("profile");
 
   /* ---- toast ---- */
@@ -261,17 +265,19 @@ export default function SettingsPage() {
     setPhone(raw);
   };
 
-  // Fetch profile from Notion once session is available
-  const [profileFetched, setProfileFetched] = useState(false);
+  // Fetch profile whenever the effective user changes (sign-in, impersonation
+  // start/stop). The /api/profile endpoint reads the effective scope from the
+  // session cookie, so we don't have to pass an email — it always returns the
+  // *currently viewed* user's profile.
   useEffect(() => {
-    if (profileFetched) return;
-    const sessionEmail = session?.user?.email;
-    if (!sessionEmail) return;
-    setProfileFetched(true);
+    if (!effectiveEmail) return;
+    let cancelled = false;
+    setProfileLoading(true);
 
-    fetch(`/api/profile?email=${encodeURIComponent(sessionEmail)}`)
+    fetch(`/api/profile`)
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return;
         if (data.ok && data.profile) {
           const p = data.profile;
           setFullName(p.fullName || "");
@@ -283,19 +289,27 @@ export default function SettingsPage() {
           setPayoutMethod(p.payoutMethod || "Bank Transfer");
           setLegalName(p.legalName || "");
           setBillingAddress(p.billingAddress || "");
-          if (p.profilePicture) setProfilePicture(p.profilePicture);
+          setProfilePicture(p.profilePicture || "");
         } else {
-          setFullName(session.user?.name || "");
-          setEmail(sessionEmail);
+          // Fall back to the JWT session display only when /api/profile fails;
+          // during impersonation that's still the admin's name, but it's the
+          // safest non-empty value we have.
+          setFullName(session?.user?.name || "");
+          setEmail(effectiveEmail);
+          setProfilePicture("");
         }
       })
       .catch(() => {
-        setFullName(session.user?.name || "");
-        setEmail(sessionEmail);
+        if (cancelled) return;
+        setFullName(session?.user?.name || "");
+        setEmail(effectiveEmail);
+        setProfilePicture("");
       })
-      .finally(() => setProfileLoading(false));
+      .finally(() => { if (!cancelled) setProfileLoading(false); });
+
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, profileFetched]);
+  }, [effectiveEmail]);
 
   const [uploadingPicture, setUploadingPicture] = useState(false);
 
@@ -683,6 +697,23 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+
+        {/* Sign out — visible on every tab. The desktop sidebar already has its
+            own log-out control, so this is shown only on mobile. */}
+        <div className="md:hidden mt-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm("Log out of Hostyo?")) signOut({ callbackUrl: "/login" });
+            }}
+            className="w-full flex items-center justify-center gap-2 h-[44px] rounded-xl border border-[#e2e2e2] text-[14px] font-semibold text-[#80020E] hover:bg-[#80020E]/[0.04] transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Log out
+          </button>
+        </div>
       </div>
 
       {/* Password change panel */}

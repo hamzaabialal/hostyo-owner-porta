@@ -36,6 +36,20 @@ function daysBetween(a: string, b: string) {
   return Math.ceil((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);
 }
 
+/**
+ * Property names come from two independent Notion fields (the property's own
+ * Name title and each reservation's Property text), so they often differ by
+ * case or trailing whitespace. Without normalisation, "Chic City Centre Stay
+ * Whatever" and "Chic City Centre Stay Whatever " become two separate rows in
+ * the calendar — same property, ghost duplicate.
+ *
+ * We collapse them by normalising on `trim().toLowerCase()` and use the
+ * first-seen original spelling as the canonical display value.
+ */
+function normalizePropertyKey(name: string | null | undefined): string {
+  return (name || "").trim().toLowerCase();
+}
+
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -225,18 +239,48 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
   const rangeStart = dayCols[0].str;
   const rangeEnd = dayCols[DAYS - 1].str;
 
-  const allProps = useMemo(() => Array.from(new Set(reservations.map((r) => r.property))).sort(), [reservations]);
+  // Canonicalise property names: build one display name per normalised key.
+  // The first observed spelling wins, and every reservation that resolves to
+  // the same key contributes to the same row — eliminating the duplicate
+  // rows that arise from minor casing/whitespace differences in the source data.
+  const { allProps, canonicalByKey } = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const r of reservations) {
+      const original = (r.property || "").trim();
+      if (!original) continue;
+      const key = normalizePropertyKey(original);
+      if (!byKey.has(key)) byKey.set(key, original);
+    }
+    return {
+      allProps: Array.from(byKey.values()).sort((a, b) => a.localeCompare(b)),
+      canonicalByKey: byKey,
+    };
+  }, [reservations]);
+
+  // Image lookup tolerant of the same casing/whitespace drift — a reservation's
+  // property name may not exactly match the property record's title.
+  const propertyImagesNormalized = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (!propertyImages) return map;
+    for (const [name, url] of Object.entries(propertyImages)) {
+      map[normalizePropertyKey(name)] = url;
+    }
+    return map;
+  }, [propertyImages]);
 
   const resMap = useMemo(() => {
     const map: Record<string, CalendarReservation[]> = {};
     for (const r of reservations) {
       if (!r.checkIn || !r.checkOut || r.status === "Cancelled") continue;
       if (r.checkIn > rangeEnd || r.checkOut <= rangeStart) continue;
-      if (!map[r.property]) map[r.property] = [];
-      map[r.property].push(r);
+      const original = (r.property || "").trim();
+      if (!original) continue;
+      const canonical = canonicalByKey.get(normalizePropertyKey(original)) || original;
+      if (!map[canonical]) map[canonical] = [];
+      map[canonical].push(r);
     }
     return map;
-  }, [reservations, rangeStart, rangeEnd]);
+  }, [reservations, rangeStart, rangeEnd, canonicalByKey]);
 
   return (
     <div className="border border-[#eaeaea] rounded-xl bg-white flex flex-col" style={{ height: "calc(100vh - 200px)", minHeight: "400px", overflow: "hidden" }}>
@@ -304,7 +348,9 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
           </div>
           <div ref={propScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar">
             {allProps.map((prop) => {
-              const img = propertyImages?.[prop];
+              // Look up the image by normalised key so trivial spelling drift
+              // between the reservation feed and the properties feed still resolves.
+              const img = propertyImagesNormalized[normalizePropertyKey(prop)];
               return (
                 <button key={prop} onClick={() => onPropertyTap?.(prop)}
                   className="w-full px-2.5 flex items-center gap-2 border-b border-[#f0f0f0] text-left hover:bg-[#f5f5f5] transition-colors cursor-pointer"

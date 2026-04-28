@@ -29,6 +29,8 @@ import { useSession } from "next-auth/react";
 interface MePayload {
   ok: boolean;
   email: string;
+  name?: string;
+  profilePicture?: string;
   isAdmin: boolean;
   isImpersonating: boolean;
   realEmail: string | null;
@@ -41,6 +43,10 @@ export interface EffectiveSession {
   isImpersonating: boolean;
   /** The currently-displayed user's email (impersonated user when impersonating). */
   effectiveEmail: string | null;
+  /** The currently-displayed user's full name (Notion "Full Name"). Empty until /api/me resolves. */
+  effectiveName: string;
+  /** The currently-displayed user's profile picture URL. Empty until /api/me resolves. */
+  effectivePicture: string;
   /** The real authenticated admin's email (when impersonating). */
   realEmail: string | null;
   /** True until the first /api/me call has resolved. UI should treat unknown gates conservatively. */
@@ -88,9 +94,16 @@ export function clearEffectiveSessionCache() {
  * Prime the cache with a known scope so the next mount renders the correct
  * UI without a "loading" flash. Used right before a hard navigation triggered
  * by impersonation start/stop, where we already know what /api/me will say.
+ *
+ * `name` is optional: callers that have it (e.g. the start-impersonation flow
+ * which receives the target's name in the API response) can include it for an
+ * even smoother first paint. Otherwise it's left empty and the next /api/me
+ * fetch fills it in.
  */
 export function primeEffectiveSessionCache(payload: {
   email: string;
+  name?: string;
+  profilePicture?: string;
   isAdmin: boolean;
   isImpersonating: boolean;
   realEmail: string | null;
@@ -117,7 +130,15 @@ export function useEffectiveSession(): EffectiveSession {
           // Avoid an unnecessary re-render if the payload is identical to the
           // value we hydrated from the cache.
           setMe((prev) => {
-            if (prev && prev.email === d.email && prev.isAdmin === d.isAdmin && prev.isImpersonating === d.isImpersonating && prev.realEmail === d.realEmail) {
+            if (
+              prev &&
+              prev.email === d.email &&
+              prev.name === d.name &&
+              prev.profilePicture === d.profilePicture &&
+              prev.isAdmin === d.isAdmin &&
+              prev.isImpersonating === d.isImpersonating &&
+              prev.realEmail === d.realEmail
+            ) {
               return prev;
             }
             return d;
@@ -139,6 +160,8 @@ export function useEffectiveSession(): EffectiveSession {
       isAdmin: me.isAdmin,
       isImpersonating: me.isImpersonating,
       effectiveEmail: me.email,
+      effectiveName: me.name || "",
+      effectivePicture: me.profilePicture || "",
       realEmail: me.realEmail,
       loading: false,
     };
@@ -151,6 +174,8 @@ export function useEffectiveSession(): EffectiveSession {
     isAdmin: false,
     isImpersonating: false,
     effectiveEmail: session?.user?.email || null,
+    effectiveName: session?.user?.name || "",
+    effectivePicture: session?.user?.image || "",
     realEmail: null,
     loading,
   };

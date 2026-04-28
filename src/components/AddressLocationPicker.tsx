@@ -274,40 +274,46 @@ export default function AddressLocationPicker({ value, onChange, confirmedManual
       </div>
 
       {showUnrecognized && (
-        <div className="flex items-start gap-3 px-4 py-3 bg-white border border-[#eaeaea] rounded-xl shadow-sm">
-          <div className="w-7 h-7 rounded-full bg-[#80020E] flex items-center justify-center flex-shrink-0 mt-0.5">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold text-[#111] leading-tight">We don&apos;t recognize that address</div>
-            <p className="text-[12px] text-[#777] mt-0.5 mb-2.5">Are you sure that it&apos;s correct?</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => inputRef.current?.focus()}
-                className="h-[32px] px-3 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#333] hover:border-[#999] transition-colors"
-              >
-                No, edit the address
-              </button>
-              <button
-                type="button"
-                onClick={() => onConfirmedManualChange(true)}
-                className="h-[32px] px-3 rounded-lg border border-[#80020E] text-[12px] font-medium text-[#80020E] hover:bg-[#80020E]/5 transition-colors"
-              >
-                Yes, my address is correct
-              </button>
+        // Floating toast pinned to the top of the viewport so the warning
+        // stays in view even when the suggestions list / Next button are
+        // far away on a long form. z-[350] keeps it above the wizard's own
+        // sticky/fixed elements but below modal overlays (z-[400]).
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-[640px] z-[350]">
+          <div className="flex items-start gap-3 px-4 py-3 bg-white border border-[#eaeaea] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+            <div className="w-7 h-7 rounded-full bg-[#80020E] flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
             </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold text-[#111] leading-tight">We don&apos;t recognize that address</div>
+              <p className="text-[12px] text-[#777] mt-0.5 mb-2.5">Are you sure that it&apos;s correct?</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => inputRef.current?.focus()}
+                  className="h-[32px] px-3 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#333] hover:border-[#999] transition-colors"
+                >
+                  No, edit the address
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onConfirmedManualChange(true)}
+                  className="h-[32px] px-3 rounded-lg border border-[#80020E] text-[12px] font-medium text-[#80020E] hover:bg-[#80020E]/5 transition-colors"
+                >
+                  Yes, my address is correct
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onConfirmedManualChange(true)}
+              aria-label="Dismiss"
+              className="text-[#999] hover:text-[#555] transition-colors flex-shrink-0 mt-0.5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => onConfirmedManualChange(true)}
-            aria-label="Dismiss"
-            className="text-[#999] hover:text-[#555] transition-colors flex-shrink-0 mt-0.5"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
         </div>
       )}
 
