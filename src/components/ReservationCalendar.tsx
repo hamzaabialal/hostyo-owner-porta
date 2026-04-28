@@ -333,9 +333,12 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
           // entry currently pointing to the loser.
           const winner = canonA.length >= canonB.length ? canonA : canonB;
           const loser = winner === canonA ? canonB : canonA;
-          for (const [k, v] of canonicalKeyByKey) {
+          // Use Map.forEach instead of `for...of` because the project's TS
+          // target doesn't enable downlevelIteration — direct iteration over
+          // a Map is a build-time error there.
+          canonicalKeyByKey.forEach((v, k) => {
             if (v === loser) canonicalKeyByKey.set(k, winner);
-          }
+          });
           changed = true;
         }
       }
@@ -343,13 +346,13 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
 
     // Step 3 — collect display names for canonical keys (longest spelling wins).
     const canonicalDisplay = new Map<string, string>();
-    for (const [origKey, canonKey] of canonicalKeyByKey) {
+    canonicalKeyByKey.forEach((canonKey, origKey) => {
       const candidate = firstSeen.get(origKey) || origKey;
       const current = canonicalDisplay.get(canonKey);
       if (!current || candidate.length > current.length) {
         canonicalDisplay.set(canonKey, candidate);
       }
-    }
+    });
 
     return {
       allProps: Array.from(canonicalDisplay.values()).sort((a, b) => a.localeCompare(b)),
