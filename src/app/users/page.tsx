@@ -188,6 +188,12 @@ export default function UsersPage() {
                           const adminEmail = (session?.user?.email || "").toLowerCase() || null;
                           primeEffectiveSessionCache({
                             email: u.email.toLowerCase(),
+                            // Prime the impersonated user's display name from the row
+                            // we already have. The next /api/me will fill in the
+                            // profile picture; in the meantime the avatar falls back
+                            // to initials so the UI never shows the admin's face.
+                            name: u.name || "",
+                            profilePicture: "",
                             isAdmin: false,
                             isImpersonating: true,
                             realEmail: adminEmail,

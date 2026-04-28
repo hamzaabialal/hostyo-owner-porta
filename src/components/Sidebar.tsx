@@ -48,8 +48,12 @@ export default function Sidebar() {
     window.dispatchEvent(new CustomEvent("hostyo:sidebar", { detail: next }));
   };
 
-  const userName = session?.user?.name || "User";
-  const userEmail = session?.user?.email || "";
+  // Show the *effective* identity — that's the impersonated user during
+  // impersonation, the admin's own name otherwise. Falling back to the JWT
+  // session is fine for the brief loading window before /api/me resolves
+  // since both refer to the same user when no impersonation is active.
+  const userName = effective.effectiveName || session?.user?.name || "User";
+  const userEmail = effective.effectiveEmail || session?.user?.email || "";
   const userImage = useProfilePicture();
   const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 

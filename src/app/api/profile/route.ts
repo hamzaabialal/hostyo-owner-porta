@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { Client } from "@notionhq/client";
 import { createHash } from "crypto";
+import { getUserScope } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -28,20 +28,31 @@ function getProp(page: any, name: string): any {
   }
 }
 
-async function getEmailFromRequest(req: NextRequest): Promise<string | null> {
-  try {
-    const token = await getToken({ req, secret: SECRET });
-    if (token?.email) return token.email as string;
-  } catch (e) {
-    console.log("[profile] getToken failed:", e);
-  }
+/**
+ * Resolves whose profile this request should load/edit.
+ *
+ * Always uses {@link getUserScope}, which already factors in the
+ * `hostyo-impersonate` cookie — so when an admin is impersonating an owner,
+ * we return the *impersonated* user's profile, not the admin's. That's the
+ * whole point of impersonation: the UI must reflect the impersonated
+ * experience end-to-end.
+ *
+ * The `?email=` query parameter is honoured as a fallback only when the
+ * caller is an admin and not currently impersonating (e.g. the admin Users
+ * page peeking at someone's profile). It's deliberately ignored otherwise
+ * so an owner can't escalate to read someone else's data.
+ */
+async function resolveProfileEmail(req: NextRequest): Promise<string | null> {
+  const scope = await getUserScope(req);
+  if (!scope) return null;
 
-  // Fallback for settings page — read from query param only if authenticated via middleware
   const url = new URL(req.url);
-  const emailParam = url.searchParams.get("email");
-  if (emailParam) return emailParam;
+  const emailParam = url.searchParams.get("email")?.toLowerCase().trim();
 
-  return null;
+  if (scope.isAdmin && !scope.isImpersonating && emailParam) {
+    return emailParam;
+  }
+  return scope.email;
 }
 
 async function findUserPage(email: string) {
@@ -57,8 +68,7 @@ async function findUserPage(email: string) {
 /* ── GET: Fetch profile ── */
 export async function GET(req: NextRequest) {
   try {
-    const email = await getEmailFromRequest(req);
-    console.log("[profile GET] email:", email, "| USERS_DB set:", !!USERS_DB);
+    const email = await resolveProfileEmail(req);
     if (!email) {
       return NextResponse.json({ ok: false, error: "Not authenticated - no email found" }, { status: 401 });
     }
@@ -94,20 +104,10 @@ export async function GET(req: NextRequest) {
 /* ── PATCH: Update profile ── */
 export async function PATCH(req: NextRequest) {
   try {
-    // Clone request for token check before reading body
-    const email = await (async () => {
-      try {
-        const token = await getToken({ req, secret: SECRET });
-        if (token?.email) return token.email as string;
-      } catch { /* fallback below */ }
-      return null;
-    })();
-
+    // Use scope so PATCH writes to the impersonated user's profile when an
+    // admin is impersonating, matching the GET behaviour.
+    const userEmail = await resolveProfileEmail(req);
     const body = await req.json();
-
-    // Use email from token, or from body as fallback
-    const userEmail = email || body.email;
-    console.log("[profile PATCH] email:", userEmail);
 
     if (!userEmail) {
       return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });

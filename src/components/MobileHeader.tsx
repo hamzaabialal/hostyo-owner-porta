@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { getNotifications, markAllRead, markAsRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 
 function stopPropagation(ev: { stopPropagation: () => void }): void {
   ev.stopPropagation();
@@ -37,6 +38,8 @@ function notifIcon(type: AppNotification["type"]) {
 }
 
 export default function MobileHeader({ title }: { title: string }) {
+  const router = useRouter();
+  const { isAdmin } = useEffectiveSession();
   const [notifOpen, setNotifOpen] = useState(false);
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -78,19 +81,19 @@ export default function MobileHeader({ title }: { title: string }) {
               <span className="absolute top-1 right-1 w-2 h-2 bg-[#80020E] rounded-full ring-[1.5px] ring-white" />
             )}
           </button>
-          {/* Log out */}
-          <button
-            onClick={() => {
-              if (confirm("Log out of Hostyo?")) signOut({ callbackUrl: "/login" });
-            }}
-            title="Log out"
-            aria-label="Log out"
-            className="w-8 h-8 flex items-center justify-center text-[#888] hover:text-[#80020E] transition-colors"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-          </button>
+          {/* Add Property — admin only. Logout moved to Settings page. */}
+          {isAdmin && (
+            <button
+              onClick={() => router.push("/properties?add=1")}
+              title="Add property"
+              aria-label="Add property"
+              className="ml-1 w-8 h-8 rounded-full bg-[#80020E] flex items-center justify-center text-white hover:bg-[#6b010c] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+          )}
         </div>
       </header>
 

@@ -9,6 +9,7 @@ import ChannelBadge from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
 import { fetchDocuments, addDocument, removeDocument, formatFileSize, type PropertyDocument } from "@/lib/documents";
 import { reconcileProperty } from "@/lib/reconcile";
+import { openPrintPreview } from "@/lib/printPreview";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -975,17 +976,7 @@ export default function PropertyDetailPage() {
             </div>
             ${cards}
           </body></html>`;
-          const w = window.open("", "_blank");
-          if (w) {
-            w.document.write(html); w.document.close();
-            const imgs = w.document.querySelectorAll("img");
-            if (imgs.length > 0) {
-              let loaded = 0;
-              const checkPrint = () => { loaded++; if (loaded >= imgs.length) setTimeout(() => w.print(), 300); };
-              imgs.forEach((img: HTMLImageElement) => { if (img.complete) checkPrint(); else { img.onload = checkPrint; img.onerror = checkPrint; } });
-              setTimeout(() => w.print(), 5000);
-            } else { w.print(); }
-          }
+          openPrintPreview(html, `Expense Report — ${monthName}`);
         };
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1146,17 +1137,7 @@ export default function PropertyDetailPage() {
               Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · HOSTYO LTD
             </div>
           </body></html>`;
-          const w = window.open("", "_blank");
-          if (w) {
-            w.document.write(html); w.document.close();
-            const imgs = w.document.querySelectorAll("img");
-            if (imgs.length > 0) {
-              let loaded = 0;
-              const checkPrint = () => { loaded++; if (loaded >= imgs.length) setTimeout(() => w.print(), 300); };
-              imgs.forEach((img: HTMLImageElement) => { if (img.complete) checkPrint(); else { img.onload = checkPrint; img.onerror = checkPrint; } });
-              setTimeout(() => w.print(), 5000);
-            } else { w.print(); }
-          }
+          openPrintPreview(html, `Owner Statement — ${property.name} · ${monthName}`);
         };
 
         const handleUpload = async (files: FileList | null) => {

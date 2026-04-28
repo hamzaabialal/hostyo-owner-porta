@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getNotifications, markAllRead, markAsRead, getUnreadCount, dismissNotification, clearAllNotifications, type AppNotification } from "@/lib/notifications";
 import { createTicket, fetchTickets, addTicketComment, markTicketRead, hasNewUpdateForUser, type SupportTicket, type TicketAttachment } from "@/lib/tickets";
+import { useEffectiveSession } from "@/lib/useEffectiveSession";
 
 function stopPropagation(ev: { stopPropagation: () => void }): void {
   ev.stopPropagation();
@@ -101,8 +102,12 @@ function isImageAttachment(att: TicketAttachment): boolean {
 /* ── Contact Support Drawer ── */
 function HelpDrawer({ onClose }: { onClose: () => void }) {
   const { data: session } = useSession();
-  const userEmail = session?.user?.email || "";
-  const userName = session?.user?.name || "User";
+  // Tickets are scoped to the *effective* user so an admin who is impersonating
+  // an owner sees that owner's tickets, not their own. Falls back to the raw
+  // session while /api/me is still loading.
+  const effective = useEffectiveSession();
+  const userEmail = effective.effectiveEmail || session?.user?.email || "";
+  const userName = effective.effectiveName || session?.user?.name || "User";
 
   const [tab, setTab] = useState<"new" | "list">("new");
   const [openTicket, setOpenTicket] = useState<SupportTicket | null>(null);
@@ -152,17 +157,9 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
   const replyFileRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Profile image
-  const [profileImage, setProfileImage] = useState("");
-  useEffect(() => {
-    if (!userEmail) return;
-    fetch(`/api/profile?email=${encodeURIComponent(userEmail)}`)
-      .then((r) => r.json())
-      .then((data) => { if (data.ok && data.profile?.profilePicture) setProfileImage(data.profile.profilePicture); })
-      .catch(() => {});
-  }, [userEmail]);
-
-  const userImage = profileImage || session?.user?.image || "";
+  // Profile image — pulled from /api/me via useEffectiveSession so impersonating
+  // an owner shows their avatar in the support drawer, not the admin's.
+  const userImage = effective.effectivePicture || session?.user?.image || "";
 
   // Upload handler (shared for new ticket + replies)
   const uploadFiles = async (selected: FileList, setFilesState: React.Dispatch<React.SetStateAction<TicketAttachment[]>>, setUploadingState: React.Dispatch<React.SetStateAction<boolean>>) => {

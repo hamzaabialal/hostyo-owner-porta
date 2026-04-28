@@ -9,6 +9,7 @@ import ChannelBadge, { getChannelIcon, normalizeChannel } from "@/components/Cha
 import ExportModal from "@/components/ExportModal";
 import { useData } from "@/lib/DataContext";
 import { reconcileAll, type RawReservation, type RawExpense } from "@/lib/reconcile";
+import { openPrintPreview } from "@/lib/printPreview";
 
 const FINANCE_TABS = [
   { label: "Overview", href: "/finances", exact: true },
@@ -578,8 +579,7 @@ export default function FinancesEarningsPage() {
               return `<tr>${[r.date, r.property, r.guest, r.ref, r.channel, fmt(r.gross), fmt(ded), fmt(r.net), r.payoutStatus].map(v => `<td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">${v}</td>`).join("")}</tr>`;
             }).join("");
             const html = `<!DOCTYPE html><html><head><title>Earnings Report</title><style>body{font-family:-apple-system,sans-serif;padding:40px 48px;color:#111;max-width:1000px;margin:0 auto}table{width:100%;border-collapse:collapse}@media print{body{padding:20px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #eee"><div><img src="/property-icons/ios_1024.png" alt="HOSTYO" style="height:32px;margin-bottom:8px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" /><div style="display:none;font-size:13px;font-weight:700;color:#80020E">HOSTYO</div><div style="font-size:10px;color:#555;line-height:1.6;margin-top:6px">HOSTYO LTD<br>+35777788280<br>billing@hostyo.com<br>VAT No: 60253322Q<br>20 Dimotikis Agoras, Larnaca, Cyprus, 6021</div></div><div style="text-align:right"><div style="font-size:20px;font-weight:700">Earnings Report</div><div style="font-size:11px;color:#999;margin-top:4px">Generated ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} · ${filtered.length} records</div></div></div><table>${headerRow}${bodyRows}</table></body></html>`;
-            const w = window.open("", "_blank");
-            if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500); }
+            openPrintPreview(html, "Earnings Report");
           }
         }}
       />

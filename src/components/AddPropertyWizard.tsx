@@ -123,20 +123,13 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
 
   return (
     <div className="fixed inset-0 z-[200] bg-[#fdf5f5] overflow-y-auto">
-      {/* Full-width progress bar pinned to the very top */}
-      <div className="sticky top-0 left-0 right-0 h-[3px] bg-[#f1dcdc] z-10">
-        <div
-          className="h-full bg-[#80020E] transition-[width] duration-300 ease-out"
-          style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
-        />
-      </div>
-
       {/* Close button */}
       <button onClick={handleSaveDraft} className="fixed top-4 right-4 z-20 w-10 h-10 rounded-full bg-white border border-[#e2e2e2] flex items-center justify-center text-[#999] hover:text-[#555] shadow-sm transition-colors">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
 
-      <div className="max-w-[560px] mx-auto px-4 py-8 md:py-12">
+      {/* Bottom padding leaves room for the fixed footer (progress bar + Back/Next). */}
+      <div className="max-w-[560px] mx-auto px-4 py-8 md:py-12 pb-[120px]">
         {error && <div className="mb-4 p-3 bg-[#F6EDED] border border-[#E8D8D8] rounded-xl text-[12px] text-[#7A5252] font-medium text-center">{error}</div>}
 
         {/* Step 1: Property Type */}
@@ -249,8 +242,18 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
           </div>
         )}
 
-        {/* Footer */}
-        <div className="flex items-center justify-between mt-8">
+      </div>
+
+      {/* Fixed footer: progress bar sits directly above the Back / Next row,
+          both pinned to the bottom of the viewport. */}
+      <div className="fixed bottom-0 left-0 right-0 z-10 bg-[#fdf5f5]">
+        <div className="h-[3px] bg-[#f1dcdc]">
+          <div
+            className="h-full bg-[#80020E] transition-[width] duration-300 ease-out"
+            style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+          />
+        </div>
+        <div className="max-w-[560px] mx-auto px-4 py-3 flex items-center justify-between">
           {step === 0 ? (
             <button onClick={handleSaveDraft} className="text-[13px] font-medium text-[#999] hover:text-[#555] transition-colors">Save as draft</button>
           ) : (
@@ -259,7 +262,7 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
           {step < STEPS.length - 1 ? (
             <button onClick={() => setStep(step + 1)} disabled={!canNext()}
               className="px-6 py-2.5 border border-[#80020E] text-[#80020E] bg-transparent rounded-xl text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-40">
-              Continue
+              Next
             </button>
           ) : (
             <button onClick={handleSubmit} disabled={submitting}
