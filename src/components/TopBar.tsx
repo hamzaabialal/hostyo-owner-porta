@@ -159,7 +159,10 @@ function HelpDrawer({ onClose }: { onClose: () => void }) {
 
   // Profile image — pulled from /api/me via useEffectiveSession so impersonating
   // an owner shows their avatar in the support drawer, not the admin's.
-  const userImage = effective.effectivePicture || session?.user?.image || "";
+  // No fallback to `session.user.image`: that's the admin's JWT avatar and
+  // would leak under the impersonated user's name when they haven't uploaded
+  // a picture themselves. Empty string → renderers fall back to initials.
+  const userImage = effective.effectivePicture || "";
 
   // Upload handler (shared for new ticket + replies)
   const uploadFiles = async (selected: FileList, setFilesState: React.Dispatch<React.SetStateAction<TicketAttachment[]>>, setUploadingState: React.Dispatch<React.SetStateAction<boolean>>) => {

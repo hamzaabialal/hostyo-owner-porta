@@ -175,7 +175,11 @@ export function useEffectiveSession(): EffectiveSession {
     isImpersonating: false,
     effectiveEmail: session?.user?.email || null,
     effectiveName: session?.user?.name || "",
-    effectivePicture: session?.user?.image || "",
+    // Don't surface session.user.image as the effective avatar. If the user
+    // is actually impersonating, that JWT image belongs to the admin and
+    // would briefly leak across to the impersonated identity. Empty string
+    // forces UI components to render initials until /api/me resolves.
+    effectivePicture: "",
     realEmail: null,
     loading,
   };

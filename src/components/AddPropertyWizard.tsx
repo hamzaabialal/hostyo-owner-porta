@@ -224,8 +224,8 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
         {/* Step 4: Address & Location */}
         {step === 3 && (
           <div>
-            <h2 className="text-[20px] md:text-[24px] font-semibold text-[#111] mb-2 text-center">Address & location</h2>
-            <p className="text-[13px] text-[#888] mb-8 text-center">Enter the property address and confirm its location.</p>
+            <h2 className="text-[20px] md:text-[24px] font-semibold text-[#111] mb-2 text-center">Where&apos;s your place located?</h2>
+            <p className="text-[13px] text-[#888] mb-8 text-center">We only share your address after guests book. Until then, they&apos;ll see an approximate location.</p>
             <div className="bg-white border border-[#e8e8e8] rounded-2xl p-5 md:p-6 space-y-4">
               <div>
                 <label className="block text-[13px] font-medium text-[#333] mb-1.5">Property name <span className="text-[#80020E]">*</span></label>
@@ -244,32 +244,39 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
 
       </div>
 
-      {/* Fixed footer: progress bar sits directly above the Back / Next row,
-          both pinned to the bottom of the viewport. */}
-      <div className="fixed bottom-0 left-0 right-0 z-10 bg-[#fdf5f5]">
-        <div className="h-[3px] bg-[#f1dcdc]">
-          <div
-            className="h-full bg-[#80020E] transition-[width] duration-300 ease-out"
-            style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
-          />
-        </div>
-        <div className="max-w-[560px] mx-auto px-4 py-3 flex items-center justify-between">
-          {step === 0 ? (
-            <button onClick={handleSaveDraft} className="text-[13px] font-medium text-[#999] hover:text-[#555] transition-colors">Save as draft</button>
-          ) : (
-            <button onClick={() => setStep(step - 1)} className="text-[13px] font-medium text-[#555] hover:text-[#111] transition-colors">← Back</button>
-          )}
-          {step < STEPS.length - 1 ? (
-            <button onClick={() => setStep(step + 1)} disabled={!canNext()}
-              className="px-6 py-2.5 border border-[#80020E] text-[#80020E] bg-transparent rounded-xl text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-40">
-              Next
-            </button>
-          ) : (
-            <button onClick={handleSubmit} disabled={submitting}
-              className="px-6 py-2.5 border border-[#80020E] text-[#80020E] bg-transparent rounded-xl text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-50">
-              {submitting ? "Submitting..." : "Submit"}
-            </button>
-          )}
+      {/* Fixed footer: four segmented progress bars + Back / Next, pinned
+          to the bottom of the viewport on both desktop and mobile. */}
+      <div className="fixed bottom-0 left-0 right-0 z-10 bg-[#fdf5f5] border-t border-[#f0e6e6]">
+        <div className="max-w-[560px] mx-auto px-4 pt-3 pb-3">
+          {/* Step indicator: one filled bar per step completed */}
+          <div className="flex gap-1.5 mb-3 max-w-[160px]">
+            {STEPS.map((_, i) => (
+              <div
+                key={i}
+                className={`h-[3px] flex-1 rounded-full transition-colors ${
+                  i <= step ? "bg-[#80020E]" : "bg-[#e8d6d6]"
+                }`}
+              />
+            ))}
+          </div>
+          <div className="flex items-center justify-between">
+            {step === 0 ? (
+              <button onClick={handleSaveDraft} className="text-[13px] font-medium text-[#999] hover:text-[#555] transition-colors">Save as draft</button>
+            ) : (
+              <button onClick={() => setStep(step - 1)} className="text-[13px] font-medium text-[#555] hover:text-[#111] transition-colors">Back</button>
+            )}
+            {step < STEPS.length - 1 ? (
+              <button onClick={() => setStep(step + 1)} disabled={!canNext()}
+                className="px-6 py-2.5 border border-[#80020E] text-[#80020E] bg-transparent rounded-xl text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-40">
+                Next
+              </button>
+            ) : (
+              <button onClick={handleSubmit} disabled={submitting}
+                className="px-6 py-2.5 border border-[#80020E] text-[#80020E] bg-transparent rounded-xl text-[13px] font-semibold hover:bg-[#80020E]/5 transition-colors disabled:opacity-50">
+                {submitting ? "Submitting..." : "Submit"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

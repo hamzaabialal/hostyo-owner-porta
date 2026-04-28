@@ -424,7 +424,12 @@ export default function SettingsPage() {
   const inputDisabledCls =
     "w-full rounded-lg border border-[#eaeaea] bg-[#f8f8f8] px-3.5 py-2.5 text-sm text-[#999] outline-none cursor-not-allowed";
 
-  const avatarSrc = profilePicture || session?.user?.image || "";
+  // Important: do NOT fall back to `session.user.image` here. During
+  // impersonation that's the admin's JWT avatar (e.g. their Google OAuth
+  // picture) — falling back to it would render the admin's face under the
+  // impersonated user's name. Showing initials when the impersonated user
+  // hasn't uploaded a picture is the correct default.
+  const avatarSrc = profilePicture || "";
   const initials = fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "U";
 
   return (
