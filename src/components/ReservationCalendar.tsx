@@ -256,21 +256,110 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
   const rangeStart = dayCols[0].str;
   const rangeEnd = dayCols[DAYS - 1].str;
 
-  // Canonicalise property names: build one display name per normalised key.
-  // The first observed spelling wins, and every reservation that resolves to
-  // the same key contributes to the same row — eliminating the duplicate
-  // rows that arise from minor casing/whitespace differences in the source data.
-  const { allProps, canonicalByKey } = useMemo(() => {
-    const byKey = new Map<string, string>();
+  // Canonicalise property names. We collapse rows along THREE axes:
+  //
+  //   1. Strict equality after normalisation — handles trivial drift
+  //      (case, whitespace, zero-width characters, smart quotes, etc.).
+  //   2. Prefix relationship — if one normalised name is a prefix of another
+  //      (e.g. "Chic City Centre Stay" vs "Chic City Centre Stay With Pool"),
+  //      both fold into the longer one.
+  //   3. Long shared prefix with tiny suffix divergence — catches the "Notion
+  //      duplicate select options" pattern, where two select records carry
+  //      the same human-readable name but Notion writes through option-A vs
+  //      option-B and may suffix one of them with a stray character/digit
+  //      (e.g. " 1" / " 2"). Triggers only when the common prefix is at
+  //      least MIN_SHARED_PREFIX characters long AND each name has at most
+  //      MAX_SUFFIX_DIFF characters beyond the shared prefix — both gates
+  //      together prevent unrelated short names like "Apt 101" / "Apt 102"
+  //      from accidentally merging.
+  //
+  // The longer (more descriptive) name wins as the visible label, and every
+  // reservation whose name resolves to the same canonical key shares one row.
+  const { allProps, resolveCanonical } = useMemo(() => {
+    // Step 1 — pick a display value per normalised key (first-seen original).
+    const firstSeen = new Map<string, string>();
     for (const r of reservations) {
       const original = (r.property || "").trim();
       if (!original) continue;
       const key = normalizePropertyKey(original);
-      if (!byKey.has(key)) byKey.set(key, original);
+      if (!firstSeen.has(key)) firstSeen.set(key, original);
     }
+
+    // Step 2 — collapse prefix-related normalised keys into one canonical key
+    // (the longest member of each prefix chain).
+    const keys = Array.from(firstSeen.keys());
+    const canonicalKeyByKey = new Map<string, string>();
+    for (const k of keys) {
+      let canon = k;
+      for (const other of keys) {
+        if (other.length <= canon.length) continue;
+        // Either side starts with the other (one is a true prefix of the other).
+        if (other.startsWith(k) || k.startsWith(other)) {
+          canon = other;
+        }
+      }
+      canonicalKeyByKey.set(k, canon);
+    }
+
+    // Step 2.5 — additionally union pairs whose normalised forms share a long
+    // common prefix and only diverge by a tiny tail. This is the band-aid
+    // for duplicated Notion select options whose labels differ by something
+    // like a stray trailing digit or punctuation that's invisible in the UI.
+    const MIN_SHARED_PREFIX = 25;
+    const MAX_SUFFIX_DIFF = 5;
+    const commonPrefixLen = (a: string, b: string): number => {
+      const lim = Math.min(a.length, b.length);
+      let i = 0;
+      while (i < lim && a.charCodeAt(i) === b.charCodeAt(i)) i++;
+      return i;
+    };
+    // Iterate to a fixed point so transitive merges propagate (A merges with
+    // B, B merges with C → all three end up under the longest canonical).
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let i = 0; i < keys.length; i++) {
+        for (let j = i + 1; j < keys.length; j++) {
+          const a = keys[i];
+          const b = keys[j];
+          const canonA = canonicalKeyByKey.get(a)!;
+          const canonB = canonicalKeyByKey.get(b)!;
+          if (canonA === canonB) continue; // already in the same group
+          const p = commonPrefixLen(a, b);
+          if (p < MIN_SHARED_PREFIX) continue;
+          if (a.length - p > MAX_SUFFIX_DIFF) continue;
+          if (b.length - p > MAX_SUFFIX_DIFF) continue;
+          // Merge — keep the longer canonical as the survivor, redirect every
+          // entry currently pointing to the loser.
+          const winner = canonA.length >= canonB.length ? canonA : canonB;
+          const loser = winner === canonA ? canonB : canonA;
+          for (const [k, v] of canonicalKeyByKey) {
+            if (v === loser) canonicalKeyByKey.set(k, winner);
+          }
+          changed = true;
+        }
+      }
+    }
+
+    // Step 3 — collect display names for canonical keys (longest spelling wins).
+    const canonicalDisplay = new Map<string, string>();
+    for (const [origKey, canonKey] of canonicalKeyByKey) {
+      const candidate = firstSeen.get(origKey) || origKey;
+      const current = canonicalDisplay.get(canonKey);
+      if (!current || candidate.length > current.length) {
+        canonicalDisplay.set(canonKey, candidate);
+      }
+    }
+
     return {
-      allProps: Array.from(byKey.values()).sort((a, b) => a.localeCompare(b)),
-      canonicalByKey: byKey,
+      allProps: Array.from(canonicalDisplay.values()).sort((a, b) => a.localeCompare(b)),
+      // Resolves any reservation's property string to its canonical display
+      // name, so the row map can group multiple variants into a single bucket.
+      resolveCanonical: (name: string): string => {
+        const key = normalizePropertyKey(name);
+        const canonKey = canonicalKeyByKey.get(key) || key;
+        return canonicalDisplay.get(canonKey) || name;
+      },
     };
   }, [reservations]);
 
@@ -309,12 +398,12 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
       if (r.checkIn > rangeEnd || r.checkOut <= rangeStart) continue;
       const original = (r.property || "").trim();
       if (!original) continue;
-      const canonical = canonicalByKey.get(normalizePropertyKey(original)) || original;
+      const canonical = resolveCanonical(original);
       if (!map[canonical]) map[canonical] = [];
       map[canonical].push(r);
     }
     return map;
-  }, [reservations, rangeStart, rangeEnd, canonicalByKey]);
+  }, [reservations, rangeStart, rangeEnd, resolveCanonical]);
 
   return (
     <div className="border border-[#eaeaea] rounded-xl bg-white flex flex-col" style={{ height: "calc(100vh - 200px)", minHeight: "400px", overflow: "hidden" }}>

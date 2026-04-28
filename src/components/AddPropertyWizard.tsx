@@ -129,7 +129,7 @@ export default function AddPropertyWizard({ onClose, onSaved }: { onClose: () =>
       </button>
 
       {/* Bottom padding leaves room for the fixed footer (progress bar + Back/Next). */}
-      <div className="max-w-[560px] mx-auto px-4 py-8 md:py-12 pb-[120px]">
+      <div className="max-w-[560px] mx-auto px-4 py-8 md:py-12 pb-[160px]">
         {error && <div className="mb-4 p-3 bg-[#F6EDED] border border-[#E8D8D8] rounded-xl text-[12px] text-[#7A5252] font-medium text-center">{error}</div>}
 
         {/* Step 1: Property Type */}
