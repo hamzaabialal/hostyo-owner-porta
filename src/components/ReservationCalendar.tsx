@@ -39,15 +39,32 @@ function daysBetween(a: string, b: string) {
 /**
  * Property names come from two independent Notion fields (the property's own
  * Name title and each reservation's Property text), so they often differ by
- * case or trailing whitespace. Without normalisation, "Chic City Centre Stay
- * Whatever" and "Chic City Centre Stay Whatever " become two separate rows in
- * the calendar — same property, ghost duplicate.
+ * trivia that humans can't see — non-breaking spaces from a paste, smart vs
+ * straight apostrophes, decomposed vs composed accents, double spaces, etc.
+ * Without normalisation those visually-identical strings render as two
+ * separate calendar rows ("ghost duplicates").
  *
- * We collapse them by normalising on `trim().toLowerCase()` and use the
- * first-seen original spelling as the canonical display value.
+ * The normaliser:
+ *   - NFC-normalises so `é` (composed) and `e` + combining accent decompose
+ *     to the same key.
+ *   - Replaces every whitespace run (regular space, tab, NBSP  , etc.)
+ *     with a single regular space.
+ *   - Strips zero-width characters that occasionally sneak in from clipboard
+ *     paste (​–‍, ﻿).
+ *   - Lower-cases and trims.
+ *
+ * We display the first-seen original spelling as the canonical name.
  */
 function normalizePropertyKey(name: string | null | undefined): string {
-  return (name || "").trim().toLowerCase();
+  return (name || "")
+    .normalize("NFC")
+    // Strip zero-width characters that sneak in from clipboard paste:
+    // U+200B ZWSP, U+200C ZWNJ, U+200D ZWJ, U+FEFF BOM.
+    .replace(/[​-‍﻿]/g, "")
+    // Collapse all whitespace (incl. NBSP/tab/newline) to a single space.
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -258,7 +275,10 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
   }, [reservations]);
 
   // Image lookup tolerant of the same casing/whitespace drift — a reservation's
-  // property name may not exactly match the property record's title.
+  // property name may not exactly match the property record's title. Falls
+  // back to a fuzzy prefix match when an exact normalised match misses, so a
+  // reservation tagged "Chic City Centre Stay" still picks up the cover image
+  // of the property record titled "Chic City Centre Stay With Pool".
   const propertyImagesNormalized = useMemo(() => {
     const map: Record<string, string> = {};
     if (!propertyImages) return map;
@@ -267,6 +287,20 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
     }
     return map;
   }, [propertyImages]);
+
+  const lookupPropertyImage = (displayName: string): string | undefined => {
+    const key = normalizePropertyKey(displayName);
+    if (!key) return undefined;
+    const exact = propertyImagesNormalized[key];
+    if (exact) return exact;
+    // Fuzzy: either side starts with the other. Covers truncated names from
+    // either feed without aliasing genuinely different properties (the prefix
+    // has to be a real prefix of the other string).
+    for (const [imgKey, url] of Object.entries(propertyImagesNormalized)) {
+      if (imgKey.startsWith(key) || key.startsWith(imgKey)) return url;
+    }
+    return undefined;
+  };
 
   const resMap = useMemo(() => {
     const map: Record<string, CalendarReservation[]> = {};
@@ -348,11 +382,13 @@ function TimelineView({ reservations, onTap, onPropertyTap, propertyImages }: {
           </div>
           <div ref={propScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar">
             {allProps.map((prop) => {
-              // Look up the image by normalised key so trivial spelling drift
-              // between the reservation feed and the properties feed still resolves.
-              const img = propertyImagesNormalized[normalizePropertyKey(prop)];
+              const img = lookupPropertyImage(prop);
               return (
                 <button key={prop} onClick={() => onPropertyTap?.(prop)}
+                  // `title` shows the full property name on hover so users
+                  // can disambiguate two rows whose visible labels both
+                  // truncate to the same prefix (e.g. "Chic City Centre Stay W…").
+                  title={prop}
                   className="w-full px-2.5 flex items-center gap-2 border-b border-[#f0f0f0] text-left hover:bg-[#f5f5f5] transition-colors cursor-pointer"
                   style={{ height: ROW_H, minHeight: ROW_H }}>
                   <div className="w-8 h-8 rounded-md bg-[#f0f0f0] flex-shrink-0 overflow-hidden">
