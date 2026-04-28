@@ -38,20 +38,39 @@ export function openPrintPreview(html: string, title: string): void {
   // them is a UX clarity choice, not a behaviour change. We do swap the
   // document title so the print dialog suggests a sensible default filename
   // in each mode.
+  //
+  // IMPORTANT: handlers are attached via a script + addEventListener instead
+  // of inline `onclick="..."`. Inline handlers were broken because the JS
+  // string the handler needed to embed (the title) contained double quotes
+  // from JSON.stringify, which prematurely closed the HTML attribute and
+  // rendered the buttons inert.
   const bar = `
     <div class="hostyo-print-bar">
       <span class="hostyo-print-bar__title">${safeTitle}</span>
       <div class="hostyo-print-bar__actions">
-        <button type="button" onclick="document.title=${JSON.stringify(safeTitle)}; window.print();">
+        <button type="button" data-hostyo-action="print">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
           Print
         </button>
-        <button type="button" class="is-primary" onclick="document.title=${JSON.stringify(safeTitle + ".pdf")}; window.print();">
+        <button type="button" class="is-primary" data-hostyo-action="pdf">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
           Save as PDF
         </button>
       </div>
     </div>
+    <script>
+      (function () {
+        var baseTitle = ${JSON.stringify(safeTitle)};
+        function trigger(filename) {
+          try { document.title = filename; } catch (e) {}
+          window.print();
+        }
+        var printBtn = document.querySelector('[data-hostyo-action="print"]');
+        var pdfBtn = document.querySelector('[data-hostyo-action="pdf"]');
+        if (printBtn) printBtn.addEventListener('click', function () { trigger(baseTitle); });
+        if (pdfBtn) pdfBtn.addEventListener('click', function () { trigger(baseTitle + '.pdf'); });
+      })();
+    <\/script>
   `;
 
   // Inject the styles into <head> and the toolbar at the start of <body>.
