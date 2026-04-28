@@ -33,17 +33,15 @@ export function openPrintPreview(html: string, title: string): void {
     </style>
   `;
   const safeTitle = String(title).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] || c));
-  // Both buttons trigger the same system print dialog — the only honest way
-  // to "Save as PDF" in a browser without a server-side renderer. Splitting
-  // them is a UX clarity choice, not a behaviour change. We do swap the
-  // document title so the print dialog suggests a sensible default filename
-  // in each mode.
+  // Print → opens the system print dialog (only way to reach a physical printer).
+  // Save as PDF → uses html2pdf.js loaded from a CDN to render the report's
+  //   DOM straight to a PDF file and trigger a download — no print dialog.
+  // The toolbar is hidden during the html2pdf render pass so it doesn't
+  // appear inside the generated PDF.
   //
-  // IMPORTANT: handlers are attached via a script + addEventListener instead
-  // of inline `onclick="..."`. Inline handlers were broken because the JS
-  // string the handler needed to embed (the title) contained double quotes
-  // from JSON.stringify, which prematurely closed the HTML attribute and
-  // rendered the buttons inert.
+  // Handlers are attached via a script + addEventListener (NOT inline
+  // `onclick`), because the JS string would contain double quotes from
+  // JSON.stringify that broke the HTML attribute parsing previously.
   const bar = `
     <div class="hostyo-print-bar">
       <span class="hostyo-print-bar__title">${safeTitle}</span>
@@ -58,17 +56,51 @@ export function openPrintPreview(html: string, title: string): void {
         </button>
       </div>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
     <script>
       (function () {
         var baseTitle = ${JSON.stringify(safeTitle)};
-        function trigger(filename) {
-          try { document.title = filename; } catch (e) {}
-          window.print();
-        }
         var printBtn = document.querySelector('[data-hostyo-action="print"]');
         var pdfBtn = document.querySelector('[data-hostyo-action="pdf"]');
-        if (printBtn) printBtn.addEventListener('click', function () { trigger(baseTitle); });
-        if (pdfBtn) pdfBtn.addEventListener('click', function () { trigger(baseTitle + '.pdf'); });
+        if (printBtn) printBtn.addEventListener('click', function () {
+          try { document.title = baseTitle; } catch (e) {}
+          window.print();
+        });
+        if (pdfBtn) pdfBtn.addEventListener('click', function () {
+          if (typeof html2pdf === 'undefined') {
+            // Library still downloading — fall back to the print dialog so
+            // the user is never left with an inert button.
+            try { document.title = baseTitle + '.pdf'; } catch (e) {}
+            window.print();
+            return;
+          }
+          var toolbar = document.querySelector('.hostyo-print-bar');
+          var prevDisplay = toolbar ? toolbar.style.display : '';
+          if (toolbar) toolbar.style.display = 'none';
+          var prevLabel = pdfBtn.innerHTML;
+          pdfBtn.disabled = true;
+          pdfBtn.innerHTML = 'Generating…';
+          // eslint-disable-next-line no-undef
+          html2pdf().set({
+            margin: [10, 10, 10, 10],
+            filename: baseTitle + '.pdf',
+            image: { type: 'jpeg', quality: 0.95 },
+            html2canvas: { scale: 2, useCORS: true, allowTaint: false, backgroundColor: '#ffffff' },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+          }).from(document.body).save().then(function () {
+            if (toolbar) toolbar.style.display = prevDisplay;
+            pdfBtn.disabled = false;
+            pdfBtn.innerHTML = prevLabel;
+          }).catch(function () {
+            if (toolbar) toolbar.style.display = prevDisplay;
+            pdfBtn.disabled = false;
+            pdfBtn.innerHTML = prevLabel;
+            alert('Failed to generate PDF. Falling back to the print dialog.');
+            try { document.title = baseTitle + '.pdf'; } catch (e) {}
+            window.print();
+          });
+        });
       })();
     <\/script>
   `;
