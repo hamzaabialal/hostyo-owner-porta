@@ -611,7 +611,12 @@ export default function TopBar({ title }: { title: string }) {
   return (
     <>
       <header className="hidden md:flex sticky top-0 z-40 bg-white border-b border-[#eaeaea] px-6 md:px-8 h-[56px] items-center justify-between">
-        <h1 className="text-[15px] font-semibold text-[#111]">{title}</h1>
+        {/* Page title kept as a hidden h1 for accessibility/screen readers,
+            visually removed per design feedback (the side nav already names
+            the section). */}
+        <h1 className="sr-only">{title}</h1>
+        <span aria-hidden="true" />
+
 
         <div className="flex items-center gap-2.5">
           {/* Help */}

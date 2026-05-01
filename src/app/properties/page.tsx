@@ -358,8 +358,6 @@ function PropertiesPageInner() {
 
   return (
     <AppShell title="Properties">
-      <div className="text-[13px] text-[#888] mb-6 -mt-1">View and manage your properties across the portfolio.</div>
-
       {/* Toolbar */}
       <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6 flex-wrap">
         <div className="relative flex-1 min-w-[160px] md:min-w-[200px] max-w-[320px]">
