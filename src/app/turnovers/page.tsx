@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
 import InventoryView from "@/components/InventoryView";
+import DateRangePicker from "@/components/DateRangePicker";
 import { useEffectiveSession } from "@/lib/useEffectiveSession";
+import { buildChecklist, countChecklistItems } from "@/lib/turnover-checklist";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -94,25 +96,63 @@ export default function TurnoversPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterProperty, setFilterProperty] = useState<string>("");
+  const [filterDateFrom, setFilterDateFrom] = useState<string>("");
+  const [filterDateTo, setFilterDateTo] = useState<string>("");
   const [showAddTurnover, setShowAddTurnover] = useState(false);
   const [showAddIssue, setShowAddIssue] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/properties").then((r) => r.json()),
-      fetch("/api/reservations").then((r) => r.json()),
-      fetch("/api/turnovers").then((r) => r.json()).catch(() => ({ data: [] })),
-      fetch("/api/turnovers?issues=1").then((r) => r.json()).catch(() => ({ data: [] })),
-    ])
-      .then(([pData, rData, tData, iData]) => {
+    let cancelled = false;
+    const loadAll = async () => {
+      try {
+        const [pData, rData, tData, iData] = await Promise.all([
+          fetch("/api/properties").then((r) => r.json()),
+          fetch("/api/reservations").then((r) => r.json()),
+          fetch("/api/turnovers").then((r) => r.json()).catch(() => ({ data: [] })),
+          fetch("/api/turnovers?issues=1").then((r) => r.json()).catch(() => ({ data: [] })),
+        ]);
+        if (cancelled) return;
         setProperties(pData?.data || []);
         setReservations(rData?.data || []);
         setTurnovers(tData?.data || []);
         setIssuesList(iData?.data || []);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      } catch (e) { console.error(e); }
+      finally { if (!cancelled) setLoading(false); }
+    };
+    loadAll();
+    // Live-refresh turnovers + issues every 15s so the progress bar reflects
+    // photos uploaded by the cleaner without the admin needing to refresh.
+    const refreshLive = async () => {
+      try {
+        const [tData, iData] = await Promise.all([
+          fetch("/api/turnovers").then((r) => r.json()).catch(() => ({ data: [] })),
+          fetch("/api/turnovers?issues=1").then((r) => r.json()).catch(() => ({ data: [] })),
+        ]);
+        if (cancelled) return;
+        setTurnovers(tData?.data || []);
+        setIssuesList(iData?.data || []);
+      } catch { /* ignore */ }
+    };
+    const interval = setInterval(refreshLive, 15000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, []);
+
+  // Compute the real total checklist item count for a property based on its
+  // bedrooms/bathrooms/amenities — same calculation used in the detail page,
+  // so progress numbers stay consistent across views.
+  const checklistTotalFor = (p: Property | undefined): number => {
+    if (!p) return 0;
+    try {
+      return countChecklistItems(buildChecklist({
+        bedrooms: p.bedrooms,
+        bathrooms: p.bathrooms,
+        livingRoom: p.livingRoom,
+        balcony: p.balcony,
+        hallway: p.hallway,
+        amenities: p.amenities,
+      }));
+    } catch { return 0; }
+  };
 
   // Build cleaning cards from properties with cleaning checkbox enabled.
   // For each property, find the most recent upcoming checkout (or the last one that's happened).
@@ -154,13 +194,14 @@ export default function TurnoversPage() {
       const existing = turnovers.find((t: any) => t.propertyId === p.id && t.departureDate === departure);
       let cardStatus: TurnoverStatus = "Pending";
       let completed = 0;
-      let total = 5;
+      // Real total = number of photo items in the property's checklist.
+      // Falls back to max(items uploaded, 1) if checklist can't be built.
+      let total = checklistTotalFor(p);
       if (existing) {
         cardStatus = existing.status === "Submitted" || existing.status === "Completed" ? existing.status as TurnoverStatus : existing.status === "In progress" ? "In progress" : "Pending";
-        // Count uploaded photos for rough progress indication
         completed = Object.keys(existing.items || {}).length;
-        total = Math.max(total, completed);
       }
+      if (total <= 0) total = Math.max(1, completed);
 
       cards.push({
         propertyId: p.id,
@@ -231,9 +272,11 @@ export default function TurnoversPage() {
     return cleaningCards.filter((c) => {
       if (filterStatus && c.status !== filterStatus) return false;
       if (filterProperty && c.propertyName !== filterProperty) return false;
+      if (filterDateFrom && (c.departure || "") < filterDateFrom) return false;
+      if (filterDateTo && (c.departure || "") > filterDateTo) return false;
       return true;
     });
-  }, [cleaningCards, filterStatus, filterProperty]);
+  }, [cleaningCards, filterStatus, filterProperty, filterDateFrom, filterDateTo]);
 
   // Issues filtering + sorting + pagination
   const sortedIssues = useMemo(() => {
@@ -241,8 +284,8 @@ export default function TurnoversPage() {
     const sevOrder = { High: 0, Medium: 1, Low: 2 } as Record<string, number>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filtered = issuesList.filter((iss: any) => {
-      if (issueStatusFilter === "pending" && iss.resolved) return false;
-      if (issueStatusFilter === "resolved" && !iss.resolved) return false;
+      const issStatus: string = iss.status || (iss.resolved ? "Resolved" : "Pending");
+      if (issueStatusFilter && issStatus !== issueStatusFilter) return false;
       if (issuePropertyFilter && iss.propertyName !== issuePropertyFilter) return false;
       if (q) {
         const hay = `${iss.propertyName || ""} ${iss.title || ""} ${iss.description || ""} ${iss.category || ""}`.toLowerCase();
@@ -272,17 +315,19 @@ export default function TurnoversPage() {
     return Array.from(new Set(issuesList.map((i: any) => i.propertyName).filter(Boolean))).sort() as string[];
   }, [issuesList]);
 
-  const toggleResolveIssue = async (iss: { id: string; propertyId: string; departureDate: string; resolved?: boolean }) => {
-    if (iss.resolved) return; // Only allow resolving (undo is done from the turnover detail)
+  const updateIssueStatus = async (iss: { id: string; propertyId: string; departureDate: string }, newStatus: "Pending" | "In Progress" | "Resolved") => {
     await fetch("/api/turnovers", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ propertyId: iss.propertyId, departureDate: iss.departureDate, resolveIssue: iss.id }),
+      body: JSON.stringify({
+        propertyId: iss.propertyId,
+        departureDate: iss.departureDate,
+        setIssueStatus: { id: iss.id, status: newStatus },
+      }),
     });
-    // Refresh issues
     const res = await fetch("/api/turnovers?issues=1").then((r) => r.json()).catch(() => ({ data: [] }));
     setIssuesList(res?.data || []);
-    if (openIssue?.id === iss.id) setOpenIssue({ ...openIssue, resolved: true });
+    if (openIssue?.id === iss.id) setOpenIssue({ ...openIssue, status: newStatus, resolved: newStatus === "Resolved" });
   };
 
   if (!isAdmin) {
@@ -323,13 +368,16 @@ export default function TurnoversPage() {
         <>
           {/* Filters + Add */}
           <div className="flex items-center gap-2 flex-wrap mb-4">
-            <select className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E]" value="">
-              <option value="">Date</option>
-            </select>
+            <DateRangePicker
+              from={filterDateFrom}
+              to={filterDateTo}
+              onFromChange={setFilterDateFrom}
+              onToChange={setFilterDateTo}
+            />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E]"
+              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none"
             >
               <option value="">All statuses</option>
               <option value="Pending">Pending</option>
@@ -340,18 +388,14 @@ export default function TurnoversPage() {
             <select
               value={filterProperty}
               onChange={(e) => setFilterProperty(e.target.value)}
-              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E] max-w-[200px]"
+              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none max-w-[200px]"
             >
               <option value="">All properties</option>
               {Array.from(new Set(cleaningCards.map((c) => c.propertyName))).sort().map((name) => (
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
-            <button className="flex items-center gap-1.5 h-[36px] px-3 rounded-lg border border-[#e2e2e2] text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-all">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-              Filters
-            </button>
-            <button onClick={() => setShowAddTurnover(true)} className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg bg-[#80020E] text-white text-[12px] font-medium hover:bg-[#6b010c] transition-colors">
+            <button onClick={() => setShowAddTurnover(true)} className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg border border-[#e2e2e2] bg-white text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-all">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add turnover
             </button>
@@ -453,26 +497,27 @@ export default function TurnoversPage() {
                 value={issueSearch}
                 onChange={(e) => { setIssueSearch(e.target.value); setIssuePage(1); }}
                 placeholder="Search issues..."
-                className="w-full h-[36px] pl-8 pr-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white"
+                className="w-full h-[36px] pl-8 pr-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] placeholder:text-[#bbb] outline-none transition-colors bg-white"
               />
             </div>
             <select value={issueStatusFilter} onChange={(e) => { setIssueStatusFilter(e.target.value); setIssuePage(1); }}
-              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E]">
+              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none">
               <option value="">All statuses</option>
-              <option value="pending">Pending</option>
-              <option value="resolved">Resolved</option>
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Resolved">Resolved</option>
             </select>
             <select value={issuePropertyFilter} onChange={(e) => { setIssuePropertyFilter(e.target.value); setIssuePage(1); }}
-              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E] max-w-[200px]">
+              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none max-w-[200px]">
               <option value="">All properties</option>
               {issuePropertyOptions.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
             <select value={issueSort} onChange={(e) => setIssueSort(e.target.value as "created" | "severity")}
-              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E]">
+              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none">
               <option value="created">Sort by created time</option>
               <option value="severity">Sort by severity</option>
             </select>
-            <button onClick={() => setShowAddIssue(true)} className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg bg-[#80020E] text-white text-[12px] font-medium hover:bg-[#6b010c] transition-colors">
+            <button onClick={() => setShowAddIssue(true)} className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg border border-[#e2e2e2] bg-white text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-all">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add issue
             </button>
@@ -501,7 +546,11 @@ export default function TurnoversPage() {
                   <tbody>
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {pagedIssues.map((iss: any) => {
-                      const isHigh = iss.severity === "High";
+                      const issStatus: string = iss.status || (iss.resolved ? "Resolved" : "Pending");
+                      const sCol =
+                        issStatus === "Resolved" ? { dot: "#2F6B57", text: "text-[#2F6B57]" } :
+                        issStatus === "In Progress" ? { dot: "#3B5BA5", text: "text-[#3B5BA5]" } :
+                        { dot: "#D4A843", text: "text-[#8A6A2E]" };
                       return (
                         <tr key={iss.id} onClick={() => setOpenIssue(iss)} className="border-b border-[#f3f3f3] last:border-b-0 hover:bg-[#fafafa] cursor-pointer transition-colors">
                           <td className="px-4 py-3">
@@ -524,19 +573,9 @@ export default function TurnoversPage() {
                             <div className="truncate">{iss.title || iss.description}</div>
                           </td>
                           <td className="px-4 py-3">
-                            {iss.resolved ? (
-                              <span className="inline-flex items-center gap-1.5 text-[12px] text-[#2F6B57]">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#2F6B57]" />Resolved
-                              </span>
-                            ) : isHigh ? (
-                              <span className="inline-flex items-center gap-1.5 text-[12px] text-[#B7484F]">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#B7484F]" />High
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[12px] text-[#8A6A2E]">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#D4A843]" />Pending
-                              </span>
-                            )}
+                            <span className={`inline-flex items-center gap-1.5 text-[12px] ${sCol.text}`}>
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: sCol.dot }} />{issStatus}
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-[#666] text-[12px] whitespace-nowrap">{fmtRelativeTime(iss.createdAt)}</td>
                           <td className="px-4 py-3 text-right">
@@ -553,7 +592,11 @@ export default function TurnoversPage() {
               <div className="md:hidden divide-y divide-[#f3f3f3]">
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {pagedIssues.map((iss: any) => {
-                  const isHigh = iss.severity === "High";
+                  const issStatus: string = iss.status || (iss.resolved ? "Resolved" : "Pending");
+                  const pillClass =
+                    issStatus === "Resolved" ? "text-[#2F6B57] bg-[#EAF3EF]" :
+                    issStatus === "In Progress" ? "text-[#3B5BA5] bg-[#E8F0FE]" :
+                    "text-[#8A6A2E] bg-[#FBF1E2]";
                   return (
                     <div key={iss.id} onClick={() => setOpenIssue(iss)} className="flex items-start gap-3 p-3.5 cursor-pointer hover:bg-[#fafafa] transition-colors">
                       {iss.photoUrl ? (
@@ -568,13 +611,7 @@ export default function TurnoversPage() {
                         <div className="text-[13px] font-semibold text-[#111] truncate">{iss.propertyName || "—"}</div>
                         <div className="text-[12px] text-[#555] truncate">{iss.title || iss.description}</div>
                         <div className="flex items-center gap-2 mt-1">
-                          {iss.resolved ? (
-                            <span className="text-[10px] font-semibold text-[#2F6B57] bg-[#EAF3EF] px-1.5 py-0.5 rounded-full">Resolved</span>
-                          ) : isHigh ? (
-                            <span className="text-[10px] font-semibold text-[#B7484F] bg-[#F6EDED] px-1.5 py-0.5 rounded-full">High</span>
-                          ) : (
-                            <span className="text-[10px] font-semibold text-[#8A6A2E] bg-[#FBF1E2] px-1.5 py-0.5 rounded-full">Pending</span>
-                          )}
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${pillClass}`}>{issStatus}</span>
                           <span className="text-[10px] text-[#999]">{fmtRelativeTime(iss.createdAt)}</span>
                         </div>
                       </div>
@@ -634,15 +671,24 @@ export default function TurnoversPage() {
                 <div className="p-5 space-y-4">
                   {/* Status + severity + category pills */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    {openIssue.resolved ? (
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#2F6B57] bg-[#EAF3EF] px-2 py-1 rounded-full">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>Resolved
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#8A6A2E] bg-[#FBF1E2] px-2 py-1 rounded-full">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#D4A843]" />Pending
-                      </span>
-                    )}
+                    {(() => {
+                      const s: string = openIssue.status || (openIssue.resolved ? "Resolved" : "Pending");
+                      if (s === "Resolved") return (
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#2F6B57] bg-[#EAF3EF] px-2 py-1 rounded-full">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>Resolved
+                        </span>
+                      );
+                      if (s === "In Progress") return (
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#3B5BA5] bg-[#E8F0FE] px-2 py-1 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#3B5BA5]" />In Progress
+                        </span>
+                      );
+                      return (
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#8A6A2E] bg-[#FBF1E2] px-2 py-1 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#D4A843]" />Pending
+                        </span>
+                      );
+                    })()}
                     {openIssue.severity && (
                       <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${
                         openIssue.severity === "High" ? "text-[#B7484F] bg-[#F6EDED]" :
@@ -745,14 +791,24 @@ export default function TurnoversPage() {
                   >
                     Open turnover →
                   </button>
-                  {!openIssue.resolved ? (
-                    <button onClick={() => toggleResolveIssue(openIssue)}
-                      className="h-[36px] px-4 rounded-lg bg-[#2F6B57] text-white text-[12px] font-semibold hover:bg-[#225244] transition-colors">
-                      Mark as resolved
-                    </button>
-                  ) : (
-                    <span className="text-[12px] font-semibold text-[#2F6B57]">✓ Resolved</span>
-                  )}
+                  {(() => {
+                    const s: string = openIssue.status || (openIssue.resolved ? "Resolved" : "Pending");
+                    if (s === "Resolved") return <span className="text-[12px] font-semibold text-[#2F6B57]">✓ Resolved</span>;
+                    return (
+                      <div className="flex items-center gap-2">
+                        {s !== "In Progress" && (
+                          <button onClick={() => updateIssueStatus(openIssue, "In Progress")}
+                            className="h-[36px] px-3 rounded-lg border border-[#e2e2e2] bg-white text-[#3B5BA5] text-[12px] font-semibold hover:border-[#3B5BA5] transition-colors">
+                            Mark in progress
+                          </button>
+                        )}
+                        <button onClick={() => updateIssueStatus(openIssue, "Resolved")}
+                          className="h-[36px] px-4 rounded-lg bg-[#2F6B57] text-white text-[12px] font-semibold hover:bg-[#225244] transition-colors">
+                          Mark as resolved
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </>

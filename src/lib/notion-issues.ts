@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import notion, { DB } from "./notion";
 
+export type IssueStatus = "Pending" | "In Progress" | "Resolved";
+
 export interface IssueRecord {
   id: string;                 // Notion page id
   turnoverPageId: string;     // Relation target (Turnovers DB page)
@@ -10,7 +12,8 @@ export interface IssueRecord {
   description: string;
   severity?: "Low" | "Medium" | "High";
   photoUrl?: string;
-  resolved: boolean;
+  resolved: boolean;          // Kept for backward compatibility (mirrors status === "Resolved")
+  status: IssueStatus;
   createdAt: string;
 }
 
@@ -27,6 +30,17 @@ export function pageToIssue(page: any): IssueRecord {
   const severity: IssueRecord["severity"] | undefined =
     sev === "High" || sev === "Medium" || sev === "Low" ? sev : undefined;
 
+  const resolved = props["Resolved"]?.checkbox === true;
+  // Status: prefer an explicit Notion "Status" select/rich_text if the DB has
+  // one (lets admins move issues to "In Progress"); otherwise derive from the
+  // Resolved checkbox so older records still show a sensible value.
+  const statusRaw = select(props["Status"]) || rt(props["Status"]);
+  let status: IssueStatus;
+  if (resolved) status = "Resolved";
+  else if (statusRaw === "In Progress") status = "In Progress";
+  else if (statusRaw === "Resolved") status = "Resolved";
+  else status = "Pending";
+
   return {
     id: page.id,
     turnoverPageId: props["Turnover"]?.relation?.[0]?.id || "",
@@ -36,7 +50,8 @@ export function pageToIssue(page: any): IssueRecord {
     description: rt(props["Description"]) || "",
     severity,
     photoUrl: props["Photo URL"]?.url || undefined,
-    resolved: props["Resolved"]?.checkbox === true,
+    resolved,
+    status,
     createdAt: date(props["Created"]) || page.created_time,
   };
 }
@@ -100,6 +115,46 @@ export async function createIssue(data: {
 
 export async function setIssueResolved(pageId: string, resolved: boolean) {
   if (!DB.issues) throw new Error("NOTION_ISSUES_DB not configured");
+  await (notion as any).pages.update({
+    page_id: pageId,
+    properties: { "Resolved": { checkbox: resolved } },
+  });
+}
+
+/**
+ * Set an issue's status. Always writes the Resolved checkbox (so existing
+ * dashboards keep working) and tries to also write a Status property —
+ * either as a select or a rich_text field. The Status write is best-effort:
+ * if the Notion DB doesn't have a Status property the API call throws and
+ * we fall back to just the checkbox, so this stays safe to call regardless
+ * of schema.
+ */
+export async function setIssueStatus(pageId: string, status: IssueStatus) {
+  if (!DB.issues) throw new Error("NOTION_ISSUES_DB not configured");
+  const resolved = status === "Resolved";
+  // Try writing both Status (as select) and Resolved together first.
+  try {
+    await (notion as any).pages.update({
+      page_id: pageId,
+      properties: {
+        "Resolved": { checkbox: resolved },
+        "Status": { select: { name: status } },
+      },
+    });
+    return;
+  } catch { /* fall through */ }
+  // Retry as rich_text in case the Notion property type is different.
+  try {
+    await (notion as any).pages.update({
+      page_id: pageId,
+      properties: {
+        "Resolved": { checkbox: resolved },
+        "Status": { rich_text: txt(status) },
+      },
+    });
+    return;
+  } catch { /* fall through */ }
+  // Last-resort: just the checkbox so resolve/unresolve still works.
   await (notion as any).pages.update({
     page_id: pageId,
     properties: { "Resolved": { checkbox: resolved } },

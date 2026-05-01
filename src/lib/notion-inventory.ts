@@ -8,7 +8,9 @@ import notion, { DB } from "./notion";
 const MIN_LEVEL_KEY = " Minimum Level";
 
 export type InventoryKind = "stock" | "asset";
-export type AssetCondition = "Working" | "Broken" | "Missing";
+// "Missing" kept as an accepted value so legacy records still parse, but
+// the UI surfaces the new three-state vocabulary: Working / Damaged / Broken.
+export type AssetCondition = "Working" | "Damaged" | "Broken" | "Missing";
 
 export interface AssetPhotoEntry {
   url: string;
@@ -83,7 +85,7 @@ export function pageToItem(page: any): InventoryItem {
   const kind: InventoryKind = kindRaw === "asset" ? "asset" : "stock";
   const conditionRaw = rt(props["Condition"]);
   const validCondition: AssetCondition | undefined =
-    conditionRaw === "Working" || conditionRaw === "Broken" || conditionRaw === "Missing"
+    conditionRaw === "Working" || conditionRaw === "Broken" || conditionRaw === "Missing" || conditionRaw === "Damaged"
       ? conditionRaw
       : undefined;
   const currentLevel = props["Current Level"]?.number ?? 0;
