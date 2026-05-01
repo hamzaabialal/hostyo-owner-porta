@@ -331,7 +331,6 @@ export default function PayoutsPage() {
     <AppShell title="Payouts">
       <MobileTabs tabs={FINANCE_TABS} />
       <div className="flex items-center justify-between gap-3 mb-5 -mt-1 flex-wrap">
-        <div className="text-[13px] text-[#888] hidden md:block">Track all payouts, fees and deductions.</div>
         <div className="flex items-center gap-3 ml-auto">
           {isAdmin && syncResult && (
             <span className="text-[11px] text-[#666] bg-[#f5f5f5] border border-[#eaeaea] rounded-lg px-2.5 py-1.5">

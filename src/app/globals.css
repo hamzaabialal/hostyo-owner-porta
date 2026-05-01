@@ -149,10 +149,11 @@ body {
   border-color: #ccc;
 }
 
-.dropdown-trigger:focus {
+.dropdown-trigger:focus,
+.dropdown-trigger:focus-visible {
   outline: none;
-  border-color: #80020E;
-  box-shadow: 0 0 0 2px rgba(128, 2, 14, 0.06);
+  border-color: #c9c9c9;
+  box-shadow: none;
 }
 
 /* ── Slide-over Drawer ── */

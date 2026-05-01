@@ -97,14 +97,14 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <AppShell title="Today">
+      <AppShell title="Home">
         <div className="flex items-center justify-center h-64 text-text-tertiary text-sm">Loading...</div>
       </AppShell>
     );
   }
 
   return (
-    <AppShell title="Today">
+    <AppShell title="Home">
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Link
@@ -145,7 +145,13 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* In House */}
         <div className="bg-white border border-[#eaeaea] rounded-xl p-5">
-          <h3 className="text-[15px] font-semibold text-[#111] mb-4">In house</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[15px] font-semibold text-[#111]">In house</h3>
+            <div className="flex items-center gap-3">
+              <span className="text-[12px] text-[#999]">{inHouse.length} staying</span>
+              <Link href="/reservations" className="text-[12px] font-medium text-[#888] hover:text-[#555] transition-colors">View all →</Link>
+            </div>
+          </div>
           {inHouse.length === 0 ? (
             <p className="text-[13px] text-[#999] py-4 text-center">No guests currently in house</p>
           ) : (

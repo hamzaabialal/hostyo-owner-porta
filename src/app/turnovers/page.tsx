@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import AppShell from "@/components/AppShell";
 import InventoryView from "@/components/InventoryView";
 import DateRangePicker from "@/components/DateRangePicker";
+import FilterDropdown from "@/components/FilterDropdown";
 import { useEffectiveSession } from "@/lib/useEffectiveSession";
 import { buildChecklist, countChecklistItems } from "@/lib/turnover-checklist";
 
@@ -120,8 +121,10 @@ export default function TurnoversPage() {
       finally { if (!cancelled) setLoading(false); }
     };
     loadAll();
-    // Live-refresh turnovers + issues every 15s so the progress bar reflects
-    // photos uploaded by the cleaner without the admin needing to refresh.
+    // Live-refresh turnovers + issues every 5s so the per-property "X / N
+    // completed" counter and the progress bar tick up almost immediately as
+    // the cleaner uploads photos. Issues are tracked alongside since the
+    // payload is the same call to /api/turnovers.
     const refreshLive = async () => {
       try {
         const [tData, iData] = await Promise.all([
@@ -133,8 +136,17 @@ export default function TurnoversPage() {
         setIssuesList(iData?.data || []);
       } catch { /* ignore */ }
     };
-    const interval = setInterval(refreshLive, 15000);
-    return () => { cancelled = true; clearInterval(interval); };
+    const interval = setInterval(refreshLive, 5000);
+    // Extra refresh trigger: when the tab becomes visible again (e.g. user
+    // switched back from another tab/app), pull immediately so they don't have
+    // to wait the next 5-second tick.
+    const onVisible = () => { if (document.visibilityState === "visible") refreshLive(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   // Compute the real total checklist item count for a property based on its
@@ -374,27 +386,26 @@ export default function TurnoversPage() {
               onFromChange={setFilterDateFrom}
               onToChange={setFilterDateTo}
             />
-            <select
+            <FilterDropdown
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none"
-            >
-              <option value="">All statuses</option>
-              <option value="Pending">Pending</option>
-              <option value="In progress">In progress</option>
-              <option value="Submitted">Submitted</option>
-              <option value="Completed">Completed</option>
-            </select>
-            <select
+              onChange={setFilterStatus}
+              placeholder="All statuses"
+              options={[
+                { value: "Pending", label: "Pending" },
+                { value: "In progress", label: "In progress" },
+                { value: "Submitted", label: "Submitted" },
+                { value: "Completed", label: "Completed" },
+              ]}
+            />
+            <FilterDropdown
               value={filterProperty}
-              onChange={(e) => setFilterProperty(e.target.value)}
-              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none max-w-[200px]"
-            >
-              <option value="">All properties</option>
-              {Array.from(new Set(cleaningCards.map((c) => c.propertyName))).sort().map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
+              onChange={setFilterProperty}
+              placeholder="All properties"
+              searchable
+              options={Array.from(new Set(cleaningCards.map((c) => c.propertyName)))
+                .sort()
+                .map((name) => ({ value: name, label: name }))}
+            />
             <button onClick={() => setShowAddTurnover(true)} className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg border border-[#e2e2e2] bg-white text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-all">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add turnover
@@ -500,23 +511,32 @@ export default function TurnoversPage() {
                 className="w-full h-[36px] pl-8 pr-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] placeholder:text-[#bbb] outline-none transition-colors bg-white"
               />
             </div>
-            <select value={issueStatusFilter} onChange={(e) => { setIssueStatusFilter(e.target.value); setIssuePage(1); }}
-              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none">
-              <option value="">All statuses</option>
-              <option value="Pending">Pending</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Resolved">Resolved</option>
-            </select>
-            <select value={issuePropertyFilter} onChange={(e) => { setIssuePropertyFilter(e.target.value); setIssuePage(1); }}
-              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none max-w-[200px]">
-              <option value="">All properties</option>
-              {issuePropertyOptions.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-            <select value={issueSort} onChange={(e) => setIssueSort(e.target.value as "created" | "severity")}
-              className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none">
-              <option value="created">Sort by created time</option>
-              <option value="severity">Sort by severity</option>
-            </select>
+            <FilterDropdown
+              value={issueStatusFilter}
+              onChange={(v) => { setIssueStatusFilter(v); setIssuePage(1); }}
+              placeholder="All statuses"
+              options={[
+                { value: "Pending", label: "Pending" },
+                { value: "In Progress", label: "In Progress" },
+                { value: "Resolved", label: "Resolved" },
+              ]}
+            />
+            <FilterDropdown
+              value={issuePropertyFilter}
+              onChange={(v) => { setIssuePropertyFilter(v); setIssuePage(1); }}
+              placeholder="All properties"
+              searchable
+              options={issuePropertyOptions.map((p) => ({ value: p, label: p }))}
+            />
+            <FilterDropdown
+              value={issueSort}
+              onChange={(v) => setIssueSort((v as "created" | "severity") || "created")}
+              placeholder="Sort by created time"
+              options={[
+                { value: "created", label: "Sort by created time" },
+                { value: "severity", label: "Sort by severity" },
+              ]}
+            />
             <button onClick={() => setShowAddIssue(true)} className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg border border-[#e2e2e2] bg-white text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-all">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add issue

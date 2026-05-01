@@ -51,7 +51,34 @@ export interface TurnoverRecord {
 
 const txt = (s?: string) => s ? [{ type: "text" as const, text: { content: s.slice(0, 2000) } }] : [];
 
-const MAX_TIMER_LOG_JSON_CHARS = 1800;
+/**
+ * Notion rich_text properties accept up to 100 text segments of 2000 chars
+ * each (~200,000 chars total). The single-segment `txt(...)` above silently
+ * truncated long values, which corrupted Items JSON the moment a turnover
+ * accumulated more than ~8 photos — every photo URL beyond the cliff was
+ * sliced mid-string, breaking JSON.parse and dropping the whole map.
+ *
+ * `txtChunked` splits an arbitrary-length string into the right number of
+ * 2000-char segments, capped at 100 segments to stay within Notion's limit.
+ * Reads are paired with `rtAll` (below) which concatenates all segments.
+ */
+const NOTION_RICH_TEXT_CHUNK = 2000;
+const NOTION_RICH_TEXT_MAX_SEGMENTS = 100;
+const txtChunked = (s?: string) => {
+  if (!s) return [];
+  const segments: { type: "text"; text: { content: string } }[] = [];
+  for (let i = 0; i < s.length && segments.length < NOTION_RICH_TEXT_MAX_SEGMENTS; i += NOTION_RICH_TEXT_CHUNK) {
+    segments.push({ type: "text" as const, text: { content: s.slice(i, i + NOTION_RICH_TEXT_CHUNK) } });
+  }
+  return segments;
+};
+
+/**
+ * Timer log is small (<2KB even for many sessions) so we keep the existing
+ * "shrink the array if necessary" semantics, but emit the result via
+ * `txtChunked` for safety in case of unusually long entries.
+ */
+const MAX_TIMER_LOG_JSON_CHARS = NOTION_RICH_TEXT_CHUNK * NOTION_RICH_TEXT_MAX_SEGMENTS;
 const txtJson = (value: unknown) => {
   try {
     let json = JSON.stringify(value);
@@ -62,7 +89,7 @@ const txtJson = (value: unknown) => {
         json = JSON.stringify(arr);
       }
     }
-    return json.length > 0 ? [{ type: "text" as const, text: { content: json.slice(0, 2000) } }] : [];
+    return txtChunked(json);
   } catch { return []; }
 };
 
@@ -77,7 +104,14 @@ function parseTimerLog(raw: string): TimerSession[] {
 
 export function pageToTurnover(page: any, issues: any[] = []): TurnoverRecord {
   const props = page.properties || {};
+  // Single-segment read for short fields where truncation never bites in practice.
   const rt = (p: any) => p?.rich_text?.[0]?.plain_text || "";
+  // Multi-segment read for fields written with `txtChunked` — joins every
+  // segment so the original string is reconstructed verbatim. Critical for
+  // Items JSON, which routinely exceeds 2000 chars on real turnovers.
+  const rtAll = (p: any) => Array.isArray(p?.rich_text)
+    ? p.rich_text.map((seg: any) => seg?.plain_text || "").join("")
+    : "";
   const title = (p: any) => p?.title?.[0]?.plain_text || "";
   const date = (p: any) => p?.date?.start || "";
   const status = (p: any) => p?.status?.name || "Pending";
@@ -85,10 +119,10 @@ export function pageToTurnover(page: any, issues: any[] = []): TurnoverRecord {
   const propertyId = props["Property"]?.relation?.[0]?.id || "";
   const departureDate = date(props["Departure Date"]);
 
-  // Parse Items JSON
+  // Parse Items JSON — concatenated across all rich_text segments.
   let items: Record<string, TurnoverPhoto[]> = {};
   try {
-    const raw = rt(props["Items JSON"]);
+    const raw = rtAll(props["Items JSON"]);
     if (raw) items = JSON.parse(raw);
   } catch { /* ignore */ }
 
@@ -107,7 +141,7 @@ export function pageToTurnover(page: any, issues: any[] = []): TurnoverRecord {
     statusVal === "Submitted" ? "Submitted" :
     statusVal === "In progress" ? "In progress" : "Pending";
 
-  const timerLog = parseTimerLog(rt(props["Timer Log"]));
+  const timerLog = parseTimerLog(rtAll(props["Timer Log"]));
 
   return {
     id: page.id,
@@ -199,7 +233,7 @@ export async function createTurnover(data: Partial<TurnoverRecord>) {
   if (data.cleanerName !== undefined) properties["Cleaner Name"] = { rich_text: txt(data.cleanerName) };
   if (data.cleanerToken !== undefined) properties["Cleaner Token"] = { rich_text: txt(data.cleanerToken) };
   if (data.notes !== undefined) properties["Notes"] = { rich_text: txt(data.notes) };
-  if (data.items !== undefined) properties["Items JSON"] = { rich_text: txt(JSON.stringify(data.items || {})) };
+  if (data.items !== undefined) properties["Items JSON"] = { rich_text: txtChunked(JSON.stringify(data.items || {})) };
   if (data.timerStartedAt) properties["Timer Started"] = { date: { start: data.timerStartedAt } };
   if (data.timerStoppedAt) properties["Timer Stopped"] = { date: { start: data.timerStoppedAt } };
 
@@ -217,7 +251,7 @@ export async function updateTurnover(pageId: string, updates: Partial<TurnoverRe
   if (updates.cleanerName !== undefined) properties["Cleaner Name"] = { rich_text: txt(updates.cleanerName) };
   if (updates.cleanerToken !== undefined) properties["Cleaner Token"] = { rich_text: txt(updates.cleanerToken) };
   if (updates.notes !== undefined) properties["Notes"] = { rich_text: txt(updates.notes) };
-  if (updates.items !== undefined) properties["Items JSON"] = { rich_text: txt(JSON.stringify(updates.items || {})) };
+  if (updates.items !== undefined) properties["Items JSON"] = { rich_text: txtChunked(JSON.stringify(updates.items || {})) };
   if (updates.timerStartedAt !== undefined) properties["Timer Started"] = updates.timerStartedAt ? { date: { start: updates.timerStartedAt } } : { date: null };
   if (updates.timerStoppedAt !== undefined) properties["Timer Stopped"] = updates.timerStoppedAt ? { date: { start: updates.timerStoppedAt } } : { date: null };
   if (updates.timerLog !== undefined) properties["Timer Log"] = { rich_text: txtJson(updates.timerLog) };
