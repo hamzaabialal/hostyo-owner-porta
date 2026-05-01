@@ -315,9 +315,6 @@ function ExpensesPageInner() {
   return (
     <AppShell title="Expenses">
       <MobileTabs tabs={FINANCE_TABS} />
-      <div className="text-[13px] text-[#888] mb-5 -mt-1 hidden md:block">
-        Expenses and deductions linked to your properties.
-      </div>
       {/* ── Group Tabs — ghost style ── */}
       <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 hide-scrollbar">
         {groupTabs.map((tab) => (

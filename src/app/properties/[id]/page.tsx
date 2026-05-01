@@ -909,16 +909,23 @@ export default function PropertyDetailPage() {
           const monthName = new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
           const fmt = (n: number) => `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+          // Each image renders inside a fixed 200px-tall tile with object-fit:contain
+          // so the full picture is visible (no cropping) and `image-orientation:from-image`
+          // honours the EXIF rotation that phone cameras embed in receipts. Without this,
+          // portrait phone photos came out rotated 90° and the wrapper had no enforceable
+          // upper bound, so a single receipt could span the whole page.
           const renderMedia = (url: string, i: number, label: string): string => {
             const isPdf = /\.pdf/i.test(url);
             if (isPdf) {
               const fname = url.split("/").pop() || `${label} ${i + 1}`;
-              return `<div style="display:flex;align-items:center;gap:8px;border:1px solid #e5e5e5;border-radius:8px;padding:14px;background:#fafafa;min-height:80px">
-                <span style="font-size:10px;font-weight:700;color:#80020E;background:#F6EDED;padding:3px 7px;border-radius:4px">PDF</span>
+              return `<div style="display:flex;align-items:center;gap:8px;border:1px solid #e5e5e5;border-radius:8px;padding:14px;background:#fafafa;height:200px;box-sizing:border-box">
+                <span style="font-size:10px;font-weight:700;color:#80020E;background:#F6EDED;padding:3px 7px;border-radius:4px;flex-shrink:0">PDF</span>
                 <span style="font-size:10px;color:#555;word-break:break-all">${fname}</span>
               </div>`;
             }
-            return `<img src="${url}" style="width:100%;height:100%;max-height:240px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e5;display:block" />`;
+            return `<div style="width:100%;height:200px;background:#f5f5f5;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;box-sizing:border-box">
+              <img src="${url}" alt="${label} ${i + 1}" style="max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-orientation:from-image;display:block" />
+            </div>`;
           };
 
           const renderMediaSection = (title: string, urls: string[], emptyText: string): string => {
@@ -926,9 +933,12 @@ export default function PropertyDetailPage() {
               return `<div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">${title}</div>
                 <div style="color:#bbb;font-size:10px;font-style:italic;margin-bottom:14px">${emptyText}</div>`;
             }
-            const items = urls.map((u, i) => `<div style="height:240px">${renderMedia(u, i, title)}</div>`).join("");
+            // Always use up to 3 columns so a single image sits at ~280px wide rather than
+            // stretching to the full content width.
+            const cols = Math.min(urls.length, 3);
+            const items = urls.map((u, i) => renderMedia(u, i, title)).join("");
             return `<div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">${title}</div>
-              <div style="display:grid;grid-template-columns:repeat(${Math.min(urls.length, 3)}, 1fr);gap:10px;margin-bottom:14px">${items}</div>`;
+              <div style="display:grid;grid-template-columns:repeat(${cols}, minmax(0, 280px));gap:10px;margin-bottom:14px;page-break-inside:avoid">${items}</div>`;
           };
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

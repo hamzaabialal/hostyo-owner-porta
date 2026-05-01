@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import FilterDropdown from "./FilterDropdown";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -72,6 +73,26 @@ function fmtRelativeTime(iso?: string): string {
     if (dayStart.getTime() === yesterday.getTime()) return `Yesterday at ${timeStr}`;
     return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   } catch { return iso; }
+}
+
+/**
+ * Strips emoji characters from a label for display. Admins sometimes paste
+ * names like "🛁 Bathroom" or "🧪 Toilet Paper" into Notion. We render the
+ * cleaned-up version everywhere on the inventory tab without mutating the
+ * stored data — so any external integration that relied on the original
+ * strings keeps working.
+ *
+ * Covers the common pictographic / dingbat / regional-flag / supplemental-symbols
+ * Unicode blocks plus the variation-selector (FE0F) that follows them. Whitespace
+ * runs are collapsed and trimmed so a leading-emoji name like "🍳 kitchen"
+ * displays as "kitchen" rather than " kitchen".
+ */
+function stripEmojis(s: string): string {
+  if (!s) return s;
+  return s
+    .replace(/[\u{1F300}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{1F1E6}-\u{1F1FF}\u{200D}]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function conditionColor(c?: string): { bg: string; text: string; dot: string } {
@@ -318,39 +339,46 @@ export default function InventoryView({ properties: initialProperties }: { prope
             className="w-full h-[36px] pl-8 pr-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] placeholder:text-[#bbb] outline-none transition-colors bg-white"
           />
         </div>
-        <select value={filterProperty} onChange={(e) => setFilterProperty(e.target.value)}
-          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none max-w-[180px]">
-          <option value="">All properties</option>
-          {propertyFilterOptions.map((p: Property) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
-          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none">
-          <option value="">All categories</option>
-          {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none">
-          <option value="">{isAssets ? "All conditions" : "All statuses"}</option>
-          {!isAssets ? (
-            <>
-              <option value="OK">OK</option>
-              <option value="Low">Low</option>
-              <option value="Out">Out of stock</option>
-            </>
-          ) : (
-            <>
-              <option value="Working">Working</option>
-              <option value="Damaged">Damaged</option>
-              <option value="Broken">Broken</option>
-            </>
-          )}
-        </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value as "checked" | "name" | "status")}
-          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none">
-          <option value="checked">Sort by last checked</option>
-          <option value="name">Sort by name</option>
-          <option value="status">{isAssets ? "Sort by condition" : "Sort by status"}</option>
-        </select>
+        <FilterDropdown
+          value={filterProperty}
+          onChange={setFilterProperty}
+          placeholder="All properties"
+          searchable
+          options={propertyFilterOptions.map((p: Property) => ({ value: p.id, label: stripEmojis(p.name || "") }))}
+        />
+        <FilterDropdown
+          value={filterCategory}
+          onChange={setFilterCategory}
+          placeholder="All categories"
+          options={allCategories.map((c) => ({ value: c, label: stripEmojis(c) }))}
+        />
+        <FilterDropdown
+          value={filterStatus}
+          onChange={setFilterStatus}
+          placeholder={isAssets ? "All conditions" : "All statuses"}
+          options={!isAssets
+            ? [
+              { value: "OK", label: "OK" },
+              { value: "Low", label: "Low" },
+              { value: "Out", label: "Out of stock" },
+            ]
+            : [
+              { value: "Working", label: "Working" },
+              { value: "Damaged", label: "Damaged" },
+              { value: "Broken", label: "Broken" },
+            ]
+          }
+        />
+        <FilterDropdown
+          value={sort}
+          onChange={(v) => setSort((v as "checked" | "name" | "status") || "checked")}
+          placeholder="Sort by last checked"
+          options={[
+            { value: "checked", label: "Sort by last checked" },
+            { value: "name", label: "Sort by name" },
+            { value: "status", label: isAssets ? "Sort by condition" : "Sort by status" },
+          ]}
+        />
         <button onClick={() => setAddingFor({ propertyId: cleaningProperties[0]?.id || "" })}
           className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg border border-[#e2e2e2] bg-white text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-all">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -470,7 +498,7 @@ export default function InventoryView({ properties: initialProperties }: { prope
                               className="flex items-center gap-1 text-[12px] font-bold text-[#111] normal-case tracking-normal hover:text-[#80020E] transition-colors">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
-                            <span className="text-[12px] font-bold text-[#111] normal-case tracking-normal">{cat.category}</span>
+                            <span className="text-[12px] font-bold text-[#111] normal-case tracking-normal">{stripEmojis(cat.category)}</span>
                             <span>Present</span>
                             <span>Condition</span>
                             <span>Last checked</span>
@@ -483,7 +511,7 @@ export default function InventoryView({ properties: initialProperties }: { prope
                               <button onClick={() => setCollapsedGroups((p) => ({ ...p, [groupKey]: !p[groupKey] }))}
                                 className="flex items-center gap-1.5 text-[12px] font-bold text-[#111] normal-case tracking-normal hover:text-[#80020E] transition-colors">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9"/></svg>
-                                {cat.category}
+                                {stripEmojis(cat.category)}
                               </button>
                               {propertySubcats.includes(cat.category) && (
                                 <button onClick={() => removeCategory(group.propertyId, cat.category)}
@@ -525,7 +553,7 @@ export default function InventoryView({ properties: initialProperties }: { prope
                             ))}
                             <div className="px-5 py-2 bg-white">
                               <button onClick={() => setAddingFor({ propertyId: group.propertyId, category: cat.category })}
-                                className="text-[11px] text-[#80020E] hover:underline font-medium">+ Add {isAssets ? "amenity" : "item"} to {cat.category}</button>
+                                className="text-[11px] text-[#80020E] hover:underline font-medium">+ Add {isAssets ? "amenity" : "item"} to {stripEmojis(cat.category)}</button>
                             </div>
                           </>
                         )}
@@ -611,9 +639,9 @@ function InventoryRow({ item, onUpdateLevel, onDelete }: {
   return (
     <div className="grid grid-cols-[minmax(200px,2fr)_120px_160px_120px_140px_120px_60px] gap-3 items-center px-5 py-2.5 text-[12px] hover:bg-[#fafafa] transition-colors">
       <div className="flex items-center gap-2 min-w-0">
-        <span className="font-medium text-[#111] truncate">{item.name}</span>
+        <span className="font-medium text-[#111] truncate">{stripEmojis(item.name)}</span>
       </div>
-      <span className="text-[#666]">{item.category}</span>
+      <span className="text-[#666]">{stripEmojis(item.category)}</span>
       <div className="flex items-center gap-1">
         <button onClick={() => onUpdateLevel(item.id, "currentLevel", -1)} className="w-6 h-6 flex items-center justify-center rounded border border-[#e2e2e2] text-[#666] hover:border-[#80020E] hover:text-[#80020E] transition-colors">
           <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -657,12 +685,26 @@ function AssetRow({ item, onPatch, onDelete, onViewAudit }: {
   onViewAudit: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [conditionOpen, setConditionOpen] = useState(false);
+  const conditionRef = useRef<HTMLDivElement>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const condition = item.condition || "Working";
   const present = item.present !== false;
   const cCol = conditionColor(condition);
   const historyCount = (item.photoHistory || []).length;
+
+  // Close the inline condition popover when clicking outside.
+  useEffect(() => {
+    if (!conditionOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (conditionRef.current && !conditionRef.current.contains(e.target as Node)) {
+        setConditionOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [conditionOpen]);
 
   const handleFile = async (file: File) => {
     setUploading(true);
@@ -718,7 +760,7 @@ function AssetRow({ item, onPatch, onDelete, onViewAudit }: {
 
       {/* Name */}
       <div className="flex items-center gap-2 min-w-0">
-        <span className="font-medium text-[#111] truncate">{item.name}</span>
+        <span className="font-medium text-[#111] truncate">{stripEmojis(item.name)}</span>
         {historyCount > 0 && (
           <button onClick={onViewAudit}
             title={`${historyCount} photo ${historyCount === 1 ? "entry" : "entries"} in audit trail`}
@@ -740,19 +782,57 @@ function AssetRow({ item, onPatch, onDelete, onViewAudit }: {
         </button>
       </div>
 
-      {/* Condition dropdown */}
-      <div className="relative inline-flex items-center">
-        <span className="absolute left-2.5 w-1.5 h-1.5 rounded-full pointer-events-none" style={{ backgroundColor: cCol.dot }} />
-        <select
-          value={condition}
-          onChange={(e) => onPatch(item.id, { condition: e.target.value as any })}
-          className="h-[28px] pl-6 pr-7 rounded-md border border-[#e2e2e2] bg-white text-[11px] font-semibold outline-none cursor-pointer"
+      {/* Condition dropdown — custom inline popover (instead of native `<select>`)
+          so the menu is always rendered with a white background and matches the
+          rest of the app, regardless of the user's OS dark-mode preference. */}
+      <div ref={conditionRef} className="relative inline-flex items-center">
+        <button
+          type="button"
+          onClick={() => setConditionOpen((o) => !o)}
+          className="h-[28px] pl-6 pr-7 rounded-md border border-[#e2e2e2] bg-white text-[11px] font-semibold cursor-pointer relative flex items-center hover:border-[#bbb] transition-colors"
           style={{ color: cCol.text }}
+          aria-haspopup="listbox"
+          aria-expanded={conditionOpen}
         >
-          <option value="Working">Working</option>
-          <option value="Damaged">Damaged</option>
-          <option value="Broken">Broken</option>
-        </select>
+          <span className="absolute left-2.5 w-1.5 h-1.5 rounded-full pointer-events-none" style={{ backgroundColor: cCol.dot }} />
+          {condition}
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5" className="absolute right-2 pointer-events-none">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        {conditionOpen && (
+          <div
+            className="absolute top-full mt-1 left-0 z-50 min-w-[140px] bg-white border border-[#e2e2e2] rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.08)] py-1"
+            role="listbox"
+          >
+            {(["Working", "Damaged", "Broken"] as const).map((c) => {
+              const oc = conditionColor(c);
+              const selected = c === condition;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => {
+                    onPatch(item.id, { condition: c });
+                    setConditionOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold text-left transition-colors ${selected ? "bg-[#fafafa]" : "hover:bg-[#f5f5f5]"}`}
+                  style={{ color: oc.text }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: oc.dot }} />
+                  <span className="flex-1">{c}</span>
+                  {selected && (
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="flex-shrink-0">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Last checked */}
@@ -791,8 +871,8 @@ function AssetAuditModal({ item, onClose }: { item: InventoryItem; onClose: () =
       <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[520px] max-h-[85vh] overflow-hidden flex flex-col">
         <div className="px-5 py-4 border-b border-[#eaeaea] flex items-center justify-between">
           <div>
-            <div className="text-[15px] font-bold text-[#111]">Photo trail · {item.name}</div>
-            <div className="text-[11px] text-[#888] mt-0.5">{item.category}</div>
+            <div className="text-[15px] font-bold text-[#111]">Photo trail · {stripEmojis(item.name)}</div>
+            <div className="text-[11px] text-[#888] mt-0.5">{stripEmojis(item.category)}</div>
           </div>
           <button onClick={onClose} className="p-1.5 text-[#999] hover:text-[#555]">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>

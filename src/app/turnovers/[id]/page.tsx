@@ -99,6 +99,11 @@ export default function TurnoverDetailPage() {
   // Live-refresh the turnover record so newly uploaded photos from the cleaner
   // show up without needing a manual page reload. Skip polling once the
   // turnover is Completed — nothing further can change at that point.
+  //
+  // Two triggers:
+  //   1. 5-second timer while the tab is visible.
+  //   2. `visibilitychange` — pull immediately when the user comes back from
+  //      another tab/app, so they don't wait the next 5-second tick.
   useEffect(() => {
     if (!propertyId || !departureDate) return;
     if (record?.status === "Completed") return;
@@ -109,8 +114,14 @@ export default function TurnoverDetailPage() {
         if (!cancelled && res?.data) setRecord(res.data);
       } catch { /* ignore */ }
     };
-    const interval = setInterval(tick, 10000);
-    return () => { cancelled = true; clearInterval(interval); };
+    const interval = setInterval(tick, 5000);
+    const onVisible = () => { if (document.visibilityState === "visible") tick(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [propertyId, departureDate, record?.status]);
 
   const checklist = useMemo<ChecklistCategory[]>(() => {

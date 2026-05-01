@@ -437,7 +437,6 @@ export default function FinancesEarningsPage() {
   return (
     <AppShell title="Earnings">
       <MobileTabs tabs={FINANCE_TABS} />
-      <div className="text-[13px] text-[#888] mb-6 -mt-1 hidden md:block">Detailed income from completed reservations and owner payouts.</div>
 
       {/* Mobile Filters */}
       <div className="flex items-center gap-2 mb-4 md:hidden flex-wrap">
