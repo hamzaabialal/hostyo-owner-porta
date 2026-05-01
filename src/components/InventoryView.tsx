@@ -82,17 +82,58 @@ function fmtRelativeTime(iso?: string): string {
  * stored data — so any external integration that relied on the original
  * strings keeps working.
  *
- * Covers the common pictographic / dingbat / regional-flag / supplemental-symbols
- * Unicode blocks plus the variation-selector (FE0F) that follows them. Whitespace
- * runs are collapsed and trimmed so a leading-emoji name like "🍳 kitchen"
- * displays as "kitchen" rather than " kitchen".
+ * Done with a manual code-point scan rather than a `/u` regex because the
+ * project's TS target is below ES6 and the unicode flag won't compile there.
+ * The scan walks the string one code point at a time, joining surrogate
+ * pairs by hand so multi-word emojis (which encode as a high+low surrogate
+ * pair in JS strings) are recognised as a single character. Code-point
+ * ranges covered:
+ *
+ *   U+1F300 – U+1F6FF  Misc Symbols / Pictographs / Transport
+ *   U+1F900 – U+1F9FF  Supplemental Symbols and Pictographs
+ *   U+1FA70 – U+1FAFF  Symbols and Pictographs Extended-A
+ *   U+2600  – U+27BF   Misc Symbols + Dingbats
+ *   U+1F1E6 – U+1F1FF  Regional Indicator (flag pieces)
+ *   U+FE0F             Variation Selector-16 (the "make-it-emoji" modifier)
+ *   U+200D             Zero-Width Joiner (binds family/profession emojis)
+ *
+ * Trailing/leading whitespace is trimmed and internal whitespace runs are
+ * collapsed so a leading-emoji name like "🍳 kitchen" displays as "kitchen"
+ * rather than " kitchen".
  */
 function stripEmojis(s: string): string {
   if (!s) return s;
-  return s
-    .replace(/[\u{1F300}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{1F1E6}-\u{1F1FF}\u{200D}]/gu, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  let out = "";
+  for (let i = 0; i < s.length; ) {
+    const c = s.charCodeAt(i);
+    let cp: number;
+    let len: number;
+    // Surrogate pair → combine high + low into a single supplementary code point.
+    if (c >= 0xD800 && c <= 0xDBFF && i + 1 < s.length) {
+      const c2 = s.charCodeAt(i + 1);
+      if (c2 >= 0xDC00 && c2 <= 0xDFFF) {
+        cp = ((c - 0xD800) * 0x400) + (c2 - 0xDC00) + 0x10000;
+        len = 2;
+      } else {
+        cp = c;
+        len = 1;
+      }
+    } else {
+      cp = c;
+      len = 1;
+    }
+    const isEmoji =
+      (cp >= 0x1F300 && cp <= 0x1F6FF) ||
+      (cp >= 0x1F900 && cp <= 0x1F9FF) ||
+      (cp >= 0x1FA70 && cp <= 0x1FAFF) ||
+      (cp >= 0x2600 && cp <= 0x27BF) ||
+      (cp >= 0x1F1E6 && cp <= 0x1F1FF) ||
+      cp === 0xFE0F ||
+      cp === 0x200D;
+    if (!isEmoji) out += s.substr(i, len);
+    i += len;
+  }
+  return out.replace(/\s+/g, " ").trim();
 }
 
 function conditionColor(c?: string): { bg: string; text: string; dot: string } {
