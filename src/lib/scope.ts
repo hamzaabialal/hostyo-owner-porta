@@ -20,9 +20,43 @@ export interface UserScope {
   isImpersonating?: boolean;
 }
 
-async function loadUserFromNotion(email: string): Promise<{ isAdmin: boolean; propertyNames: string[] } | null> {
+/**
+ * Reads the "Properties" allow-list off a Notion user page. Tolerant of
+ * different property types because admins occasionally swap the column from
+ * rich_text → plain text, multi_select, etc. Mirrors the auth route's
+ * tolerance so impersonated scope matches what the user would see if they
+ * logged in directly.
+ */
+function readPropertiesField(page: any): string[] {
+  const p = page?.properties?.["Properties"];
+  if (!p) return [];
+  let raw = "";
+  switch (p.type) {
+    case "rich_text": raw = p.rich_text?.[0]?.plain_text || ""; break;
+    case "title":     raw = p.title?.[0]?.plain_text || "";     break;
+    case "multi_select": return (p.multi_select || []).map((o: any) => String(o.name || "").trim().toLowerCase()).filter(Boolean);
+    case "select":    raw = p.select?.name || ""; break;
+    default:          raw = "";
+  }
+  return raw.split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+}
+
+interface NotionUserLookup {
+  isAdmin: boolean;
+  propertyNames: string[];
+}
+
+/**
+ * Returns `{ found: false }` when the user is missing in Notion (404),
+ * `{ found: true, ... }` when located, and `{ found: "error" }` when the
+ * lookup itself failed (network, rate limit, etc.). Callers that need to
+ * fail-closed during impersonation should treat "error" specially — we
+ * must NOT silently fall through to the admin's scope, which would leak
+ * the admin's data behind the impersonation banner.
+ */
+async function loadUserFromNotion(email: string): Promise<{ found: true; user: NotionUserLookup } | { found: false } | { found: "error" }> {
   const USERS_DB = process.env.NOTION_USERS_DB || "";
-  if (!USERS_DB || !email) return null;
+  if (!USERS_DB || !email) return { found: false };
   try {
     const notion = new Client({ auth: process.env.NOTION_API_KEY });
     const res: any = await notion.databases.query({
@@ -31,15 +65,18 @@ async function loadUserFromNotion(email: string): Promise<{ isAdmin: boolean; pr
       page_size: 1,
     });
     const page = res.results?.[0];
-    if (!page) return null;
-    const propsRaw = page.properties?.["Properties"]?.rich_text?.[0]?.plain_text || "";
-    const isAdmin = page.properties?.["Is Admin"]?.checkbox === true;
-    const propertyNames = propsRaw
-      .split(",")
-      .map((s: string) => s.trim().toLowerCase())
-      .filter(Boolean);
-    return { isAdmin, propertyNames };
-  } catch { return null; }
+    if (!page) return { found: false };
+    return {
+      found: true,
+      user: {
+        isAdmin: page.properties?.["Is Admin"]?.checkbox === true,
+        propertyNames: readPropertiesField(page),
+      },
+    };
+  } catch (err) {
+    console.error("[scope] loadUserFromNotion failed:", err instanceof Error ? err.message : err);
+    return { found: "error" };
+  }
 }
 
 /**
@@ -73,13 +110,24 @@ export async function getUserScope(req: NextRequest): Promise<UserScope | null> 
       const cookieValue = req.cookies.get(IMPERSONATE_COOKIE)?.value;
       const targetEmail = verifyImpersonation(cookieValue);
       if (targetEmail && targetEmail !== realEmail) {
-        const impersonated = await loadUserFromNotion(targetEmail);
-        if (impersonated && !impersonated.isAdmin) {
-          // Adopt the impersonated user's scope, but remember we're pretending.
+        const lookup = await loadUserFromNotion(targetEmail);
+        // Refuse impersonation only when we actively confirm the target is
+        // another admin. Anything else (found+owner, missing, or lookup error)
+        // honours the cookie — the alternative is silently leaking the
+        // admin's data behind the impersonation banner, which is exactly what
+        // owners reported when their finances showed €0 *and* the wrong
+        // profile name. Fail closed: empty propertyNames just means "no
+        // properties visible" rather than "everything visible".
+        const targetIsAdmin = lookup.found === true && lookup.user.isAdmin;
+        if (!targetIsAdmin) {
+          const propertyNamesForTarget = lookup.found === true ? lookup.user.propertyNames : [];
+          if (lookup.found !== true) {
+            console.warn(`[scope] honouring impersonation cookie for ${targetEmail} despite Notion lookup result=${lookup.found}; falling closed (no properties).`);
+          }
           return {
             isAdmin: false,
             email: targetEmail,
-            propertyNames: impersonated.propertyNames,
+            propertyNames: propertyNamesForTarget,
             realEmail,
             isImpersonating: true,
           };

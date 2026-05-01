@@ -784,17 +784,19 @@ function ExpensesPageInner() {
             exportExpensesCSV(filtered, `expenses-${new Date().toISOString().slice(0, 10)}.csv`);
           } else {
             const fmt = (n: number) => options.currency ? `€${Math.abs(n).toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : n.toFixed(2);
-            // Render a media item — image or PDF placeholder. Sized to fill its grid cell.
+            // Render a media item — image or PDF placeholder. Fixed-size cells (200x200)
+            // with object-fit:contain so phone-camera photos keep their aspect ratio
+            // and don't get stretched/cropped to a wide letterbox.
             const renderMedia = (url: string, i: number, label: string): string => {
               const isPdf = /\.pdf/i.test(url);
               if (isPdf) {
                 const fname = url.split("/").pop() || `${label} ${i + 1}`;
-                return `<div style="display:flex;align-items:center;gap:8px;border:1px solid #e5e5e5;border-radius:8px;padding:14px;background:#fafafa;min-height:80px">
+                return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1px solid #e5e5e5;border-radius:8px;padding:14px;background:#fafafa;width:100%;height:100%;text-align:center">
                   <span style="font-size:10px;font-weight:700;color:#80020E;background:#F6EDED;padding:3px 7px;border-radius:4px">PDF</span>
-                  <span style="font-size:10px;color:#555;word-break:break-all">${fname}</span>
+                  <span style="font-size:9px;color:#555;word-break:break-all;line-height:1.3">${fname}</span>
                 </div>`;
               }
-              return `<img src="${url}" style="width:100%;height:100%;max-height:240px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e5;display:block" />`;
+              return `<img src="${url}" style="width:100%;height:100%;object-fit:contain;background:#fafafa;border-radius:8px;border:1px solid #e5e5e5;display:block" />`;
             };
 
             const renderMediaSection = (title: string, urls: string[], emptyText: string): string => {
@@ -802,10 +804,9 @@ function ExpensesPageInner() {
                 return `<div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">${title}</div>
                   <div style="color:#bbb;font-size:10px;font-style:italic;margin-bottom:14px">${emptyText}</div>`;
               }
-              // Auto-fit grid: at least 200px wide, expand to fill row evenly. Cap at 3 per row.
-              const items = urls.map((u, i) => `<div style="height:240px">${renderMedia(u, i, title)}</div>`).join("");
+              const items = urls.map((u, i) => `<div style="width:200px;height:200px;flex:0 0 auto">${renderMedia(u, i, title)}</div>`).join("");
               return `<div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">${title}</div>
-                <div style="display:grid;grid-template-columns:repeat(${Math.min(urls.length, 3)}, 1fr);gap:10px;margin-bottom:14px">${items}</div>`;
+                <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">${items}</div>`;
             };
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

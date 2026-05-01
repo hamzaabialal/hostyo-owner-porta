@@ -434,10 +434,6 @@ export default function SettingsPage() {
 
   return (
     <AppShell title="Settings">
-      <div className="text-[13px] text-[#888] mb-6 -mt-1">
-        Manage your account, notifications, and security preferences.
-      </div>
-
       {/* Tabs */}
       <div className="flex gap-0 border-b border-[#eaeaea] mb-6">
         {TABS.map((t) => (

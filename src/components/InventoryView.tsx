@@ -12,7 +12,7 @@ export interface AssetPhotoEntry {
   url: string;
   uploadedAt: string;
   uploadedBy?: string;
-  condition?: "Working" | "Broken" | "Missing";
+  condition?: "Working" | "Damaged" | "Broken" | "Missing";
   note?: string;
 }
 
@@ -26,7 +26,7 @@ export interface InventoryItem {
   minimumLevel: number;
   status?: "OK" | "Low" | "Out" | "Missing" | "Damaged";
   present?: boolean;
-  condition?: "Working" | "Broken" | "Missing";
+  condition?: "Working" | "Damaged" | "Broken" | "Missing";
   photo?: string;
   photoHistory?: AssetPhotoEntry[];
   lastCheckedAt?: string;
@@ -74,23 +74,12 @@ function fmtRelativeTime(iso?: string): string {
   } catch { return iso; }
 }
 
-function categoryIcon(name: string): string {
-  const l = name.toLowerCase();
-  if (l.includes("cleaning")) return "🧴";
-  if (l.includes("kitchen")) return "🍳";
-  if (l.includes("bath")) return "🚿";
-  if (l.includes("guest")) return "🎁";
-  if (l.includes("laundry")) return "🧺";
-  if (l.includes("bedroom")) return "🛏️";
-  if (l.includes("living")) return "🛋️";
-  if (l.includes("hall")) return "🚪";
-  return "📦";
-}
-
 function conditionColor(c?: string): { bg: string; text: string; dot: string } {
   switch (c) {
     case "Working": return { bg: "#EAF3EF", text: "#2F6B57", dot: "#2F6B57" };
     case "Broken":  return { bg: "#F6EDED", text: "#B7484F", dot: "#B7484F" };
+    case "Damaged": return { bg: "#FBF1E2", text: "#8A6A2E", dot: "#D4A843" };
+    // Legacy value still rendered consistently with the warning palette.
     case "Missing": return { bg: "#FBF1E2", text: "#8A6A2E", dot: "#D4A843" };
     default:        return { bg: "#F1F1F1", text: "#666",    dot: "#bbb" };
   }
@@ -163,8 +152,11 @@ export default function InventoryView({ properties: initialProperties }: { prope
     let missingTotal = 0, brokenTotal = 0;
     for (const a of assets) {
       const c = a.condition || "Working";
-      if (c === "Missing") { missingTotal++; missingSet.add(a.propertyId); }
-      if (c === "Broken") { brokenTotal++; brokenSet.add(a.propertyId); }
+      // "Missing" amenities now come from the Present=No toggle (legacy
+      // condition === "Missing" still counts so older records aren't lost).
+      if (a.present === false || c === "Missing") { missingTotal++; missingSet.add(a.propertyId); }
+      // "Broken" stat now also picks up the new "Damaged" state.
+      if (c === "Broken" || c === "Damaged") { brokenTotal++; brokenSet.add(a.propertyId); }
     }
     return {
       low: { total: lowTotal, properties: lowSet.size },
@@ -323,21 +315,21 @@ export default function InventoryView({ properties: initialProperties }: { prope
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search inventory..."
-            className="w-full h-[36px] pl-8 pr-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] placeholder:text-[#bbb] outline-none focus:border-[#80020E] transition-colors bg-white"
+            className="w-full h-[36px] pl-8 pr-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] placeholder:text-[#bbb] outline-none transition-colors bg-white"
           />
         </div>
         <select value={filterProperty} onChange={(e) => setFilterProperty(e.target.value)}
-          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E] max-w-[180px]">
+          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none max-w-[180px]">
           <option value="">All properties</option>
           {propertyFilterOptions.map((p: Property) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
-          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E]">
+          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none">
           <option value="">All categories</option>
           {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E]">
+          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none">
           <option value="">{isAssets ? "All conditions" : "All statuses"}</option>
           {!isAssets ? (
             <>
@@ -348,19 +340,19 @@ export default function InventoryView({ properties: initialProperties }: { prope
           ) : (
             <>
               <option value="Working">Working</option>
+              <option value="Damaged">Damaged</option>
               <option value="Broken">Broken</option>
-              <option value="Missing">Missing</option>
             </>
           )}
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value as "checked" | "name" | "status")}
-          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none focus:border-[#80020E]">
+          className="h-[36px] px-3 border border-[#e2e2e2] rounded-lg text-[12px] text-[#333] bg-white outline-none">
           <option value="checked">Sort by last checked</option>
           <option value="name">Sort by name</option>
           <option value="status">{isAssets ? "Sort by condition" : "Sort by status"}</option>
         </select>
         <button onClick={() => setAddingFor({ propertyId: cleaningProperties[0]?.id || "" })}
-          className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg bg-[#80020E] text-white text-[12px] font-medium hover:bg-[#6b010c] transition-colors">
+          className="ml-auto flex items-center gap-1.5 h-[36px] px-3 rounded-lg border border-[#e2e2e2] bg-white text-[12px] font-medium text-[#555] hover:border-[#80020E] hover:text-[#80020E] transition-all">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           {isAssets ? "Add amenity" : "Add item"}
         </button>
@@ -460,7 +452,7 @@ export default function InventoryView({ properties: initialProperties }: { prope
                       if (sort === "name") return a.name.localeCompare(b.name);
                       if (sort === "status") {
                         if (isAssets) {
-                          const order = { "Broken": 0, "Missing": 1, "Working": 2 } as Record<string, number>;
+                          const order = { "Broken": 0, "Damaged": 1, "Missing": 2, "Working": 3 } as Record<string, number>;
                           return (order[a.condition || "Working"] ?? 9) - (order[b.condition || "Working"] ?? 9);
                         }
                         const order = { "Out": 0, "Low": 1, "Missing": 2, "Damaged": 3, "OK": 4 } as Record<string, number>;
@@ -477,7 +469,6 @@ export default function InventoryView({ properties: initialProperties }: { prope
                             <button onClick={() => setCollapsedGroups((p) => ({ ...p, [groupKey]: !p[groupKey] }))}
                               className="flex items-center gap-1 text-[12px] font-bold text-[#111] normal-case tracking-normal hover:text-[#80020E] transition-colors">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9"/></svg>
-                              <span>{categoryIcon(cat.category)}</span>
                             </button>
                             <span className="text-[12px] font-bold text-[#111] normal-case tracking-normal">{cat.category}</span>
                             <span>Present</span>
@@ -492,7 +483,6 @@ export default function InventoryView({ properties: initialProperties }: { prope
                               <button onClick={() => setCollapsedGroups((p) => ({ ...p, [groupKey]: !p[groupKey] }))}
                                 className="flex items-center gap-1.5 text-[12px] font-bold text-[#111] normal-case tracking-normal hover:text-[#80020E] transition-colors">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9"/></svg>
-                                <span>{categoryIcon(cat.category)}</span>
                                 {cat.category}
                               </button>
                               {propertySubcats.includes(cat.category) && (
@@ -621,7 +611,6 @@ function InventoryRow({ item, onUpdateLevel, onDelete }: {
   return (
     <div className="grid grid-cols-[minmax(200px,2fr)_120px_160px_120px_140px_120px_60px] gap-3 items-center px-5 py-2.5 text-[12px] hover:bg-[#fafafa] transition-colors">
       <div className="flex items-center gap-2 min-w-0">
-        <span className="text-[14px]">{categoryIcon(item.category)}</span>
         <span className="font-medium text-[#111] truncate">{item.name}</span>
       </div>
       <span className="text-[#666]">{item.category}</span>
@@ -752,16 +741,17 @@ function AssetRow({ item, onPatch, onDelete, onViewAudit }: {
       </div>
 
       {/* Condition dropdown */}
-      <div>
+      <div className="relative inline-flex items-center">
+        <span className="absolute left-2.5 w-1.5 h-1.5 rounded-full pointer-events-none" style={{ backgroundColor: cCol.dot }} />
         <select
           value={condition}
           onChange={(e) => onPatch(item.id, { condition: e.target.value as any })}
-          className="h-[26px] px-2 pr-6 rounded-full text-[10px] font-semibold outline-none border cursor-pointer"
-          style={{ backgroundColor: cCol.bg, color: cCol.text, borderColor: "transparent" }}
+          className="h-[28px] pl-6 pr-7 rounded-md border border-[#e2e2e2] bg-white text-[11px] font-semibold outline-none cursor-pointer"
+          style={{ color: cCol.text }}
         >
-          <option value="Working">● Working</option>
-          <option value="Broken">● Broken</option>
-          <option value="Missing">● Missing</option>
+          <option value="Working">Working</option>
+          <option value="Damaged">Damaged</option>
+          <option value="Broken">Broken</option>
         </select>
       </div>
 
@@ -866,7 +856,7 @@ function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, on
   const [name, setName] = useState("");
   const [currentLevel, setCurrentLevel] = useState(0);
   const [minimumLevel, setMinimumLevel] = useState(1);
-  const [condition, setCondition] = useState<"Working" | "Broken" | "Missing">("Working");
+  const [condition, setCondition] = useState<"Working" | "Damaged" | "Broken">("Working");
   const [present, setPresent] = useState(true);
   const [photo, setPhoto] = useState<string>("");
   const [uploading, setUploading] = useState(false);
@@ -992,10 +982,10 @@ function AddItemModal({ properties, defaultPropertyId, defaultCategory, kind, on
                 <div>
                   <label className="block text-[12px] font-medium text-[#555] mb-1.5">Condition</label>
                   <select value={condition} onChange={(e) => setCondition(e.target.value as any)}
-                    className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none focus:border-[#80020E]">
+                    className="w-full h-[40px] px-3 border border-[#e2e2e2] rounded-lg text-[13px] bg-white outline-none">
                     <option value="Working">Working</option>
+                    <option value="Damaged">Damaged</option>
                     <option value="Broken">Broken</option>
-                    <option value="Missing">Missing</option>
                   </select>
                 </div>
                 <div>

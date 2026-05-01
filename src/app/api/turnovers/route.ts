@@ -7,7 +7,7 @@ import {
   findTurnover, findTurnoverById, listTurnovers,
   createTurnover, updateTurnover, pageToTurnover,
 } from "@/lib/notion-turnovers";
-import { listAllIssues, listIssuesForTurnover, createIssue, setIssueResolved, pageToIssue } from "@/lib/notion-issues";
+import { listAllIssues, listIssuesForTurnover, createIssue, setIssueResolved, setIssueStatus, pageToIssue } from "@/lib/notion-issues";
 
 /** Lightweight property info index keyed by page id — used to enrich issues/turnovers. */
 async function buildPropertyIndex(): Promise<Map<string, { name: string; location: string; coverUrl: string }>> {
@@ -233,7 +233,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const { addPhoto, removePhoto, status, notes, addIssue, resolveIssue, startTimer, stopTimer, expireLink, approve } = body;
+    const { addPhoto, removePhoto, status, notes, addIssue, resolveIssue, setIssueStatus: issueStatusUpdate, startTimer, stopTimer, expireLink, approve } = body;
     const updates: Record<string, unknown> = {};
     const newItems = { ...currentRecord.items };
     let itemsChanged = false;
@@ -283,6 +283,12 @@ export async function PATCH(req: NextRequest) {
       if (notes !== undefined) updates.notes = notes;
       if (resolveIssue) {
         await setIssueResolved(resolveIssue, true);
+      }
+      if (issueStatusUpdate?.id && issueStatusUpdate?.status) {
+        const s = issueStatusUpdate.status;
+        if (s === "Pending" || s === "In Progress" || s === "Resolved") {
+          await setIssueStatus(issueStatusUpdate.id, s);
+        }
       }
       if (expireLink) {
         updates.cleanerToken = ""; // clearing token effectively expires the link

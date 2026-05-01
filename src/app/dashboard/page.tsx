@@ -105,8 +105,6 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="Today">
-      <p className="text-[13px] text-[#888] mb-6 -mt-1">A live view of today&apos;s activity across your portfolio</p>
-
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Link

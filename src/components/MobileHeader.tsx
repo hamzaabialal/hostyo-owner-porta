@@ -63,7 +63,8 @@ export default function MobileHeader({ title }: { title: string }) {
         <div className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/property-icons/ios_1024.png" alt="Hostyo" className="w-7 h-7 rounded-md object-contain" />
-          <h1 className="text-[15px] font-semibold text-[#111]">{title}</h1>
+          {/* Page title kept for accessibility but visually removed per design. */}
+          <h1 className="sr-only">{title}</h1>
         </div>
         <div className="flex items-center gap-1">
           {/* Help / Support — dispatches event to open the TopBar help drawer */}
