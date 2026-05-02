@@ -7,6 +7,31 @@ import { getUserScope, filterByScope } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Reads a Notion rich_text property as a single concatenated string,
+ * preserving content beyond the first 2000-char segment. We use this for the
+ * "Checklist Overrides" JSON blob — typical payloads are tiny but the format
+ * grows linearly with the number of toggled/custom items, and we want to
+ * avoid the silent-truncation bug we previously hit on Items JSON.
+ */
+function getRichTextAll(page: any, name: string): string {
+  const prop = page?.properties?.[name];
+  if (!prop || prop.type !== "rich_text" || !Array.isArray(prop.rich_text)) return "";
+  return prop.rich_text.map((seg: any) => seg?.plain_text || "").join("");
+}
+
+/** Chunks an arbitrary-length string into Notion's 2000-char rich_text segments. */
+const CHECKLIST_RT_CHUNK = 2000;
+const CHECKLIST_RT_MAX_SEGMENTS = 100;
+function richTextChunked(s?: string) {
+  if (!s) return [];
+  const out: { type: "text"; text: { content: string } }[] = [];
+  for (let i = 0; i < s.length && out.length < CHECKLIST_RT_MAX_SEGMENTS; i += CHECKLIST_RT_CHUNK) {
+    out.push({ type: "text" as const, text: { content: s.slice(i, i + CHECKLIST_RT_CHUNK) } });
+  }
+  return out;
+}
+
 async function fetchProperties() {
   const pages = await queryDatabase(DB.properties);
 
@@ -72,6 +97,10 @@ async function fetchProperties() {
       amenities: getProp(p, "Amenities") || [],
       // Per-apartment stock subcategories (multi-select)
       stockSubcategories: getProp(p, "Stock Subcategories") || [],
+      // Per-property turnover-checklist overrides (JSON in rich_text). The
+      // raw string is shipped as-is; the client parses it via
+      // `parseChecklistOverrides()` before merging into buildChecklist().
+      checklistOverrides: getRichTextAll(p, "Checklist Overrides"),
     };
   });
 }
@@ -223,6 +252,12 @@ export async function PATCH(request: NextRequest) {
         multi_select: updates.stockSubcategories.map((name: string) => ({ name })),
       };
     }
+    // Per-property turnover-checklist overrides (JSON blob, chunked into
+    // Notion's 2000-char rich_text segments so a long override list never
+    // truncates).
+    if (typeof updates.checklistOverrides === "string") {
+      properties["Checklist Overrides"] = { rich_text: richTextChunked(updates.checklistOverrides) };
+    }
 
     if (Object.keys(properties).length === 0) {
       return NextResponse.json({ error: "No recognised updates" }, { status: 400 });
@@ -291,6 +326,7 @@ export async function PATCH(request: NextRequest) {
       hallway: getProp(page, "Hallway") === true,
       amenities: getProp(page, "Amenities") || [],
       stockSubcategories: getProp(page, "Stock Subcategories") || [],
+      checklistOverrides: getRichTextAll(page, "Checklist Overrides"),
     };
     return NextResponse.json({ ok: true, property });
   } catch (error: any) {

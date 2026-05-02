@@ -185,6 +185,9 @@ export default function CleanerPage() {
       balcony: property.balcony,
       hallway: property.hallway,
       amenities: property.amenities,
+      // Admin-defined per-property additions / disables. The string is parsed
+      // inside buildChecklist; the cleaner just sees the merged result.
+      checklistOverrides: property.checklistOverrides,
     });
   }, [property]);
 

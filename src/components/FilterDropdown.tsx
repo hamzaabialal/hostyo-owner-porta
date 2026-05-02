@@ -29,7 +29,13 @@ export default function FilterDropdown({
   const listRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const allItems: Option[] = [{ value: "", label: placeholder, icon: placeholderIcon }, ...options];
+  // Memoise so the array isn't a fresh reference on every render — that
+  // would invalidate `filteredItems`'s memo too and trigger ESLint's
+  // exhaustive-deps warning.
+  const allItems = useMemo<Option[]>(
+    () => [{ value: "", label: placeholder, icon: placeholderIcon }, ...options],
+    [placeholder, placeholderIcon, options],
+  );
 
   const filteredItems = useMemo(() => {
     if (!searchable || !searchQuery.trim()) return allItems;

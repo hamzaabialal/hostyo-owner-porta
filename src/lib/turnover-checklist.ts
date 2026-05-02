@@ -337,11 +337,61 @@ function buildAmenitiesCategory(amenityNames: string[]): ChecklistCategory | nul
 }
 
 /**
+ * Per-property checklist customisation. Stored as a JSON blob in the
+ * `Checklist Overrides` rich_text property on each Notion property record.
+ *
+ * Two operations are supported in v1:
+ *   - `disabled` — list of full item keys (`category.subcategory.item`) to
+ *     skip on this property's turnovers. Used to suppress items that don't
+ *     apply (e.g. dishwasher checks on a property with no dishwasher).
+ *   - `added`    — extra items appended to a built-in subcategory. Each
+ *     custom item is keyed by `category.subcategory.custom-<id>` so it
+ *     survives label edits without losing its photo state.
+ *
+ * Future v2 additions could cover renaming, reordering, or whole new
+ * subcategories — not implemented yet to keep the editor UX simple.
+ */
+export interface ChecklistOverrides {
+  disabled?: string[];
+  added?: { categoryId: string; subcategoryId: string; id: string; label: string }[];
+}
+
+/** Parses the JSON blob from the `Checklist Overrides` Notion field, returning
+ *  an empty overrides object on any error so callers can always merge safely. */
+export function parseChecklistOverrides(raw: string | null | undefined): ChecklistOverrides {
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object") return {};
+    return {
+      disabled: Array.isArray(obj.disabled) ? obj.disabled.filter((k: unknown) => typeof k === "string") : [],
+      added: Array.isArray(obj.added)
+        ? obj.added.filter((e: unknown): e is { categoryId: string; subcategoryId: string; id: string; label: string } => {
+            if (!e || typeof e !== "object") return false;
+            const r = e as Record<string, unknown>;
+            return typeof r.categoryId === "string"
+              && typeof r.subcategoryId === "string"
+              && typeof r.id === "string"
+              && typeof r.label === "string";
+          })
+        : [],
+    };
+  } catch { return {}; }
+}
+
+/**
  * Build the full checklist for a property. Sections are included based on the
  * property's configuration:
  *   - Bedrooms & Bathrooms: repeated per room-count
  *   - Living Room / Balcony / Hallway: included only if the flag is true
  *   - Amenities: one subcategory listing each selected amenity
+ *
+ * If `checklistOverrides` is provided, items in `overrides.disabled` are
+ * removed from the result and items in `overrides.added` are appended to the
+ * matching subcategory. Disabling targets specific room instances by their
+ * full categoryId (e.g. `bedroom-2.linen.duvet-condition...`). Custom items
+ * land at the bottom of their host subcategory so the curated default order
+ * is preserved.
  */
 export function buildChecklist(property: {
   bedrooms?: number;
@@ -350,6 +400,7 @@ export function buildChecklist(property: {
   balcony?: boolean;
   hallway?: boolean;
   amenities?: string[];
+  checklistOverrides?: ChecklistOverrides | string | null;
 }): ChecklistCategory[] {
   const bedCount = Math.max(1, property.bedrooms || 1);
   const bathCount = Math.max(1, property.bathrooms || 1);
@@ -390,7 +441,48 @@ export function buildChecklist(property: {
   const amen = buildAmenitiesCategory(property.amenities || []);
   if (amen) categories.push(amen);
 
-  return categories;
+  // Apply per-property overrides on top of the curated default. Accepts both a
+  // pre-parsed object (preferred) and the raw JSON string straight from
+  // Notion, so callers don't all need to know how the override is stored.
+  const overrides: ChecklistOverrides = (() => {
+    const o = property.checklistOverrides;
+    if (!o) return {};
+    if (typeof o === "string") return parseChecklistOverrides(o);
+    return o;
+  })();
+  return applyChecklistOverrides(categories, overrides);
+}
+
+/** Internal helper — merges overrides onto a built category list. Exported
+ *  so the editor UI can preview "what the cleaner will see" without going
+ *  back through buildChecklist (which would double-apply). */
+export function applyChecklistOverrides(
+  categories: ChecklistCategory[],
+  overrides: ChecklistOverrides,
+): ChecklistCategory[] {
+  if (!overrides.disabled?.length && !overrides.added?.length) return categories;
+
+  const disabledSet = new Set(overrides.disabled || []);
+  // Index custom items by `${catId}__${subId}` so we can append in one pass.
+  const addedBySub = new Map<string, ChecklistItem[]>();
+  for (const a of overrides.added || []) {
+    const k = `${a.categoryId}__${a.subcategoryId}`;
+    const list = addedBySub.get(k) || [];
+    // Custom IDs must be unique within their subcategory; if the user has
+    // duplicated one (rare, but possible during fast successive saves) we
+    // keep the first wins to preserve any photo state already attached.
+    if (!list.some((i) => i.id === a.id)) list.push({ id: a.id, label: a.label });
+    addedBySub.set(k, list);
+  }
+
+  return categories.map((cat) => ({
+    ...cat,
+    subcategories: cat.subcategories.map((sub) => {
+      const filtered = sub.items.filter((it) => !disabledSet.has(itemKey(cat.id, sub.id, it.id)));
+      const extras = addedBySub.get(`${cat.id}__${sub.id}`) || [];
+      return { ...sub, items: extras.length ? [...filtered, ...extras] : filtered };
+    }),
+  }));
 }
 
 /** Total item count across all categories (used for progress %) */

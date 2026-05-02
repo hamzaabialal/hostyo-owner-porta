@@ -8,6 +8,7 @@ import { useEffectiveSession } from "@/lib/useEffectiveSession";
 import ChannelBadge from "@/components/ChannelBadge";
 import { useData } from "@/lib/DataContext";
 import { fetchDocuments, addDocument, removeDocument, formatFileSize, type PropertyDocument } from "@/lib/documents";
+import PropertyChecklistEditor from "@/components/PropertyChecklistEditor";
 import { reconcileProperty } from "@/lib/reconcile";
 import { openPrintPreview } from "@/lib/printPreview";
 
@@ -245,7 +246,7 @@ export default function PropertyDetailPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "reservations" | "earnings" | "expenses" | "documents" | "turnovers">("overview");
+  const [tab, setTab] = useState<"overview" | "reservations" | "earnings" | "expenses" | "documents" | "turnovers" | "checklist">("overview");
   const { data: session } = useSession();
   void session;
   const { isAdmin } = useEffectiveSession();
@@ -393,6 +394,9 @@ export default function PropertyDetailPage() {
     { key: "expenses" as const, label: "Expenses" },
     { key: "documents" as const, label: "Documents" },
     ...(isAdmin && property?.cleaning ? [{ key: "turnovers" as const, label: "Turnovers" }] : []),
+    // Checklist editor — admin only, only when cleaning is enabled (otherwise
+    // there's no checklist for this property).
+    ...(isAdmin && property?.cleaning ? [{ key: "checklist" as const, label: "Checklist" }] : []),
   ];
 
   return (
@@ -1453,6 +1457,14 @@ export default function PropertyDetailPage() {
           </div>
         );
       })()}
+
+      {/* ═══ Checklist Tab (admin, cleaning-enabled only) ═══ */}
+      {tab === "checklist" && isAdmin && property?.cleaning && (
+        <PropertyChecklistEditor
+          property={property}
+          onSaved={(fresh) => { if (fresh) setProperty({ ...property, ...fresh }); }}
+        />
+      )}
 
       {/* Edit modals (admin only) */}
       {isAdmin && editSpaces && (

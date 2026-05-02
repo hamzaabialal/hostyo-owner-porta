@@ -133,6 +133,7 @@ export default function TurnoverDetailPage() {
       balcony: property.balcony,
       hallway: property.hallway,
       amenities: property.amenities,
+      checklistOverrides: property.checklistOverrides,
     });
   }, [property]);
 
