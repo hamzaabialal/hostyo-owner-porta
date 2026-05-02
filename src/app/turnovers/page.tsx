@@ -162,6 +162,7 @@ export default function TurnoversPage() {
         balcony: p.balcony,
         hallway: p.hallway,
         amenities: p.amenities,
+        checklistOverrides: p.checklistOverrides,
       }));
     } catch { return 0; }
   };

@@ -23,6 +23,13 @@ async function fetchPropertyInfo(propertyId: string) {
     const city = getProp(page, "City") || "";
     const country = getProp(page, "Country") || "";
     const address = getProp(page, "Address") || "";
+    // Concatenate every rich_text segment of "Checklist Overrides" so a
+    // long override payload is delivered intact (Notion stores rich_text in
+    // 2000-char chunks; getProp would return only the first one).
+    const overridesProp: any = page.properties?.["Checklist Overrides"];
+    const checklistOverrides = overridesProp?.type === "rich_text" && Array.isArray(overridesProp.rich_text)
+      ? overridesProp.rich_text.map((seg: any) => seg?.plain_text || "").join("")
+      : "";
     return {
       propertyName: getProp(page, "Name") || "",
       propertyLocation: [city, country].filter(Boolean).join(", ") || address || "",
@@ -33,6 +40,7 @@ async function fetchPropertyInfo(propertyId: string) {
       balcony: getProp(page, "Balcony") === true,
       hallway: getProp(page, "Hallway") === true,
       amenities: getProp(page, "Amenities") || [],
+      checklistOverrides,
     };
   } catch { return null; }
 }
