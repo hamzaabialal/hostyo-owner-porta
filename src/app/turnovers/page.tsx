@@ -107,7 +107,10 @@ export default function TurnoversPage() {
     const loadAll = async () => {
       try {
         const [pData, rData, tData, iData] = await Promise.all([
-          fetch("/api/properties").then((r) => r.json()),
+          // ?fresh=1 — pick up per-property checklist overrides immediately
+          // so the "0 / N completed" denominator on each card matches the
+          // admin's most recent edits.
+          fetch("/api/properties?fresh=1").then((r) => r.json()),
           fetch("/api/reservations").then((r) => r.json()),
           fetch("/api/turnovers").then((r) => r.json()).catch(() => ({ data: [] })),
           fetch("/api/turnovers?issues=1").then((r) => r.json()).catch(() => ({ data: [] })),

@@ -81,7 +81,11 @@ export default function TurnoverDetailPage() {
   const loadAll = useCallback(async () => {
     try {
       const [pRes, rRes, tRes] = await Promise.all([
-        fetch("/api/properties").then((r) => r.json()),
+        // ?fresh=1 — bust the server cache so any per-property checklist
+        // override the admin saved on another tab is reflected here without
+        // having to wait out the 2-minute TTL or get lucky with serverless
+        // instance routing.
+        fetch("/api/properties?fresh=1").then((r) => r.json()),
         fetch("/api/reservations").then((r) => r.json()),
         fetch(`/api/turnovers?propertyId=${encodeURIComponent(propertyId)}&departureDate=${encodeURIComponent(departureDate)}`).then((r) => r.json()),
       ]);

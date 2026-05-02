@@ -114,6 +114,16 @@ export async function GET(req: NextRequest) {
     const scope = await getUserScope(req);
     if (!scope) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // `?fresh=1` busts the in-memory cache so the next read goes straight to
+    // Notion. We need this whenever the caller knows it just wrote (e.g. the
+    // checklist editor), or whenever stale data would silently hide a recent
+    // change (e.g. the turnover detail page reading per-property overrides
+    // right after the admin updated them on another tab).
+    const url = new URL(req.url);
+    if (url.searchParams.get("fresh") === "1") {
+      invalidate("properties");
+    }
+
     const properties = await cached("properties", fetchProperties);
     const scoped = filterByScope(scope, properties, (p: any) => p.name || "");
     return NextResponse.json({ source: "notion", data: scoped });
