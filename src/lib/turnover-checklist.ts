@@ -366,14 +366,14 @@ export function parseChecklistOverrides(raw: string | null | undefined): Checkli
     return {
       disabled: Array.isArray(obj.disabled) ? obj.disabled.filter((k: unknown) => typeof k === "string") : [],
       added: Array.isArray(obj.added)
-        ? obj.added.filter(
-            (e: any) =>
-              e && typeof e === "object" &&
-              typeof e.categoryId === "string" &&
-              typeof e.subcategoryId === "string" &&
-              typeof e.id === "string" &&
-              typeof e.label === "string"
-          )
+        ? obj.added.filter((e: unknown): e is { categoryId: string; subcategoryId: string; id: string; label: string } => {
+            if (!e || typeof e !== "object") return false;
+            const r = e as Record<string, unknown>;
+            return typeof r.categoryId === "string"
+              && typeof r.subcategoryId === "string"
+              && typeof r.id === "string"
+              && typeof r.label === "string";
+          })
         : [],
     };
   } catch { return {}; }

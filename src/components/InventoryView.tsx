@@ -928,8 +928,8 @@ function AssetAuditModal({ item, onClose }: { item: InventoryItem; onClose: () =
               return (
                 <div key={i} className="flex gap-3 p-3 rounded-xl border border-[#eee] bg-[#fafafa]">
                   {e.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <a href={e.url} target="_blank" rel="noreferrer" className="shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={e.url} alt="" className="w-20 h-20 rounded-lg object-cover border border-[#eaeaea]" />
                     </a>
                   ) : (
